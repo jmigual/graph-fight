@@ -1,11 +1,13 @@
 use std::cmp::PartialOrd;
 use std::ops::Add;
+use std::ops::Sub;
 
 pub struct Point {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
+#[allow(dead_code)]
 impl Point {
     pub fn new(x: f64, y: f64) -> Point {
         Point { x, y }
@@ -17,12 +19,16 @@ impl Point {
 
         Point { x, y }
     }
+
+    pub fn distance_to(&self, other: &Point) -> f64 {
+        ((self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)).sqrt()
+    }
 }
 
-impl Add for Point {
+impl Add<&Point> for Point {
     type Output = Self;
 
-    fn add(self, rhs: Point) -> Self {
+    fn add(self, rhs: &Point) -> Self {
         Point {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
@@ -30,9 +36,15 @@ impl Add for Point {
     }
 }
 
-pub struct Circle {
-    pos: Point,
-    radius: f32,
+impl Sub<&Point> for Point {
+    type Output = Self;
+
+    fn sub(self, rhs: &Point) -> Self {
+        Point {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
 }
 
 pub struct Range<T: PartialOrd> {
