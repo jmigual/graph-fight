@@ -1,6 +1,7 @@
 mod player;
 
 use wasm_bindgen::prelude::*;
+
 use crate::geometry::*;
 use crate::utils;
 
@@ -120,12 +121,9 @@ impl Game {
         Err(utils::NotFoundError::new("No valid position found"))
     }
 
-    // pub fn team_a(&self) -> Vec<Player> {
-    //     // JsValue::from_serde(&self.team_a).unwrap()
-    //     self.team_a.clone()
-    // }
+    pub fn draw(canvas: web_sys::HtmlCanvasElement) {
 
-    pub fn player_a(&self, i: usize) -> Player {
-        self.team_a[i].clone()
+        
+
     }
 }

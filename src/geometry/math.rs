@@ -32,6 +32,7 @@ impl Point {
     pub fn distance_to(&self, other: &Point) -> f64 {
         ((self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)).sqrt()
     }
+
 }
 
 impl Add<&Point> for Point {
@@ -56,12 +57,12 @@ impl Sub<&Point> for Point {
     }
 }
 
-pub struct Range<T: PartialOrd> {
+pub struct Range<T: PartialOrd = f64> {
     min: T,
     max: T,
 }
 
-impl<T: PartialOrd + Copy> Range<T> {
+impl<T: num::Float> Range<T> {
     pub fn new(min: T, max: T) -> Range<T> {
         if min > max {
             panic!("min must be smaller or equal than max");
@@ -76,5 +77,36 @@ impl<T: PartialOrd + Copy> Range<T> {
 
     pub fn max(&self) -> T {
         self.max
+    }
+
+    pub fn width(&self) -> T {
+        self.max - self.min
+    }
+
+    pub fn interpolate(&self, x: T) -> T {
+        (x - self.min) / self.width()
+    }
+}
+
+pub struct CanvasHelper {
+    c_x_size: u32,
+    c_y_size: u32,
+
+    g_x_range: Range,
+    g_y_range: Range
+}
+
+impl CanvasHelper {
+    pub fn map_point(&self, p: &Point) -> (u32, u32) {
+        // Canvas coordinates go from left to right and top to bottom while our coordinates
+        // go from left to right and bottom to top
+
+        let mut x = self.g_x_range.interpolate(p.x);
+        let mut y = self.g_x_range.interpolate(p.y);
+
+        x *= self.c_x_size as f64;
+        y *= self.c_y_size as f64;
+
+        (x.round() as u32, y.round() as u32)
     }
 }
