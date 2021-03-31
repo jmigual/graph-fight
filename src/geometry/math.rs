@@ -1,17 +1,26 @@
 use std::cmp::PartialOrd;
-use std::ops::Add;
-use std::ops::Sub;
+use std::ops::{Add, Sub};
+use serde::{Serialize, Deserialize};
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
+#[wasm_bindgen]
 #[allow(dead_code)]
 impl Point {
+    #[wasm_bindgen(constructor)]
     pub fn new(x: f64, y: f64) -> Point {
         Point { x, y }
     }
+}
+
+#[allow(dead_code)]
+impl Point {
 
     pub fn random(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
         let x = rand::random::<f64>() * (x_range.max() - x_range.min());
