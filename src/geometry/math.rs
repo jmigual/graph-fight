@@ -29,7 +29,8 @@ impl Point {
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {
-        ((self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)).sqrt()
+        let result = ((self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)).sqrt();
+        result
     }
 }
 

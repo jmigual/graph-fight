@@ -1,4 +1,4 @@
-mod game;
+pub mod game;
 mod geometry;
 mod utils;
 
