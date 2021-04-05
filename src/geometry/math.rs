@@ -127,3 +127,18 @@ impl CanvasHelper {
     }
 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_distance() {
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(10.0, 10.0);
+
+        let distance = a.distance_to(&b);
+
+        assert!(distance >= 14.14 && distance <= 14.15);
+    }
+}

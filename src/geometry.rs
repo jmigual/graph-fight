@@ -71,3 +71,15 @@ impl Obstacle {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_collision_no() {
+        let a = Circle::new(Point::new(0.0, 0.0), 5.0);
+        let b = Circle::new(Point::new(10.0, 10.0), 5.0);
+
+        assert_eq!(a.collision(&b), false);
+    }
+}
