@@ -23,6 +23,10 @@ impl Circle {
     pub fn pos_js(&self) -> Point {
         self.pos.clone()
     }
+
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
 }
 
 impl Circle {

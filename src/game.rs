@@ -7,6 +7,12 @@ use crate::utils;
 
 pub use self::player::*;
 
+mod style {
+    pub mod colour {
+        pub const BACKGROUND: &str = "#FFF";
+    }
+}
+
 #[wasm_bindgen]
 pub struct Game {
     team_a: Vec<Player>,
@@ -121,9 +127,17 @@ impl Game {
         Err(utils::NotFoundError::new("No valid position found"))
     }
 
-    pub fn draw(canvas: web_sys::HtmlCanvasElement) {
+    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
+        let helper = math::CanvasHelper::new(&canvas, self.x_max, self.y_max);
 
-        
+        // Draw background
+        let ctx = utils::ctx_from_canvas(&canvas);
 
+        ctx.set_fill_style(&JsValue::from_str(style::colour::BACKGROUND));
+        ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
+
+        for player in &self.team_a {
+            player.draw(&canvas, &helper);
+        }
     }
 }

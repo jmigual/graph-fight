@@ -1,4 +1,5 @@
 use std::fmt;
+use wasm_bindgen::JsCast;
 
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -13,12 +14,14 @@ pub fn set_panic_hook() {
 
 #[derive(Debug, Clone)]
 pub struct NotFoundError {
-    message: String
+    message: String,
 }
 
 impl NotFoundError {
     pub fn new(message: &str) -> NotFoundError {
-        NotFoundError { message: String::from(message) }
+        NotFoundError {
+            message: String::from(message),
+        }
     }
 
     pub fn message(&self) -> &str {
@@ -32,4 +35,11 @@ impl fmt::Display for NotFoundError {
     }
 }
 
-
+pub fn ctx_from_canvas(canvas: &web_sys::HtmlCanvasElement) -> web_sys::CanvasRenderingContext2d {
+    canvas
+        .get_context("2d")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .unwrap()
+}
