@@ -82,4 +82,12 @@ mod tests {
 
         assert_eq!(a.collision(&b), false);
     }
+
+    #[test]
+    fn test_collision_yes() {
+        let a = Circle::new(Point::new(0.0, 0.0), 5.0);
+        let b = Circle::new(Point::new(5.0, 0.0), 5.0);
+
+        assert_eq!(a.collision(&b), true);
+    }
 }

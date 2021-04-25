@@ -91,7 +91,7 @@ impl Game {
     }
 
     fn is_valid_pos(&self, shape: &Circle) -> bool {
-        let f = |p: &Player| p.shape().collision(shape);
+        let f = |p: &Player| !p.shape().collision(shape);
 
         if !self.team_a.iter().all(f) {
             return false;

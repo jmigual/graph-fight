@@ -29,29 +29,50 @@ impl Point {
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {
-        let result = ((self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)).sqrt();
-        result
+        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 }
 
-impl Add<&Point> for Point {
-    type Output = Self;
+impl Add for &Point {
+    type Output = Point;
 
-    fn add(self, rhs: &Point) -> Self {
-        Point {
+    fn add(self, rhs: &Point) -> Self::Output {
+        Self::Output {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
         }
     }
 }
 
-impl Sub<&Point> for Point {
+impl Add for Point {
     type Output = Self;
 
-    fn sub(self, rhs: &Point) -> Self {
-        Point {
+    fn add(self, rhs: Point) -> Self::Output {
+        Self::Output {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y
+        }
+    }
+}
+
+impl Sub for Point {
+    type Output = Self;
+
+    fn sub(self, rhs: Point) -> Self::Output {
+        Self::Output {
             x: self.x - rhs.x,
-            y: self.y - rhs.y,
+            y: self.y - rhs.y
+        }
+    }
+}
+
+impl Sub for &Point {
+    type Output = Point;
+    
+    fn sub(self, rhs: &Point) -> Self::Output {
+        Self::Output {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y
         }
     }
 }
@@ -140,5 +161,17 @@ mod tests {
         let distance = a.distance_to(&b);
 
         assert!(distance >= 14.14 && distance <= 14.15);
+    }
+
+    #[test]
+    fn test_sub() {
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(10.0, 5.0);
+        
+        let c = &a - &b;
+        assert!(c.x <= -9.99 && c.x >= -10.01 && c.y <= -4.99 && c.y >= -5.01);
+
+        let c = a - b;
+        assert!(c.x <= -9.99 && c.x >= -10.01 && c.y <= -4.99 && c.y >= -5.01);
     }
 }
