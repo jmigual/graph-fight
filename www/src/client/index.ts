@@ -11,7 +11,7 @@ function draw(timestamp: number) {
 
 
 function main() {
-    game = new wasm.Game(20, 10, 2, .2, 4, 4, .05);
+    game = new wasm.Game(20, 10, 2, .2, 4, 4, .2);
     window.requestAnimationFrame(draw);
 }
 

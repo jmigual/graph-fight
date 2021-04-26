@@ -22,8 +22,8 @@ impl Point {
 #[allow(dead_code)]
 impl Point {
     pub fn random(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
-        let x = rand::random::<f64>() * (x_range.max() - x_range.min());
-        let y = rand::random::<f64>() * (y_range.max() - y_range.min());
+        let x = rand::random::<f64>() * (x_range.max() - x_range.min()) + x_range.min();
+        let y = rand::random::<f64>() * (y_range.max() - y_range.min()) + y_range.min();
 
         Point { x, y }
     }
@@ -82,6 +82,7 @@ impl From<(f64, f64)> for Point {
     }
 }
 
+#[derive(Debug)]
 pub struct Range<T: PartialOrd = f64> {
     min: T,
     max: T,
@@ -151,6 +152,14 @@ impl CanvasHelper {
 
         (x, y)
     }
+
+    pub fn to_canvas_vector(&self, p: &Point) -> (f64, f64) {
+        // Map a vector to a canvas vector
+        let x = p.x * self.c_x_size / self.g_x_range.width();
+        let y = p.y * self.c_y_size / self.g_y_range.width();
+
+        (x, y)
+    }
 }
 
 #[cfg(test)]
@@ -190,7 +199,7 @@ mod tests {
             (-10.0, 10.0),
             (10.0, 10.0),
             (10.0, -10.0),
-            (5.0, 5.0)
+            (5.0, 5.0),
         ];
         let expected = vec![
             (25.0, 30.0),
@@ -199,7 +208,7 @@ mod tests {
             (0.0, 0.0),
             (50.0, 0.0),
             (50.0, 60.0),
-            (37.5, 15.0)
+            (37.5, 15.0),
         ];
 
         for ((i1, i2), (e1, e2)) in input.iter().zip(expected.iter()) {

@@ -48,12 +48,12 @@ impl Player {
         let ctx = utils::ctx_from_canvas(&canvas);
 
         ctx.set_fill_style(&JsValue::from_str(style::colour::PLAYER));
+        ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
         ctx.begin_path();
 
         let center = helper.to_canvas_point(self.shape().pos());
         let r = self.shape().radius();
-        let radius = helper.to_canvas_point(&math::Point::new(r, r));
-        // web_sys::console::log_1(&format!("Center: {:?}, radius: {:?}", center, radius).into());
+        let radius = helper.to_canvas_vector(&(r, r).into());
         ctx.ellipse(
             center.0,
             center.1,
@@ -64,6 +64,6 @@ impl Player {
             2.0 * std::f64::consts::PI,
         )
         .unwrap();
-        ctx.stroke();
+        ctx.fill();
     }
 }
