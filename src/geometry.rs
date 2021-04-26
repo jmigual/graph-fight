@@ -37,8 +37,6 @@ impl Circle {
     }
 
     pub fn collision_rec(&self, other: &Rectangle) -> bool {
-        let r_pos = other.pos();
-
         let x_pos = if self.pos.x <= other.left() {
             other.left()
         } else if self.pos.x >= other.right() {
@@ -107,6 +105,11 @@ impl Rectangle {
 
     pub fn collision_circle(&self, other: &Circle) -> bool {
         other.collision_rec(&self)
+    }
+
+    pub fn inside(&self, other: &Point) -> bool {
+        self.left() <= other.x && other.x <= self.right()
+            && self.bottom() <= other.y && other.y <= self.top()
     }
 }
 
@@ -238,6 +241,29 @@ mod tests {
             let b = Circle::new(t.into(), 2.0);
             assert_eq!(a.collision_circle(&b), false);
             assert_eq!(b.collision_rec(&a), false);
+        }
+    }
+
+
+    #[test]
+    fn test_inside_rectangle() {
+        let a = Rectangle::new((0.0, 0.0).into(), 10.0, 10.0);
+
+        let pos = vec![
+            ((0.0, 0.0), true),
+            ((4.0, 4.0), true),
+            ((-4.0, 4.0), true),
+            ((-4.0, -4.0), true),
+            ((4.0, -4.0), true),
+            ((10.0, 10.0), false),
+            ((-10.0, 10.0), false),
+            ((-10.0, -10.0), false),
+            ((10.0, -10.0), false)
+        ];
+
+        for (p, r) in pos {
+            let b: Point = p.into();
+            assert_eq!(a.inside(&b), r);
         }
     }
 }

@@ -51,14 +51,14 @@ impl Game {
             team_a: Vec::with_capacity(num_players_a),
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
-            arena: Rectangle::new((0.0, 0.0).into(), x_max, y_max)
+            arena: Rectangle::new((0.0, 0.0).into(), 2.0*x_max, 2.0*y_max)
         };
 
         // Vertical range is the same for both sides
-        let p_range_y = Range::new(-y_max, y_max);
+        let p_range_y = Range::new(game.arena.bottom(), game.arena.top());
 
         // Player A goes on the left side
-        let p_a_range_x = Range::new(-x_max, 0.);
+        let p_a_range_x = Range::new(game.arena.left(), 0.);
 
         for _ in 0..num_players_a {
             let shape = match game.find_random_pos(&p_a_range_x, &p_range_y, player_radius) {
@@ -71,7 +71,7 @@ impl Game {
         }
 
         // Player B goes on the right side
-        let p_b_range_x = Range::new(0., x_max);
+        let p_b_range_x = Range::new(0., game.arena.right());
         for _ in 0..num_players_b {
             let shape = match game.find_random_pos(&p_b_range_x, &p_range_y, player_radius) {
                 Ok(p) => p,
@@ -109,10 +109,17 @@ impl Game {
         if !self.obstacles.iter().all(f) {
             return false;
         }
-        true
 
-        // Collision with walls
-        // ((shape.pos.x - shape.radius()) > -self.x_max) && ((shape.pos.x + shape.radius) < self.x_max)
+        let pos = shape.pos();
+
+        if !self.arena.inside(&pos) {
+            return false;
+        }
+
+        self.arena.left() + shape.radius() <= pos.x 
+            && self.arena.right() - shape.radius() >= pos.x
+            && self.arena.bottom() + shape.radius() <= pos.y
+            && self.arena.top() - shape.radius() >= pos.y
     }
 
     fn find_random_pos(
@@ -148,11 +155,41 @@ impl Game {
         ctx.stroke();
 
         for player in &self.team_a {
-            player.draw(&canvas, &helper);
+            player.draw(&canvas, &helper, player::style::Team::Right);
         }
 
         for player in &self.team_b {
-            player.draw(&canvas, &helper);
+            player.draw(&canvas, &helper, player::style::Team::Left);
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_pos() {
+        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1).unwrap();
+
+        let pos = vec![
+            ((0.0, 0.0), true),
+            ((5.0, 5.0), true),
+            ((-5.0, 5.0), true),
+            ((-5.0, -5.0), true),
+            ((5.0, -5.0), true),
+            ((20.0, 20.0), false),
+            ((-20.0, 20.0), false),
+            ((-20.0, -20.0), false),
+            ((20.0, -20.0), false),
+            ((7.0, 0.0), false),
+            ((7.0, 7.0), false)
+        ];
+
+        for (p, r) in pos {
+            let c = Circle::new(p.into(), 4.0);
+            assert_eq!(game.is_valid_pos(&c), r);
         }
     }
 }

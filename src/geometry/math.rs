@@ -123,12 +123,12 @@ pub struct CanvasHelper {
 }
 
 impl CanvasHelper {
-    pub fn new(c_width: f64, c_height: f64, x_max: f64, y_max: f64) -> CanvasHelper {
+    pub fn new(c_width: f64, c_height: f64, width: f64, height: f64) -> CanvasHelper {
         CanvasHelper {
             c_x_size: c_width,
             c_y_size: c_height,
-            g_x_range: Range::new(-x_max, x_max),
-            g_y_range: Range::new(-y_max, y_max),
+            g_x_range: Range::new(-width/2.0, width/2.0),
+            g_y_range: Range::new(-height/2.0, height/2.0),
         }
     }
 
