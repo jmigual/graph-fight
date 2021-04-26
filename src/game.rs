@@ -128,13 +128,19 @@ impl Game {
     }
 
     pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
-        let helper = math::CanvasHelper::new(&canvas, self.x_max, self.y_max);
+        let helper = math::CanvasHelper::new(
+            canvas.width() as f64,
+            canvas.height() as f64,
+            self.x_max,
+            self.y_max,
+        );
 
         // Draw background
         let ctx = utils::ctx_from_canvas(&canvas);
 
         ctx.set_fill_style(&JsValue::from_str(style::colour::BACKGROUND));
         ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
+        ctx.stroke();
 
         for player in &self.team_a {
             player.draw(&canvas, &helper);

@@ -1,3 +1,4 @@
+use float_cmp::approx_eq;
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialOrd;
 use std::ops::{Add, Sub};
@@ -50,7 +51,7 @@ impl Add for Point {
     fn add(self, rhs: Point) -> Self::Output {
         Self::Output {
             x: self.x + rhs.x,
-            y: self.y + rhs.y
+            y: self.y + rhs.y,
         }
     }
 }
@@ -61,18 +62,17 @@ impl Sub for Point {
     fn sub(self, rhs: Point) -> Self::Output {
         Self::Output {
             x: self.x - rhs.x,
-            y: self.y - rhs.y
+            y: self.y - rhs.y,
         }
     }
 }
 
 impl Sub for &Point {
     type Output = Point;
-    
     fn sub(self, rhs: &Point) -> Self::Output {
         Self::Output {
             x: self.x - rhs.x,
-            y: self.y - rhs.y
+            y: self.y - rhs.y,
         }
     }
 }
@@ -117,10 +117,10 @@ pub struct CanvasHelper {
 }
 
 impl CanvasHelper {
-    pub fn new(canvas: &web_sys::HtmlCanvasElement, x_max: f64, y_max: f64) -> CanvasHelper {
+    pub fn new(c_width: f64, c_height: f64, x_max: f64, y_max: f64) -> CanvasHelper {
         CanvasHelper {
-            c_x_size: canvas.width() as f64,
-            c_y_size: canvas.height() as f64,
+            c_x_size: c_width,
+            c_y_size: c_height,
             g_x_range: Range::new(-x_max, x_max),
             g_y_range: Range::new(-y_max, y_max),
         }
@@ -134,7 +134,7 @@ impl CanvasHelper {
         self.c_y_size
     }
 
-    pub fn map_point(&self, p: &Point) -> (f64, f64) {
+    pub fn to_canvas_point(&self, p: &Point) -> (f64, f64) {
         // Canvas coordinates go from left to right and top to bottom while our coordinates
         // go from left to right and bottom to top
 
@@ -146,7 +146,6 @@ impl CanvasHelper {
 
         (x.round(), y.round())
     }
-
 }
 
 #[cfg(test)]
@@ -167,11 +166,24 @@ mod tests {
     fn test_sub() {
         let a = Point::new(0.0, 0.0);
         let b = Point::new(10.0, 5.0);
-        
         let c = &a - &b;
         assert!(c.x <= -9.99 && c.x >= -10.01 && c.y <= -4.99 && c.y >= -5.01);
 
         let c = a - b;
         assert!(c.x <= -9.99 && c.x >= -10.01 && c.y <= -4.99 && c.y >= -5.01);
+    }
+
+    #[test]
+    fn test_map_point() {
+        let helper = CanvasHelper::new(50.0, 60.0, 10.0, 10.0);
+
+        let input = vec![(0.0, 0.0), (-10.0, 0.0), (-10.0, -10.0), (10.0, 10.0)];
+        let expected = vec![(25.0, 30.0), (0.0, 30.0), (0.0, 60.0), (50.0, 60.0)];
+
+        for ((i1, i2), (e1, e2)) in input.iter().zip(expected.iter()) {
+            let a = Point::new(*i1, *i2);
+            let mapped = helper.to_canvas_point(&a);
+            assert!(approx_eq!(f64, mapped.0, *e1) && approx_eq!(f64, mapped.1, *e2));
+        }
     }
 }

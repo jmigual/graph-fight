@@ -54,9 +54,9 @@ impl Player {
         ctx.set_fill_style(&JsValue::from_str(style::colour::PLAYER));
         ctx.begin_path();
 
-        let center = helper.map_point(self.shape().pos());
+        let center = helper.to_canvas_point(self.shape().pos());
         let r = self.shape().radius();
-        let radius = helper.map_point(&math::Point::new(r, r));
+        let radius = helper.to_canvas_point(&math::Point::new(r, r));
         ctx.ellipse(
             center.0,
             center.1,
@@ -66,6 +66,7 @@ impl Player {
             0.0,
             2.0*std::f64::consts::PI
         ).unwrap();
+        ctx.stroke();
     }
 }
 
