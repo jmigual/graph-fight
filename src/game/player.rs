@@ -15,21 +15,18 @@ pub mod style {
     }
 }
 
-#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Player {
     shape: Circle,
     alive: bool,
 }
 
-#[wasm_bindgen]
 #[allow(dead_code)]
 impl Player {
     pub fn from_circle(shape: Circle) -> Player {
         Player { shape, alive: true }
     }
 
-    #[wasm_bindgen(constructor)]
     pub fn new(pos: Point, radius: f64) -> Player {
         Player {
             shape: Circle::new(pos, radius),
@@ -37,13 +34,11 @@ impl Player {
         }
     }
 
-    #[wasm_bindgen(js_name = shape)]
     pub fn shape_js(&self) -> Circle {
         self.shape.clone()
     }
 }
 
-#[allow(dead_code)]
 impl Player {
     pub fn shape(&self) -> &Circle {
         &self.shape
@@ -60,7 +55,7 @@ impl Player {
 
         ctx.set_fill_style(&JsValue::from_str(match team {
             style::Team::Right => style::colour::PLAYER_RIGHT,
-            style::Team::Left => style::colour::PLAYER_LEFT
+            style::Team::Left => style::colour::PLAYER_LEFT,
         }));
         ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
         ctx.begin_path();

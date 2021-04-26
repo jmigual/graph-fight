@@ -1,19 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialOrd;
 use std::ops::{Add, Sub};
-use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
-#[wasm_bindgen]
 #[allow(dead_code)]
 impl Point {
-    #[wasm_bindgen(constructor)]
     pub fn new(x: f64, y: f64) -> Point {
         Point { x, y }
     }
