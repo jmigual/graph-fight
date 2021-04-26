@@ -34,8 +34,40 @@ impl Circle {
         &self.pos
     }
     
-    pub fn collision(&self, other: &Circle) -> bool {
+    pub fn collision_circle(&self, other: &Circle) -> bool {
         self.pos.distance_to(&other.pos) <= self.radius + other.radius
+    }
+
+    pub fn collision_rec(&self, other: &Rectangle) -> bool {
+        let r_pos = other.pos();
+        self.pos.x - self.radius <= r_pos.x - other.width() 
+            || self.pos.x + self.radius >= r_pos.x + other.width() 
+            || self.pos.y - self.radius <= r_pos.y - other.height()
+            || self.pos.y + self.radius >= r_pos.y + other.height()
+    }
+}
+
+pub struct Rectangle {
+    pos: Point,
+    width: f64,
+    height: f64
+}
+
+impl Rectangle {
+    pub fn new(pos: Point, width: f64, height: f64) -> Rectangle {
+        Rectangle { pos, width, height }
+    }
+
+    pub fn pos(&self) -> &Point {
+        &self.pos
+    }
+
+    pub fn width(&self) -> f64 {
+        self.width
+    }
+
+    pub fn height(&self) -> f64 {
+        self.height
     }
 }
 
@@ -80,7 +112,7 @@ mod tests {
         let a = Circle::new(Point::new(0.0, 0.0), 5.0);
         let b = Circle::new(Point::new(10.0, 10.0), 5.0);
 
-        assert_eq!(a.collision(&b), false);
+        assert_eq!(a.collision_circle(&b), false);
     }
 
     #[test]
@@ -88,6 +120,6 @@ mod tests {
         let a = Circle::new(Point::new(0.0, 0.0), 5.0);
         let b = Circle::new(Point::new(5.0, 0.0), 5.0);
 
-        assert_eq!(a.collision(&b), true);
+        assert_eq!(a.collision_circle(&b), true);
     }
 }

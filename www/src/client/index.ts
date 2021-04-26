@@ -1,11 +1,18 @@
 import * as wasm from "graph-fight";
 
-let game = new wasm.Game(20, 10, 2, .2, 4, 4, .05);
-window.requestAnimationFrame(draw);
+let game = null;
 
 function draw(timestamp: number) {
-    let canvas = <HTMLCanvasElement> document.getElementById('arena');
+    let canvas = <HTMLCanvasElement>document.getElementById('arena');
 
-    game.draw(canvas);
+    game?.draw(canvas);
     window.requestAnimationFrame(draw);
 }
+
+
+function main() {
+    game = new wasm.Game(20, 10, 2, .2, 4, 4, .05);
+    window.requestAnimationFrame(draw);
+}
+
+main();

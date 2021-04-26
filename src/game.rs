@@ -18,8 +18,7 @@ pub struct Game {
     team_a: Vec<Player>,
     team_b: Vec<Player>,
     obstacles: Vec<Obstacle>,
-    x_max: f64,
-    y_max: f64,
+    arena: Rectangle
 }
 
 #[wasm_bindgen]
@@ -52,8 +51,7 @@ impl Game {
             team_a: Vec::with_capacity(num_players_a),
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
-            x_max,
-            y_max,
+            arena: Rectangle::new(Point::new(0.0, 0.0), x_max, y_max)
         };
 
         // Vertical range is the same for both sides
@@ -91,23 +89,29 @@ impl Game {
     }
 
     fn is_valid_pos(&self, shape: &Circle) -> bool {
-        let f = |p: &Player| !p.shape().collision(shape);
+        let f = |p: &Player| !p.shape().collision_circle(shape);
 
+
+        // Collision with players from team A
         if !self.team_a.iter().all(f) {
             return false;
         }
 
+        // Collision with players from team B
         if !self.team_b.iter().all(f) {
             return false;
         }
 
-        let f = |p: &Obstacle| p.shape().collision(shape);
+        let f = |p: &Obstacle| p.shape().collision_circle(shape);
 
+        // Collision with obstacles
         if !self.obstacles.iter().all(f) {
             return false;
         }
-
         true
+
+        // Collision with walls
+        // ((shape.pos.x - shape.radius()) > -self.x_max) && ((shape.pos.x + shape.radius) < self.x_max)
     }
 
     fn find_random_pos(
@@ -131,8 +135,8 @@ impl Game {
         let helper = math::CanvasHelper::new(
             canvas.width() as f64,
             canvas.height() as f64,
-            self.x_max,
-            self.y_max,
+            self.arena.width(),
+            self.arena.height(),
         );
 
         // Draw background

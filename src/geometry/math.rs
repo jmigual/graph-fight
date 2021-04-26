@@ -1,11 +1,10 @@
-use float_cmp::approx_eq;
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialOrd;
 use std::ops::{Add, Sub};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -77,6 +76,12 @@ impl Sub for &Point {
     }
 }
 
+impl From<(f64, f64)> for Point {
+    fn from(p: (f64, f64)) -> Point {
+        Point { x: p.0, y: p.1 }
+    }
+}
+
 pub struct Range<T: PartialOrd = f64> {
     min: T,
     max: T,
@@ -142,15 +147,16 @@ impl CanvasHelper {
         let mut y = self.g_y_range.interpolate(p.y);
 
         x *= self.c_x_size;
-        y *= self.c_y_size;
+        y = self.c_y_size * (1.0 - y);
 
-        (x.round(), y.round())
+        (x, y)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use float_cmp::approx_eq;
 
     #[test]
     fn test_distance() {
@@ -177,13 +183,38 @@ mod tests {
     fn test_map_point() {
         let helper = CanvasHelper::new(50.0, 60.0, 10.0, 10.0);
 
-        let input = vec![(0.0, 0.0), (-10.0, 0.0), (-10.0, -10.0), (10.0, 10.0)];
-        let expected = vec![(25.0, 30.0), (0.0, 30.0), (0.0, 60.0), (50.0, 60.0)];
+        let input = vec![
+            (0.0, 0.0),
+            (-10.0, 0.0),
+            (-10.0, -10.0),
+            (-10.0, 10.0),
+            (10.0, 10.0),
+            (10.0, -10.0),
+            (5.0, 5.0)
+        ];
+        let expected = vec![
+            (25.0, 30.0),
+            (0.0, 30.0),
+            (0.0, 60.0),
+            (0.0, 0.0),
+            (50.0, 0.0),
+            (50.0, 60.0),
+            (37.5, 15.0)
+        ];
 
         for ((i1, i2), (e1, e2)) in input.iter().zip(expected.iter()) {
             let a = Point::new(*i1, *i2);
             let mapped = helper.to_canvas_point(&a);
-            assert!(approx_eq!(f64, mapped.0, *e1) && approx_eq!(f64, mapped.1, *e2));
+            let result = approx_eq!(f64, mapped.0, *e1) && approx_eq!(f64, mapped.1, *e2);
+
+            if !result {
+                println!(
+                    "Error comparing points, expected ({}, {}), got ({}, {}) for input point {:?}",
+                    e1, e2, mapped.0, mapped.1, a
+                )
+            }
+
+            assert!(result);
         }
     }
 }

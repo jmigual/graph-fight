@@ -1,15 +1,13 @@
-use serde::{Serialize, Deserialize};
-use wasm_bindgen::prelude::*;
 use crate::geometry::*;
 use crate::utils;
-
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 mod style {
     pub mod colour {
         pub const PLAYER: &str = "#F00";
     }
 }
-
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -41,11 +39,9 @@ impl Player {
 
 #[allow(dead_code)]
 impl Player {
-
     pub fn shape(&self) -> &Circle {
         &self.shape
     }
-    
     pub fn draw(&self, canvas: &web_sys::HtmlCanvasElement, helper: &math::CanvasHelper) {
         // For now let's draw red circles
 
@@ -57,6 +53,7 @@ impl Player {
         let center = helper.to_canvas_point(self.shape().pos());
         let r = self.shape().radius();
         let radius = helper.to_canvas_point(&math::Point::new(r, r));
+        // web_sys::console::log_1(&format!("Center: {:?}, radius: {:?}", center, radius).into());
         ctx.ellipse(
             center.0,
             center.1,
@@ -64,11 +61,9 @@ impl Player {
             radius.1,
             0.0,
             0.0,
-            2.0*std::f64::consts::PI
-        ).unwrap();
+            2.0 * std::f64::consts::PI,
+        )
+        .unwrap();
         ctx.stroke();
     }
 }
-
-
-
