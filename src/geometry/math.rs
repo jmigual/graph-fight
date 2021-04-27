@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_map_point() {
-        let helper = CanvasHelper::new(50.0, 60.0, 10.0, 10.0);
+        let helper = CanvasHelper::new(50.0, 60.0, 20.0, 20.0);
 
         let input = vec![
             (0.0, 0.0),

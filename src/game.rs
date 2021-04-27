@@ -2,6 +2,7 @@ mod obstacle;
 mod player;
 
 use rand::{rngs::SmallRng, SeedableRng};
+use rand_distr::{Normal, Distribution};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
@@ -14,6 +15,11 @@ mod style {
     pub mod colour {
         pub const BACKGROUND: &str = "#FFF";
     }
+}
+
+enum Type {
+    Player,
+    Obstacle,
 }
 
 #[wasm_bindgen]
@@ -80,7 +86,12 @@ impl Game {
         let p_a_range_x = Range::new(self.arena.left(), 0.);
 
         for _ in 0..num_players_a {
-            let shape = match self.find_random_pos(&p_a_range_x, &p_range_y, player_radius) {
+            let shape = match self.find_random_pos(
+                &p_a_range_x,
+                &p_range_y,
+                player_radius,
+                &Type::Player,
+            ) {
                 Ok(p) => p,
                 Err(error) => return Err(JsValue::from_str(error.message())),
             };
@@ -92,7 +103,12 @@ impl Game {
         // Player B goes on the right side
         let p_b_range_x = Range::new(0., self.arena.right());
         for _ in 0..num_players_b {
-            let shape = match self.find_random_pos(&p_b_range_x, &p_range_y, player_radius) {
+            let shape = match self.find_random_pos(
+                &p_b_range_x,
+                &p_range_y,
+                player_radius,
+                &Type::Player,
+            ) {
                 Ok(p) => p,
                 Err(error) => return Err(JsValue::from_str(error.message())),
             };
@@ -107,16 +123,21 @@ impl Game {
     fn create_obstables(
         &mut self,
         num_obstacles: usize,
-        obstacle_size: f64,
+        max_obstacle_size: f64,
     ) -> Result<(), JsValue> {
         let range_x = Range::new(self.arena.left(), self.arena.right());
         let range_y = Range::new(self.arena.bottom(), self.arena.top());
 
+        let distr = Normal::new(max_obstacle_size / 2.0, 1.0).unwrap();
+
         for _ in 0..num_obstacles {
-            let shape = match self.find_random_pos(&range_x, &range_y, obstacle_size) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
+            let obstacle_size = distr.sample(&mut self.rng);
+
+            let shape =
+                match self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle) {
+                    Ok(p) => p,
+                    Err(error) => return Err(JsValue::from_str(error.message())),
+                };
 
             let new_obstacle = Obstacle::from_circle(shape);
             self.obstacles.push(new_obstacle);
@@ -125,7 +146,7 @@ impl Game {
         Ok(())
     }
 
-    fn is_valid_pos(&self, shape: &Circle) -> bool {
+    fn is_valid_pos(&self, shape: &Circle, pos_type: &Type) -> bool {
         let f = |p: &Player| !p.shape().collision_circle(shape);
 
         // Collision with players from team A
@@ -138,23 +159,29 @@ impl Game {
             return false;
         }
 
-        let f = |p: &Obstacle| p.shape().collision_circle(shape);
+        match pos_type {
+            Type::Player => {
+                let f = |p: &Obstacle| !p.shape().collision_circle(shape);
 
-        // Collision with obstacles
-        if !self.obstacles.iter().all(f) {
-            return false;
+                // Collision with obstacles
+                if !self.obstacles.iter().all(f) {
+                    return false;
+                }
+
+                let pos = shape.pos();
+
+                if !self.arena.inside(&pos) {
+                    return false;
+                }
+
+                self.arena.left() + shape.radius() <= pos.x
+                    && self.arena.right() - shape.radius() >= pos.x
+                    && self.arena.bottom() + shape.radius() <= pos.y
+                    && self.arena.top() - shape.radius() >= pos.y
+            }
+            // Obstacles can collide with anything that is not a player
+            Type::Obstacle => true,
         }
-
-        let pos = shape.pos();
-
-        if !self.arena.inside(&pos) {
-            return false;
-        }
-
-        self.arena.left() + shape.radius() <= pos.x
-            && self.arena.right() - shape.radius() >= pos.x
-            && self.arena.bottom() + shape.radius() <= pos.y
-            && self.arena.top() - shape.radius() >= pos.y
     }
 
     fn find_random_pos(
@@ -162,12 +189,13 @@ impl Game {
         x_range: &Range<f64>,
         y_range: &Range<f64>,
         radius: f64,
+        pos_type: &Type,
     ) -> Result<Circle, utils::NotFoundError> {
         for _ in 0..100 {
             let pos = Point::random(&x_range, &y_range, &mut self.rng);
             let shape = Circle::new(pos, radius);
 
-            if self.is_valid_pos(&shape) {
+            if self.is_valid_pos(&shape, &pos_type) {
                 return Ok(shape);
             }
         }
@@ -209,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0).unwrap();
+        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0.0).unwrap();
 
         let pos = vec![
             ((0.0, 0.0), true),
@@ -227,10 +255,13 @@ mod tests {
 
         for (p, r) in pos {
             let c = Circle::new(p.into(), 4.0);
-            assert_eq!(game.is_valid_pos(&c), r);
+            assert_eq!(game.is_valid_pos(&c, &Type::Player), r);
         }
     }
 
     #[test]
-    fn test_build() {}
+    fn test_build() {
+        let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.5, 0.0);
+        game.unwrap();
+    }
 }
