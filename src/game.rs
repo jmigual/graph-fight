@@ -1,13 +1,14 @@
-mod player;
 mod obstacle;
+mod player;
 
+use rand::{rngs::SmallRng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
 use crate::utils;
 
-pub use self::player::Player;
 pub use self::obstacle::Obstacle;
+pub use self::player::Player;
 
 mod style {
     pub mod colour {
@@ -21,6 +22,7 @@ pub struct Game {
     team_b: Vec<Player>,
     obstacles: Vec<Obstacle>,
     arena: Rectangle,
+    rng: SmallRng,
 }
 
 #[wasm_bindgen]
@@ -34,6 +36,7 @@ impl Game {
         num_players_a: usize,
         num_players_b: usize,
         player_radius: f64,
+        seed: f64,
     ) -> Result<Game, JsValue> {
         utils::set_panic_hook();
 
@@ -54,6 +57,7 @@ impl Game {
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
             arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
+            rng: SmallRng::seed_from_u64(seed as u64),
         };
 
         // May fail if the player radius is too big
@@ -100,14 +104,18 @@ impl Game {
         Ok(())
     }
 
-    fn create_obstables(&mut self, num_obstacles: usize, obstacle_size: f64) -> Result<(), JsValue> {
+    fn create_obstables(
+        &mut self,
+        num_obstacles: usize,
+        obstacle_size: f64,
+    ) -> Result<(), JsValue> {
         let range_x = Range::new(self.arena.left(), self.arena.right());
         let range_y = Range::new(self.arena.bottom(), self.arena.top());
-        
+
         for _ in 0..num_obstacles {
             let shape = match self.find_random_pos(&range_x, &range_y, obstacle_size) {
                 Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message()))
+                Err(error) => return Err(JsValue::from_str(error.message())),
             };
 
             let new_obstacle = Obstacle::from_circle(shape);
@@ -116,7 +124,7 @@ impl Game {
 
         Ok(())
     }
-    
+
     fn is_valid_pos(&self, shape: &Circle) -> bool {
         let f = |p: &Player| !p.shape().collision_circle(shape);
 
@@ -150,13 +158,13 @@ impl Game {
     }
 
     fn find_random_pos(
-        &self,
+        &mut self,
         x_range: &Range<f64>,
         y_range: &Range<f64>,
         radius: f64,
     ) -> Result<Circle, utils::NotFoundError> {
         for _ in 0..100 {
-            let pos = Point::random(&x_range, &y_range);
+            let pos = Point::random(&x_range, &y_range, &mut self.rng);
             let shape = Circle::new(pos, radius);
 
             if self.is_valid_pos(&shape) {
@@ -188,6 +196,10 @@ impl Game {
         for player in &self.team_b {
             player.draw(&canvas, &helper, player::style::Team::Left);
         }
+
+        for obstacle in &self.obstacles {
+            obstacle.draw(&canvas, &helper);
+        }
     }
 }
 
@@ -197,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1).unwrap();
+        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0).unwrap();
 
         let pos = vec![
             ((0.0, 0.0), true),
@@ -218,4 +230,7 @@ mod tests {
             assert_eq!(game.is_valid_pos(&c), r);
         }
     }
+
+    #[test]
+    fn test_build() {}
 }

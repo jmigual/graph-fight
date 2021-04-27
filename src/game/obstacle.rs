@@ -46,8 +46,8 @@ impl Obstacle {
         .unwrap();
 
         for hole in &self.holes {
-            let center = helper.to_canvas_point(self.shape.pos());
-            let r = self.shape.radius();
+            let center = helper.to_canvas_point(hole.pos());
+            let r = hole.radius();
             let radius = helper.to_canvas_vector(&(r, r).into());
             ctx.ellipse_with_anticlockwise(
                 center.0,

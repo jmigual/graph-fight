@@ -1,9 +1,8 @@
 pub mod math;
 
 pub use self::math::*;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Circle {
     pos: Point,
     radius: f64,

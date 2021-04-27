@@ -1,8 +1,13 @@
-use serde::{Deserialize, Serialize};
-use std::cmp::PartialOrd;
-use std::ops::{Add, Sub};
+use rand::{
+    distributions::{uniform::Uniform, Distribution},
+    Rng,
+};
+use std::{
+    cmp::PartialOrd,
+    ops::{Add, Sub},
+};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -17,11 +22,20 @@ impl Point {
 
 #[allow(dead_code)]
 impl Point {
-    pub fn random(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
-        let x = rand::random::<f64>() * (x_range.max() - x_range.min()) + x_range.min();
-        let y = rand::random::<f64>() * (y_range.max() - y_range.min()) + y_range.min();
+    pub fn random<R: Rng + ?Sized>(
+        x_range: &Range<f64>,
+        y_range: &Range<f64>,
+        rng: &mut R,
+    ) -> Point {
+        let dist = Uniform::from(0.0..1.0);
+        let x = dist.sample(rng) * (x_range.max() - x_range.min()) + x_range.min();
+        let y = dist.sample(rng) * (y_range.max() - y_range.min()) + y_range.min();
 
         Point { x, y }
+    }
+
+    pub fn random_default(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
+        Point::random(&x_range, &y_range, &mut rand::thread_rng())
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {
@@ -123,8 +137,8 @@ impl CanvasHelper {
         CanvasHelper {
             c_x_size: c_width,
             c_y_size: c_height,
-            g_x_range: Range::new(-width/2.0, width/2.0),
-            g_y_range: Range::new(-height/2.0, height/2.0),
+            g_x_range: Range::new(-width / 2.0, width / 2.0),
+            g_y_range: Range::new(-height / 2.0, height / 2.0),
         }
     }
 
