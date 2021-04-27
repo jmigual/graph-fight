@@ -138,11 +138,11 @@ impl Rectangle {
         other.collision_rec(&self)
     }
 
-    pub fn inside(&self, other: &Point) -> bool {
-        self.left() <= other.x
-            && other.x <= self.right()
-            && self.bottom() <= other.y
-            && other.y <= self.top()
+    pub fn inside(&self, pos: &Point) -> bool {
+        self.left() <= pos.x
+            && pos.x <= self.right()
+            && self.bottom() <= pos.y
+            && pos.y <= self.top()
     }
 }
 

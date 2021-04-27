@@ -1,5 +1,7 @@
+mod arena;
 mod obstacle;
 mod player;
+mod team;
 
 use rand::{rngs::SmallRng, SeedableRng};
 use rand_distr::{Distribution, Normal};
@@ -8,8 +10,10 @@ use wasm_bindgen::prelude::*;
 use crate::geometry::*;
 use crate::utils;
 
+pub use self::arena::Arena;
 pub use self::obstacle::Obstacle;
 pub use self::player::Player;
+pub use self::team::Team;
 
 mod style {
     pub mod colour {
@@ -24,9 +28,9 @@ enum Type {
 
 #[wasm_bindgen]
 pub struct Game {
-    teams: Vec<Vec<Player>>,
+    teams: Vec<Team>,
     obstacles: Vec<Obstacle>,
-    arena: Rectangle,
+    arena: Arena,
     rng: SmallRng,
 }
 
@@ -60,9 +64,10 @@ impl Game {
         let mut game = Game {
             teams,
             obstacles: Vec::with_capacity(num_obstacles),
-            arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
+            arena: Arena::new(2.0 * x_max, 2.0 * y_max),
             rng: SmallRng::seed_from_u64(seed as u64),
         };
+        game.create_obstables(num_obstacles, obstacle_size);
 
         // May fail if the player radius is too big
         game.create_team(
@@ -72,7 +77,6 @@ impl Game {
                 .collect::<Vec<usize>>(),
             player_radius,
         )?;
-        game.create_obstables(num_obstacles, obstacle_size)?;
 
         Ok(game)
     }
@@ -80,120 +84,32 @@ impl Game {
     fn create_team(
         &mut self,
         players_per_team: &[usize],
-        player_radius: f64,
+        player_size: f64,
     ) -> Result<(), JsValue> {
-        // Vertical range is the same for both sides
-        let p_range_y = Range::new(self.arena.bottom(), self.arena.top());
 
-        // Player A goes on the left side
-        let p_a_range_x = Range::new(self.arena.left(), 0.);
-
-        for team_size in players_per_team {
-            let mut team = Vec::with_capacity(*team_size);
-            for _ in 0..*team_size {
-                let shape = match self.find_random_pos(
-                    &p_a_range_x,
-                    &p_range_y,
-                    player_radius,
-                    &Type::Player,
-                ) {
-                    Ok(p) => p,
-                    Err(error) => return Err(JsValue::from_str(error.message())),
-                };
-
-                let new_player = Player::from_circle(shape);
-                team.push(new_player);
-            }
-            self.teams.push(team);
+        let areas = self.arena.area().partition(players_per_team.len() as u64);
+        for (team_size, area) in players_per_team.iter().zip(areas.iter()) {
+            let mut team = Team::new(area.clone());
+            match team.add_players(*team_size, player_size, &self.arena, &mut self.rng) {
+                Err(error) => return Err(JsValue::from_str(error.message())),
+                _ => {}
+            };
         }
 
         Ok(())
     }
 
-    fn create_obstables(
-        &mut self,
-        num_obstacles: usize,
-        max_obstacle_size: f64,
-    ) -> Result<(), JsValue> {
-        let range_x = Range::new(self.arena.left(), self.arena.right());
-        let range_y = Range::new(self.arena.bottom(), self.arena.top());
-
-        let distr = Normal::new(max_obstacle_size / 2.0, 1.0).unwrap();
-
-        for _ in 0..num_obstacles {
-            let obstacle_size = distr.sample(&mut self.rng);
-
-            let shape =
-                match self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle) {
-                    Ok(p) => p,
-                    Err(error) => return Err(JsValue::from_str(error.message())),
-                };
-
-            let new_obstacle = Obstacle::from_circle(shape);
-            self.obstacles.push(new_obstacle);
-        }
-
-        Ok(())
-    }
-
-    fn is_valid_pos(&self, shape: &Circle, pos_type: &Type) -> bool {
-        let f = |p: &Player| !p.shape().collision_circle(shape);
-
-        // Collision with players
-        if !self.teams.iter().flatten().all(f) {
-            return false;
-        }
-
-        match pos_type {
-            Type::Player => {
-                let f = |p: &Obstacle| !p.shape().collision_circle(shape);
-
-                // Collision with obstacles
-                if !self.obstacles.iter().all(f) {
-                    return false;
-                }
-
-                let pos = shape.pos();
-
-                if !self.arena.inside(&pos) {
-                    return false;
-                }
-
-                // A player cannot collide with the border
-                self.arena.left() + shape.radius() <= pos.x
-                    && self.arena.right() - shape.radius() >= pos.x
-                    && self.arena.bottom() + shape.radius() <= pos.y
-                    && self.arena.top() - shape.radius() >= pos.y
-            }
-            // Obstacles can collide with anything that is not a player
-            Type::Obstacle => true,
-        }
-    }
-
-    fn find_random_pos(
-        &mut self,
-        x_range: &Range<f64>,
-        y_range: &Range<f64>,
-        radius: f64,
-        pos_type: &Type,
-    ) -> Result<Circle, utils::NotFoundError> {
-        for _ in 0..100 {
-            let pos = Point::random(&x_range, &y_range, &mut self.rng);
-            let shape = Circle::new(pos, radius);
-
-            if self.is_valid_pos(&shape, &pos_type) {
-                return Ok(shape);
-            }
-        }
-        Err(utils::NotFoundError::new("No valid position found"))
+    fn create_obstables(&mut self, num_obstacles: usize, max_obstacle_size: f64) {
+        self.arena
+            .add_obstacles(num_obstacles, max_obstacle_size, &mut self.rng);
     }
 
     pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
         let helper = math::CanvasHelper::new(
             canvas.width() as f64,
             canvas.height() as f64,
-            self.arena.width(),
-            self.arena.height(),
+            self.arena.area().width(),
+            self.arena.area().height(),
         );
 
         // Draw background
@@ -204,9 +120,7 @@ impl Game {
         ctx.stroke();
 
         for (i, team) in self.teams.iter().enumerate() {
-            for player in team {
-                player.draw(&canvas, &helper, i);
-            }
+            team.draw(&canvas, &helper, i);
         }
 
         for obstacle in &self.obstacles {
@@ -218,30 +132,6 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, &[], 0.1, 0.0).unwrap();
-
-        let pos = vec![
-            ((0.0, 0.0), true),
-            ((5.0, 5.0), true),
-            ((-5.0, 5.0), true),
-            ((-5.0, -5.0), true),
-            ((5.0, -5.0), true),
-            ((20.0, 20.0), false),
-            ((-20.0, 20.0), false),
-            ((-20.0, -20.0), false),
-            ((20.0, -20.0), false),
-            ((7.0, 0.0), false),
-            ((7.0, 7.0), false),
-        ];
-
-        for (p, r) in pos {
-            let c = Circle::new(p.into(), 4.0);
-            assert_eq!(game.is_valid_pos(&c, &Type::Player), r);
-        }
-    }
 
     #[test]
     fn test_build() {
