@@ -24,8 +24,7 @@ enum Type {
 
 #[wasm_bindgen]
 pub struct Game {
-    team_a: Vec<Player>,
-    team_b: Vec<Player>,
+    teams: Vec<Vec<Player>>,
     obstacles: Vec<Obstacle>,
     arena: Rectangle,
     rng: SmallRng,
@@ -39,8 +38,7 @@ impl Game {
         y_max: f64,
         num_obstacles: usize,
         obstacle_size: f64,
-        num_players_a: usize,
-        num_players_b: usize,
+        players_per_team: &[usize],
         player_radius: f64,
         seed: f64,
     ) -> Result<Game, JsValue> {
@@ -75,8 +73,7 @@ impl Game {
 
     fn create_team(
         &mut self,
-        num_players_a: usize,
-        num_players_b: usize,
+        players_per_team: &[usize],
         player_radius: f64,
     ) -> Result<(), JsValue> {
         // Vertical range is the same for both sides
@@ -84,6 +81,8 @@ impl Game {
 
         // Player A goes on the left side
         let p_a_range_x = Range::new(self.arena.left(), 0.);
+
+
 
         for _ in 0..num_players_a {
             let shape = match self.find_random_pos(

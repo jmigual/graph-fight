@@ -86,6 +86,24 @@ impl Rectangle {
         self.pos.y - self.height / 2.0
     }
 
+    pub fn range_h(&self) -> Range {
+        Range::new(self.left(), self.right())
+    }
+
+    pub fn range_v(&self) -> Range {
+        Range::new(self.bottom(), self.top())
+    }
+
+    /// Partition the rectangle in n rectangles with similar area
+    pub fn partition(&self, n: u64) -> Vec<Rectangle> {
+        match n {
+            1 => vec![*self.clone()],
+            2 => if self.width > self.height {},
+        }
+
+        vec![*self.clone()]
+    }
+
     pub fn collision_rec(&self, other: &Rectangle) -> bool {
         self.right() >= other.left()
             && self.left() <= other.right()
