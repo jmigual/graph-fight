@@ -38,7 +38,7 @@ impl Game {
         y_max: f64,
         num_obstacles: usize,
         obstacle_size: f64,
-        players_per_team: &[usize],
+        players_per_team: &[f64],
         player_radius: f64,
         seed: f64,
     ) -> Result<Game, JsValue> {
@@ -65,7 +65,13 @@ impl Game {
         };
 
         // May fail if the player radius is too big
-        game.create_team(players_per_team, player_radius)?;
+        game.create_team(
+            &players_per_team
+                .iter()
+                .map(|&e| e as usize)
+                .collect::<Vec<usize>>(),
+            player_radius,
+        )?;
         game.create_obstables(num_obstacles, obstacle_size)?;
 
         Ok(game)
@@ -83,7 +89,7 @@ impl Game {
         let p_a_range_x = Range::new(self.arena.left(), 0.);
 
         for team_size in players_per_team {
-            let team = Vec::with_capacity(*team_size);
+            let mut team = Vec::with_capacity(*team_size);
             for _ in 0..*team_size {
                 let shape = match self.find_random_pos(
                     &p_a_range_x,
@@ -94,7 +100,7 @@ impl Game {
                     Ok(p) => p,
                     Err(error) => return Err(JsValue::from_str(error.message())),
                 };
-    
+
                 let new_player = Player::from_circle(shape);
                 team.push(new_player);
             }
@@ -199,16 +205,8 @@ impl Game {
 
         for (i, team) in self.teams.iter().enumerate() {
             for player in team {
-                
+                player.draw(&canvas, &helper, i);
             }
-        }
-
-        for player in &self.team_a {
-            player.draw(&canvas, &helper, player::style::Team::Right);
-        }
-
-        for player in &self.team_b {
-            player.draw(&canvas, &helper, player::style::Team::Left);
         }
 
         for obstacle in &self.obstacles {
@@ -223,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0.0).unwrap();
+        let game = Game::new(10.0, 10.0, 0, 0.1, &[], 0.1, 0.0).unwrap();
 
         let pos = vec![
             ((0.0, 0.0), true),
@@ -247,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.5, 0.0);
+        let game = Game::new(20.0, 10.0, 2, 0.2, &[4.0, 4.0], 0.5, 0.0);
         game.unwrap();
     }
 }

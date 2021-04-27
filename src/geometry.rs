@@ -47,6 +47,7 @@ impl Circle {
     }
 }
 
+#[derive(Clone)]
 pub struct Rectangle {
     pos: Point,
     width: f64,
@@ -97,11 +98,33 @@ impl Rectangle {
     /// Partition the rectangle in n rectangles with similar area
     pub fn partition(&self, n: u64) -> Vec<Rectangle> {
         match n {
-            1 => vec![*self.clone()],
-            2 => if self.width > self.height {},
-        }
+            1 => vec![self.clone()],
+            2..=u64::MAX => {
+                let recs = if self.width > self.height {
+                    let n_width = Point::new(self.width / 2.0, 0.0);
+                    (
+                        Rectangle::new(&self.pos - &n_width, self.width / 2.0, self.height),
+                        Rectangle::new(&self.pos + &n_width, self.width / 2.0, self.height),
+                    )
+                } else {
+                    let n_heigh = Point::new(self.height / 2.0, 0.0);
+                    (
+                        Rectangle::new(&self.pos - &n_heigh, self.width, self.height / 2.0),
+                        Rectangle::new(&self.pos + &n_heigh, self.width, self.height / 2.0),
+                    )
+                };
 
-        vec![*self.clone()]
+                let mut all_recs = if n % 2 == 0 {
+                    (recs.0.partition(n / 2), recs.1.partition(n / 2))
+                } else {
+                    (recs.0.partition(n / 2 + 1), recs.1.partition(n / 2))
+                };
+
+                all_recs.0.append(&mut all_recs.1);
+                all_recs.0
+            }
+            0 => panic!("The minimum of squares is 1"),
+        }
     }
 
     pub fn collision_rec(&self, other: &Rectangle) -> bool {

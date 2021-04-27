@@ -10,11 +10,18 @@ pub mod style {
         pub const TEAM_3: &str = "#FF0";
         pub const TEAM_4: &str = "#F0F";
         pub const TEAM_5: &str = "#0FF";
-    }
+        pub const TEAM_6: &str = "#4287f5";
+        pub const TEAM_7: &str = "#f542c5";
+        pub const TEAM_8: &str = "#ffaf19";
+        pub const TEAM_9: &str = "#b219ff";
 
-    pub enum Team {
-        Right,
-        Left,
+        pub const TEAMS: &[&'static str] = &[
+            TEAM_0, TEAM_1, TEAM_2, TEAM_3, TEAM_4, TEAM_5, TEAM_6, TEAM_7, TEAM_8, TEAM_9,
+        ];
+
+        pub fn get_team_colour(idx: usize) -> &'static str {
+            TEAMS[idx % TEAMS.len()]
+        }
     }
 }
 
@@ -50,16 +57,13 @@ impl Player {
         &self,
         canvas: &web_sys::HtmlCanvasElement,
         helper: &math::CanvasHelper,
-        team: style::Team,
+        team: usize,
     ) {
         // For now let's draw red circles
 
         let ctx = utils::ctx_from_canvas(&canvas);
 
-        ctx.set_fill_style(&JsValue::from_str(match team {
-            style::Team::Right => style::colour::PLAYER_RIGHT,
-            style::Team::Left => style::colour::PLAYER_LEFT,
-        }));
+        ctx.set_fill_style(&JsValue::from_str(style::colour::get_team_colour(team)));
         ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
         ctx.begin_path();
 
