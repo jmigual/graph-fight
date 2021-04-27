@@ -1,4 +1,4 @@
-import * as wasm from "graph-fight";
+import { Game } from "graph-fight";
 
 let game = null;
 
@@ -11,7 +11,7 @@ function draw(timestamp: number) {
 
 
 function main() {
-    game = new wasm.Game(20, 10, 15, 4, 4, 4, .5, 0);
+    game = new Game(20, 10, 30, .2, 2, new Float64Array([4, 4, 4, 4]), .5, 0);
     window.requestAnimationFrame(draw);
 }
 

@@ -1,6 +1,5 @@
-use std::char::MAX;
-
 use rand::Rng;
+use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
 
 use super::{Arena, Player};
@@ -73,6 +72,23 @@ impl Team {
         arena.is_free_pos(&shape)
     }
 
+    pub fn draw_area(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
+        // Draw containing rectangle
+        let ctx = utils::ctx_from_canvas(canvas);
+
+        ctx.set_stroke_style(&JsValue::from_str("#000"));
+        ctx.set_line_width(2.0);
+        ctx.set_line_dash(&JsValue::from_serde(&[5.0, 5.0]).unwrap())
+            .unwrap();
+        ctx.begin_path();
+
+        let rec_tp = helper.to_canvas_point(&(self.area.left(), self.area.top()).into());
+        let rec_size = helper.to_canvas_vector(&(self.area.width(), self.area.height()).into());
+
+        ctx.rect(rec_tp.0, rec_tp.1, rec_size.0, rec_size.1);
+        ctx.stroke();
+    }
+    
     pub fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper, team_num: usize) {
         for player in self.players.iter() {
             player.draw(&canvas, &helper, team_num);

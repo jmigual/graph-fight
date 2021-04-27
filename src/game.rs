@@ -4,7 +4,6 @@ mod player;
 mod team;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use rand_distr::{Distribution, Normal};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
@@ -21,15 +20,9 @@ mod style {
     }
 }
 
-enum Type {
-    Player,
-    Obstacle,
-}
-
 #[wasm_bindgen]
 pub struct Game {
     teams: Vec<Team>,
-    obstacles: Vec<Obstacle>,
     arena: Arena,
     rng: SmallRng,
 }
@@ -41,33 +34,35 @@ impl Game {
         x_max: f64,
         y_max: f64,
         num_obstacles: usize,
-        obstacle_size: f64,
+        min_obstacle_size: f64,
+        max_obstacle_size: f64,
         players_per_team: &[f64],
-        player_radius: f64,
+        player_size: f64,
         seed: f64,
     ) -> Result<Game, JsValue> {
         utils::set_panic_hook();
 
-        if x_max <= 0. || y_max <= 0. {
-            return Err(JsValue::from_str(
-                "x_max and y_max must have a positive value",
-            ));
-        }
-
-        if obstacle_size <= 0. || player_radius <= 0. {
-            return Err(JsValue::from_str(
-                "Obstacle size and player radius must be a positive value",
-            ));
-        }
+        assert!(
+            x_max > 0.0 && y_max > 0.0,
+            "x_max and y_max must have a positive value"
+        );
+        assert!(
+            min_obstacle_size > 0.0 && player_size > 0.0,
+            "Min obstacle size and player radius must be a positive value"
+        );
+        assert!(
+            min_obstacle_size < max_obstacle_size,
+            "The maximum obstacle size must be larger than the minimum obstacle size"
+        );
 
         let teams = Vec::with_capacity(players_per_team.len());
+
         let mut game = Game {
             teams,
-            obstacles: Vec::with_capacity(num_obstacles),
             arena: Arena::new(2.0 * x_max, 2.0 * y_max),
             rng: SmallRng::seed_from_u64(seed as u64),
         };
-        game.create_obstables(num_obstacles, obstacle_size);
+        game.create_obstacles(num_obstacles, min_obstacle_size, max_obstacle_size);
 
         // May fail if the player radius is too big
         game.create_team(
@@ -75,33 +70,39 @@ impl Game {
                 .iter()
                 .map(|&e| e as usize)
                 .collect::<Vec<usize>>(),
-            player_radius,
+            player_size,
         )?;
 
         Ok(game)
     }
 
-    fn create_team(
-        &mut self,
-        players_per_team: &[usize],
-        player_size: f64,
-    ) -> Result<(), JsValue> {
-
+    fn create_team(&mut self, players_per_team: &[usize], player_size: f64) -> Result<(), JsValue> {
         let areas = self.arena.area().partition(players_per_team.len() as u64);
+
         for (team_size, area) in players_per_team.iter().zip(areas.iter()) {
             let mut team = Team::new(area.clone());
             match team.add_players(*team_size, player_size, &self.arena, &mut self.rng) {
                 Err(error) => return Err(JsValue::from_str(error.message())),
                 _ => {}
             };
+            self.teams.push(team);
         }
 
         Ok(())
     }
 
-    fn create_obstables(&mut self, num_obstacles: usize, max_obstacle_size: f64) {
-        self.arena
-            .add_obstacles(num_obstacles, max_obstacle_size, &mut self.rng);
+    fn create_obstacles(
+        &mut self,
+        num_obstacles: usize,
+        min_obstacle_size: f64,
+        max_obstacle_size: f64,
+    ) {
+        self.arena.add_obstacles(
+            num_obstacles,
+            min_obstacle_size,
+            max_obstacle_size,
+            &mut self.rng,
+        );
     }
 
     pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
@@ -119,12 +120,14 @@ impl Game {
         ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
         ctx.stroke();
 
-        for (i, team) in self.teams.iter().enumerate() {
-            team.draw(&canvas, &helper, i);
+        self.arena.draw(&canvas, &helper);
+
+        for team in self.teams.iter() {
+            team.draw_area(&canvas, &helper);
         }
 
-        for obstacle in &self.obstacles {
-            obstacle.draw(&canvas, &helper);
+        for (i, team) in self.teams.iter().enumerate() {
+            team.draw(&canvas, &helper, i);
         }
     }
 }
@@ -135,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let game = Game::new(20.0, 10.0, 2, 0.2, &[4.0, 4.0], 0.5, 0.0);
+        let game = Game::new(20.0, 10.0, 2, 0.2, 2.0, &[4.0, 4.0], 0.5, 0.0);
         game.unwrap();
     }
 }

@@ -10,6 +10,7 @@ pub struct Circle {
 
 impl Circle {
     pub fn new(pos: Point, radius: f64) -> Circle {
+        assert!(radius > 0.0, "A circle must have a positive radius");
         Circle { pos, radius }
     }
 
@@ -47,7 +48,7 @@ impl Circle {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Rectangle {
     pos: Point,
     width: f64,
@@ -101,13 +102,13 @@ impl Rectangle {
             1 => vec![self.clone()],
             2..=u64::MAX => {
                 let recs = if self.width > self.height {
-                    let n_width = Point::new(self.width / 2.0, 0.0);
+                    let n_width = Point::new(self.width / 4.0, 0.0);
                     (
                         Rectangle::new(&self.pos - &n_width, self.width / 2.0, self.height),
                         Rectangle::new(&self.pos + &n_width, self.width / 2.0, self.height),
                     )
                 } else {
-                    let n_heigh = Point::new(self.height / 2.0, 0.0);
+                    let n_heigh = Point::new(0.0, self.height / 4.0);
                     (
                         Rectangle::new(&self.pos - &n_heigh, self.width, self.height / 2.0),
                         Rectangle::new(&self.pos + &n_heigh, self.width, self.height / 2.0),
@@ -148,6 +149,8 @@ impl Rectangle {
 
 #[cfg(test)]
 mod tests {
+    use float_cmp::approx_eq;
+
     use super::*;
 
     #[test]
@@ -266,6 +269,30 @@ mod tests {
         for (p, r) in pos {
             let b: Point = p.into();
             assert_eq!(a.inside(&b), r);
+        }
+    }
+
+    #[test]
+    fn test_partition() {
+        let a = Rectangle::new((0.0, 0.0).into(), 10.0, 10.0);
+
+        let parts = a.partition(4);
+        let expect = vec![(-2.5, -2.5), (2.5, -2.5), (-2.5, 2.5), (2.5, 2.5)];
+
+        for (p, e) in parts.iter().zip(expect.iter()) {
+            let result = approx_eq!(f64, p.pos.x, e.0) && approx_eq!(f64, p.pos.y, e.1);
+            assert!(
+                result,
+                "Expected values are not equal, expected: {:?}, got: {:?}",
+                e, p.pos
+            );
+            let result = approx_eq!(f64, p.width, 5.0) && approx_eq!(f64, p.height, 5.0);
+            assert!(
+                result,
+                "Expected values are not equal, expected: {:?}, got: {:?}",
+                (5.0, 5.0),
+                (p.width, p.height)
+            );
         }
     }
 }

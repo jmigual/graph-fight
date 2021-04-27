@@ -7,12 +7,12 @@ pub mod style {
         pub const TEAM_0: &str = "#F00";
         pub const TEAM_1: &str = "#00F";
         pub const TEAM_2: &str = "#0F0";
-        pub const TEAM_3: &str = "#FF0";
+        pub const TEAM_3: &str = "#f6ff52";
         pub const TEAM_4: &str = "#F0F";
         pub const TEAM_5: &str = "#0FF";
-        pub const TEAM_6: &str = "#4287f5";
-        pub const TEAM_7: &str = "#f542c5";
-        pub const TEAM_8: &str = "#ffaf19";
+        pub const TEAM_6: &str = "#A4C639";
+        pub const TEAM_7: &str = "#ffaf19";
+        pub const TEAM_8: &str = "#DFFF00";
         pub const TEAM_9: &str = "#b219ff";
 
         pub const TEAMS: &[&'static str] = &[
@@ -63,7 +63,7 @@ impl Player {
 
         let ctx = utils::ctx_from_canvas(&canvas);
 
-        ctx.set_fill_style(&JsValue::from_str(style::colour::get_team_colour(team)));
+        ctx.set_fill_style(&JsValue::from_str(&style::colour::get_team_colour(team)));
         ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
         ctx.begin_path();
 

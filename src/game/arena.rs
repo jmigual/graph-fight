@@ -1,7 +1,11 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
+use web_sys::HtmlCanvasElement;
 
-use crate::geometry::{math::Point, Circle, Rectangle};
+use crate::geometry::{
+    math::{CanvasHelper, Point},
+    Circle, Rectangle,
+};
 
 use super::Obstacle;
 
@@ -21,16 +25,17 @@ impl Arena {
     pub fn add_obstacles<R: Rng + ?Sized>(
         &mut self,
         num_obstacles: usize,
+        min_obstacle_size: f64,
         max_obstacle_size: f64,
         rng: &mut R,
     ) {
-        let distr = Normal::new(max_obstacle_size / 2.0, 1.0).unwrap();
+        let distr = Normal::new((max_obstacle_size - min_obstacle_size) / 2.0, 0.8).unwrap();
         let x_range = self.area.range_h();
         let y_range = self.area.range_v();
 
         self.obstacles.reserve(num_obstacles);
         for _ in 0..num_obstacles {
-            let obstacle_size = distr.sample(rng);
+            let obstacle_size = distr.sample(rng).clamp(min_obstacle_size, max_obstacle_size);
             let pos = Point::random(&x_range, &y_range, rng);
             self.obstacles
                 .push(Obstacle::from_circle(Circle::new(pos, obstacle_size)));
@@ -62,6 +67,12 @@ impl Arena {
 
     pub fn area(&self) -> &Rectangle {
         &self.area
+    }
+
+    pub fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
+        for obstacle in &self.obstacles {
+            obstacle.draw(&canvas, &helper);
+        }
     }
 }
 
