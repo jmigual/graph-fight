@@ -4,8 +4,12 @@ use wasm_bindgen::prelude::*;
 
 pub mod style {
     pub mod colour {
-        pub const PLAYER_RIGHT: &str = "#F00";
-        pub const PLAYER_LEFT: &str = "#00F";
+        pub const TEAM_0: &str = "#F00";
+        pub const TEAM_1: &str = "#00F";
+        pub const TEAM_2: &str = "#0F0";
+        pub const TEAM_3: &str = "#FF0";
+        pub const TEAM_4: &str = "#F0F";
+        pub const TEAM_5: &str = "#0FF";
     }
 
     pub enum Team {

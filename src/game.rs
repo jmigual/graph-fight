@@ -2,7 +2,7 @@ mod obstacle;
 mod player;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use rand_distr::{Normal, Distribution};
+use rand_distr::{Distribution, Normal};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
@@ -56,16 +56,16 @@ impl Game {
             ));
         }
 
+        let teams = Vec::with_capacity(players_per_team.len());
         let mut game = Game {
-            team_a: Vec::with_capacity(num_players_a),
-            team_b: Vec::with_capacity(num_players_b),
+            teams,
             obstacles: Vec::with_capacity(num_obstacles),
             arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
             rng: SmallRng::seed_from_u64(seed as u64),
         };
 
         // May fail if the player radius is too big
-        game.create_team(num_players_a, num_players_b, player_radius)?;
+        game.create_team(players_per_team, player_radius)?;
         game.create_obstables(num_obstacles, obstacle_size)?;
 
         Ok(game)
@@ -82,38 +82,23 @@ impl Game {
         // Player A goes on the left side
         let p_a_range_x = Range::new(self.arena.left(), 0.);
 
-
-
-        for _ in 0..num_players_a {
-            let shape = match self.find_random_pos(
-                &p_a_range_x,
-                &p_range_y,
-                player_radius,
-                &Type::Player,
-            ) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
-
-            let new_player = Player::from_circle(shape);
-            self.team_a.push(new_player);
-        }
-
-        // Player B goes on the right side
-        let p_b_range_x = Range::new(0., self.arena.right());
-        for _ in 0..num_players_b {
-            let shape = match self.find_random_pos(
-                &p_b_range_x,
-                &p_range_y,
-                player_radius,
-                &Type::Player,
-            ) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
-
-            let new_player = Player::from_circle(shape);
-            self.team_b.push(new_player);
+        for team_size in players_per_team {
+            let team = Vec::with_capacity(*team_size);
+            for _ in 0..*team_size {
+                let shape = match self.find_random_pos(
+                    &p_a_range_x,
+                    &p_range_y,
+                    player_radius,
+                    &Type::Player,
+                ) {
+                    Ok(p) => p,
+                    Err(error) => return Err(JsValue::from_str(error.message())),
+                };
+    
+                let new_player = Player::from_circle(shape);
+                team.push(new_player);
+            }
+            self.teams.push(team);
         }
 
         Ok(())
@@ -148,13 +133,8 @@ impl Game {
     fn is_valid_pos(&self, shape: &Circle, pos_type: &Type) -> bool {
         let f = |p: &Player| !p.shape().collision_circle(shape);
 
-        // Collision with players from team A
-        if !self.team_a.iter().all(f) {
-            return false;
-        }
-
-        // Collision with players from team B
-        if !self.team_b.iter().all(f) {
+        // Collision with players
+        if !self.teams.iter().flatten().all(f) {
             return false;
         }
 
@@ -173,6 +153,7 @@ impl Game {
                     return false;
                 }
 
+                // A player cannot collide with the border
                 self.arena.left() + shape.radius() <= pos.x
                     && self.arena.right() - shape.radius() >= pos.x
                     && self.arena.bottom() + shape.radius() <= pos.y
@@ -215,6 +196,12 @@ impl Game {
         ctx.set_fill_style(&JsValue::from_str(style::colour::BACKGROUND));
         ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
         ctx.stroke();
+
+        for (i, team) in self.teams.iter().enumerate() {
+            for player in team {
+                
+            }
+        }
 
         for player in &self.team_a {
             player.draw(&canvas, &helper, player::style::Team::Right);
