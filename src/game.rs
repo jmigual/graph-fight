@@ -1,11 +1,13 @@
 mod player;
+mod obstacle;
 
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
 use crate::utils;
 
-pub use self::player::*;
+pub use self::player::Player;
+pub use self::obstacle::Obstacle;
 
 mod style {
     pub mod colour {
@@ -18,7 +20,7 @@ pub struct Game {
     team_a: Vec<Player>,
     team_b: Vec<Player>,
     obstacles: Vec<Obstacle>,
-    arena: Rectangle
+    arena: Rectangle,
 }
 
 #[wasm_bindgen]
@@ -51,47 +53,72 @@ impl Game {
             team_a: Vec::with_capacity(num_players_a),
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
-            arena: Rectangle::new((0.0, 0.0).into(), 2.0*x_max, 2.0*y_max)
+            arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
         };
 
-        // Vertical range is the same for both sides
-        let p_range_y = Range::new(game.arena.bottom(), game.arena.top());
-
-        // Player A goes on the left side
-        let p_a_range_x = Range::new(game.arena.left(), 0.);
-
-        for _ in 0..num_players_a {
-            let shape = match game.find_random_pos(&p_a_range_x, &p_range_y, player_radius) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
-
-            let new_player = Player::from_circle(shape);
-            game.team_a.push(new_player);
-        }
-
-        // Player B goes on the right side
-        let p_b_range_x = Range::new(0., game.arena.right());
-        for _ in 0..num_players_b {
-            let shape = match game.find_random_pos(&p_b_range_x, &p_range_y, player_radius) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
-
-            let new_player = Player::from_circle(shape);
-            game.team_b.push(new_player);
-        }
-
-        // Before placing an obstacle check that
-
-        for _ in 0..num_obstacles {}
+        // May fail if the player radius is too big
+        game.create_team(num_players_a, num_players_b, player_radius)?;
+        game.create_obstables(num_obstacles, obstacle_size)?;
 
         Ok(game)
     }
 
+    fn create_team(
+        &mut self,
+        num_players_a: usize,
+        num_players_b: usize,
+        player_radius: f64,
+    ) -> Result<(), JsValue> {
+        // Vertical range is the same for both sides
+        let p_range_y = Range::new(self.arena.bottom(), self.arena.top());
+
+        // Player A goes on the left side
+        let p_a_range_x = Range::new(self.arena.left(), 0.);
+
+        for _ in 0..num_players_a {
+            let shape = match self.find_random_pos(&p_a_range_x, &p_range_y, player_radius) {
+                Ok(p) => p,
+                Err(error) => return Err(JsValue::from_str(error.message())),
+            };
+
+            let new_player = Player::from_circle(shape);
+            self.team_a.push(new_player);
+        }
+
+        // Player B goes on the right side
+        let p_b_range_x = Range::new(0., self.arena.right());
+        for _ in 0..num_players_b {
+            let shape = match self.find_random_pos(&p_b_range_x, &p_range_y, player_radius) {
+                Ok(p) => p,
+                Err(error) => return Err(JsValue::from_str(error.message())),
+            };
+
+            let new_player = Player::from_circle(shape);
+            self.team_b.push(new_player);
+        }
+
+        Ok(())
+    }
+
+    fn create_obstables(&mut self, num_obstacles: usize, obstacle_size: f64) -> Result<(), JsValue> {
+        let range_x = Range::new(self.arena.left(), self.arena.right());
+        let range_y = Range::new(self.arena.bottom(), self.arena.top());
+        
+        for _ in 0..num_obstacles {
+            let shape = match self.find_random_pos(&range_x, &range_y, obstacle_size) {
+                Ok(p) => p,
+                Err(error) => return Err(JsValue::from_str(error.message()))
+            };
+
+            let new_obstacle = Obstacle::from_circle(shape);
+            self.obstacles.push(new_obstacle);
+        }
+
+        Ok(())
+    }
+    
     fn is_valid_pos(&self, shape: &Circle) -> bool {
         let f = |p: &Player| !p.shape().collision_circle(shape);
-
 
         // Collision with players from team A
         if !self.team_a.iter().all(f) {
@@ -116,7 +143,7 @@ impl Game {
             return false;
         }
 
-        self.arena.left() + shape.radius() <= pos.x 
+        self.arena.left() + shape.radius() <= pos.x
             && self.arena.right() - shape.radius() >= pos.x
             && self.arena.bottom() + shape.radius() <= pos.y
             && self.arena.top() - shape.radius() >= pos.y
@@ -164,7 +191,6 @@ impl Game {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,7 +210,7 @@ mod tests {
             ((-20.0, -20.0), false),
             ((20.0, -20.0), false),
             ((7.0, 0.0), false),
-            ((7.0, 7.0), false)
+            ((7.0, 7.0), false),
         ];
 
         for (p, r) in pos {

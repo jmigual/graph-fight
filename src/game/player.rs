@@ -1,6 +1,5 @@
 use crate::geometry::*;
 use crate::utils;
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 pub mod style {
@@ -15,7 +14,7 @@ pub mod style {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Player {
     shape: Circle,
     alive: bool,
@@ -60,8 +59,8 @@ impl Player {
         ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
         ctx.begin_path();
 
-        let center = helper.to_canvas_point(self.shape().pos());
-        let r = self.shape().radius();
+        let center = helper.to_canvas_point(self.shape.pos());
+        let r = self.shape.radius();
         let radius = helper.to_canvas_vector(&(r, r).into());
         ctx.ellipse(
             center.0,

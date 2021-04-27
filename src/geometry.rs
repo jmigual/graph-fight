@@ -99,29 +99,10 @@ impl Rectangle {
     }
 
     pub fn inside(&self, other: &Point) -> bool {
-        self.left() <= other.x && other.x <= self.right()
-            && self.bottom() <= other.y && other.y <= self.top()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Obstacle {
-    shape: Circle,
-    holes: Vec<Circle>,
-}
-
-impl Obstacle {
-    pub fn new(pos: Point, radius: f64) -> Obstacle {
-        Obstacle {
-            shape: Circle::new(pos, radius),
-            holes: Vec::new(),
-        }
-    }
-}
-
-impl Obstacle {
-    pub fn shape(&self) -> &Circle {
-        &self.shape
+        self.left() <= other.x
+            && other.x <= self.right()
+            && self.bottom() <= other.y
+            && other.y <= self.top()
     }
 }
 
@@ -226,7 +207,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_inside_rectangle() {
         let a = Rectangle::new((0.0, 0.0).into(), 10.0, 10.0);
@@ -240,7 +220,7 @@ mod tests {
             ((10.0, 10.0), false),
             ((-10.0, 10.0), false),
             ((-10.0, -10.0), false),
-            ((10.0, -10.0), false)
+            ((10.0, -10.0), false),
         ];
 
         for (p, r) in pos {
