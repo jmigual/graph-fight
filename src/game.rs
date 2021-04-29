@@ -3,7 +3,7 @@ mod obstacle;
 mod player;
 mod team;
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;

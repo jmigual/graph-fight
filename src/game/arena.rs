@@ -1,5 +1,3 @@
-use std::char::MAX;
-
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use web_sys::HtmlCanvasElement;
@@ -39,8 +37,6 @@ impl Arena {
         rng: &mut R,
     ) -> Result<(), NotFoundError> {
         let distr = Normal::new((max_obstacle_size - min_obstacle_size) / 2.0, 0.8).unwrap();
-        let x_range = self.area.range_h();
-        let y_range = self.area.range_v();
 
         self.obstacles.reserve(num_obstacles);
         for _ in 0..num_obstacles {
