@@ -145,6 +145,14 @@ impl Rectangle {
             && self.bottom() <= pos.y
             && pos.y <= self.top()
     }
+
+    pub fn circle_inside(&self, c: &Circle) -> bool {
+        let pos = c.pos();
+        self.left() + c.radius() <= pos.x
+            && self.right() - c.radius() >= pos.x
+            && self.bottom() + c.radius() <= pos.y
+            && self.top() - c.radius() >= pos.y
+    }
 }
 
 #[cfg(test)]
@@ -269,6 +277,30 @@ mod tests {
         for (p, r) in pos {
             let b: Point = p.into();
             assert_eq!(a.inside(&b), r);
+        }
+    }
+
+    #[test]
+    fn test_valid_pos() {
+        let area = Rectangle::new((0.0, 0.0).into(), 20.0, 20.0);
+
+        let pos = vec![
+            ((0.0, 0.0), true),
+            ((5.0, 5.0), true),
+            ((-5.0, 5.0), true),
+            ((-5.0, -5.0), true),
+            ((5.0, -5.0), true),
+            ((20.0, 20.0), false),
+            ((-20.0, 20.0), false),
+            ((-20.0, -20.0), false),
+            ((20.0, -20.0), false),
+            ((7.0, 0.0), false),
+            ((7.0, 7.0), false),
+        ];
+
+        for (p, r) in pos {
+            let c = Circle::new(p.into(), 4.0);
+            assert_eq!(area.circle_inside(&c), r);
         }
     }
 

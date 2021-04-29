@@ -11,7 +11,8 @@ function draw(timestamp: number) {
 
 
 function main() {
-    game = new Game(20, 10, 30, .2, 2, new Float64Array([4, 4, 4, 4]), .5, 0);
+    game = new Game(20, 10, 30, .2, 2, new Uint32Array([4, 4, 4, 4]), .5, 1);
+    game.init();
     window.requestAnimationFrame(draw);
 }
 
