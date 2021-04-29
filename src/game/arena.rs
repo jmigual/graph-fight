@@ -74,6 +74,7 @@ impl Arena {
             obstacle.draw(&canvas, &helper);
         }
     }
+
 }
 
 #[cfg(test)]

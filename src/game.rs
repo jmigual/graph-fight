@@ -3,7 +3,7 @@ mod obstacle;
 mod player;
 mod team;
 
-use rand::{rngs::SmallRng, SeedableRng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
@@ -21,67 +21,88 @@ mod style {
 }
 
 #[wasm_bindgen]
+pub struct Options {
+    h_max: f64,
+    v_max: f64,
+    num_obstacles: usize,
+    min_obstacle_size: f64,
+    max_obstacle_size: f64,
+    players_per_team: Vec<usize>,
+    player_size: f64,
+    seed: u64,
+}
+
+#[wasm_bindgen]
+impl Options {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        h_max: f64,
+        v_max: f64,
+        num_obstacles: f64,
+        min_obstacle_size: f64,
+        max_obstacle_size: f64,
+        players_per_team: &[usize],
+        player_size: f64,
+        seed: f64,
+    ) {
+    }
+}
+
+#[wasm_bindgen]
 pub struct Game {
     teams: Vec<Team>,
     arena: Arena,
-    rng: SmallRng,
+    ops: Options,
 }
 
 #[wasm_bindgen]
 impl Game {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        x_max: f64,
-        y_max: f64,
-        num_obstacles: usize,
-        min_obstacle_size: f64,
-        max_obstacle_size: f64,
-        players_per_team: &[f64],
-        player_size: f64,
-        seed: f64,
-    ) -> Result<Game, JsValue> {
+    pub fn new(ops: Options) -> Game {
         utils::set_panic_hook();
 
         assert!(
-            x_max > 0.0 && y_max > 0.0,
+            ops.h_max > 0.0 && ops.v_max > 0.0,
             "x_max and y_max must have a positive value"
         );
         assert!(
-            min_obstacle_size > 0.0 && player_size > 0.0,
+            ops.min_obstacle_size > 0.0 && ops.player_size > 0.0,
             "Min obstacle size and player radius must be a positive value"
         );
         assert!(
-            min_obstacle_size < max_obstacle_size,
+            ops.min_obstacle_size < ops.max_obstacle_size,
             "The maximum obstacle size must be larger than the minimum obstacle size"
         );
 
-        let teams = Vec::with_capacity(players_per_team.len());
+        let teams = Vec::with_capacity(ops.players_per_team.len());
 
-        let mut game = Game {
+        Game {
             teams,
-            arena: Arena::new(2.0 * x_max, 2.0 * y_max),
-            rng: SmallRng::seed_from_u64(seed as u64),
-        };
-        game.create_obstacles(num_obstacles, min_obstacle_size, max_obstacle_size);
-
-        // May fail if the player radius is too big
-        game.create_team(
-            &players_per_team
-                .iter()
-                .map(|&e| e as usize)
-                .collect::<Vec<usize>>(),
-            player_size,
-        )?;
-
-        Ok(game)
+            arena: Arena::new(2.0 * ops.h_max, 2.0 * ops.v_max),
+            ops,
+        }
     }
 
-    fn create_team(&mut self, players_per_team: &[usize], player_size: f64) -> Result<(), JsValue> {
-        let areas = self.arena.area().partition(players_per_team.len() as u64);
+    pub fn init(&mut self) -> Result<(), JsValue> {
+        // Clear previous data first, just in case
+        self.teams.clear();
+        self.arena = Arena::new(2.0 * self.ops.h_max, 2.0 * self.ops.v_max);
 
-        for (team_size, area) in players_per_team.iter().zip(areas.iter()) {
+        let mut rng: SmallRng = SeedableRng::seed_from_u64(self.ops.seed);
+        self.create_team(&mut rng)?;
+
+        Ok(())
+    }
+
+    fn create_team<R: Rng + ?Sized>(&mut self, rng: &mut R) -> Result<(), JsValue> {
+        let areas = self
+            .arena
+            .area()
+            .partition(self.ops.players_per_team.len() as u64);
+
+        for (team_size, area) in self.ops.players_per_team.iter().zip(areas.iter()) {
             let mut team = Team::new(area.clone());
-            match team.add_players(*team_size, player_size, &self.arena, &mut self.rng) {
+            match team.add_players(*team_size, self.ops.player_size, &self.arena, rng) {
                 Err(error) => return Err(JsValue::from_str(error.message())),
                 _ => {}
             };
@@ -89,20 +110,6 @@ impl Game {
         }
 
         Ok(())
-    }
-
-    fn create_obstacles(
-        &mut self,
-        num_obstacles: usize,
-        min_obstacle_size: f64,
-        max_obstacle_size: f64,
-    ) {
-        self.arena.add_obstacles(
-            num_obstacles,
-            min_obstacle_size,
-            max_obstacle_size,
-            &mut self.rng,
-        );
     }
 
     pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
@@ -138,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let game = Game::new(20.0, 10.0, 2, 0.2, 2.0, &[4.0, 4.0], 0.5, 0.0);
-        game.unwrap();
+        // let game = Game::new(20.0, 10.0, 2, 0.2, 2.0, &[4.0, 4.0], 0.5, 0.0);
+        // game.init(0).unwrap();
     }
 }
