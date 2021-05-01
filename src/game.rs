@@ -21,6 +21,13 @@ mod style {
 }
 
 const MAX_ITERS: usize = 100;
+const STEP_SIZE: f64 = 0.05;
+
+enum State {
+    EVALUATING(Box<dyn Fn(f64)-> f64>),
+    WAITING
+}
+
 
 #[wasm_bindgen]
 pub struct Options {
@@ -30,12 +37,15 @@ pub struct Options {
     players_per_team: Vec<usize>,
     player_size: f64,
     seed: u64,
+    eval_speed: f64,
 }
 
 #[wasm_bindgen]
 pub struct Game {
     arena: Arena,
     ops: Options,
+    state: State,
+    current_team: usize
 }
 
 #[wasm_bindgen]
@@ -49,6 +59,7 @@ impl Game {
         max_obstacle_size: f64,
         players_per_team: &[usize],
         player_size: f64,
+        eval_speed: f64,
         seed: f64,
     ) -> Game {
         utils::set_panic_hook();
@@ -74,8 +85,11 @@ impl Game {
                 max_obstacle_size,
                 players_per_team: players_per_team.iter().cloned().collect(),
                 player_size,
+                eval_speed,
                 seed: seed as u64,
             },
+            state: State::WAITING,
+            current_team: 0
         }
     }
 
@@ -108,12 +122,44 @@ impl Game {
         Ok(())
     }
 
-    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
+    pub fn shoot(&mut self, formula: &str) -> Result<(), JsValue> {
+        // Check if formula is valid
+
+
+        let player = self.get_current_player_mut();
+        player.formula = String::from(formula);
+
+        Ok(())
+    }
+
+    pub fn next_team(&mut self) {
+        let teams = self.arena.get_teams();
+        assert!(teams.len() > 0);
+
+        for i in 1..teams.len() {
+            let idx = (self.current_team + i) % teams.len();
+
+            if teams[idx].is_alive() {
+                self.current_team = idx;
+                return;
+            }
+        }
+    }
+
+    pub fn get_current_team_idx(&self) -> usize {
+        self.current_team
+    }
+
+    pub fn get_current_formula(&self) -> String {
+        self.get_current_player().formula.to_string()
+    }
+
+    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement, delta: f64) {
         let helper = math::CanvasHelper::new(
             canvas.width() as f64,
             canvas.height() as f64,
-            self.arena.area().width(),
-            self.arena.area().height(),
+            self.arena.get_area().width(),
+            self.arena.get_area().height(),
         );
 
         // Draw background
@@ -125,6 +171,14 @@ impl Game {
 
         self.arena.draw(&canvas, &helper);
     }
+
+    fn get_current_player_mut(&mut self) -> &mut Player {
+        self.arena.get_teams_mut()[self.current_team].get_current_player_mut().unwrap()
+    }
+
+    fn get_current_player(&self) -> &Player {
+        self.arena.get_teams()[self.current_team].get_current_player().unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -133,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let mut game = Game::new(20.0, 10.0, 2.0, 0.2, 2.0, &[4, 4], 0.5, 0.0);
+        let mut game = Game::new(20.0, 10.0, 2.0, 0.2, 2.0, &[4, 4], 0.5, 1.0, 0.0);
         game.init().unwrap();
     }
 }

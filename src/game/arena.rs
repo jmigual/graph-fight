@@ -80,8 +80,16 @@ impl Arena {
             .any(|o| o.shape().collision_circle(&shape))
     }
 
-    pub fn area(&self) -> &Rectangle {
+    pub fn get_area(&self) -> &Rectangle {
         &self.area
+    }
+
+    pub fn get_teams(&self) -> &Vec<Team> {
+        &self.teams
+    }
+
+    pub fn get_teams_mut(&mut self) -> &mut Vec<Team> {
+        &mut self.teams
     }
 
     /// Clears the entire arena, leaving it blank

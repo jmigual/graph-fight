@@ -13,6 +13,7 @@ const MAX_ITERS: u64 = 100;
 pub struct Team {
     area: Rectangle,
     players: Vec<Player>,
+    current_player: usize
 }
 
 impl Team {
@@ -20,6 +21,7 @@ impl Team {
         Team {
             area,
             players: Vec::new(),
+            current_player: 0
         }
     }
 
@@ -44,7 +46,43 @@ impl Team {
     pub fn collision_with_player(&self, shape: &Circle) -> bool {
         self.players
             .iter()
-            .any(|p| p.shape().collision_circle(&shape))
+            .any(|p| p.shape.collision_circle(&shape))
+    }
+
+    pub fn get_current_player(&self) -> Option<&Player> {
+        if self.players[self.current_player].alive {
+            Some(&self.players[self.current_player])
+        } else {
+            None
+        }
+    }
+
+    pub fn get_current_player_mut(&mut self) -> Option<&mut Player> {
+        if self.players[self.current_player].alive {
+            Some(&mut self.players[self.current_player])
+        } else {
+            None
+        }
+    }
+
+    /// Moves to the next alive player, returns `false` if no player is alive
+    pub fn next_player(&mut self) -> bool {
+        // Try to find the next alive player
+        for i in 1..self.players.len() {
+            let idx = (self.current_player + i) % self.players.len();
+
+            if self.players[idx].alive {
+                self.current_player = idx;
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// True if some players in a team are still alive
+    pub fn is_alive(&self) -> bool {
+        self.players.iter().any(|p| p.alive)        
     }
 
     pub fn draw_area(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
@@ -92,7 +130,7 @@ impl Team {
     }
 
     fn is_valid_pos(&self, shape: &Circle, arena: &Arena) -> bool {
-        let f = |p: &Player| !p.shape().collision_circle(shape);
+        let f = |p: &Player| !p.shape.collision_circle(shape);
 
         // Collision with other players from same team
         if !self.players.iter().all(f) {

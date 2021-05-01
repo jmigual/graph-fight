@@ -27,32 +27,29 @@ pub mod style {
 
 #[derive(Clone)]
 pub struct Player {
-    shape: Circle,
-    alive: bool,
+    pub shape: Circle,
+    pub alive: bool,
+    pub formula: String,
 }
 
 #[allow(dead_code)]
 impl Player {
     pub fn from_circle(shape: Circle) -> Player {
-        Player { shape, alive: true }
+        Player {
+            shape,
+            alive: true,
+            formula: String::new(),
+        }
     }
 
     pub fn new(pos: Point, radius: f64) -> Player {
         Player {
             shape: Circle::new(pos, radius),
             alive: true,
+            formula: String::new(),
         }
     }
 
-    pub fn shape_js(&self) -> Circle {
-        self.shape.clone()
-    }
-}
-
-impl Player {
-    pub fn shape(&self) -> &Circle {
-        &self.shape
-    }
     pub fn draw(
         &self,
         canvas: &web_sys::HtmlCanvasElement,
