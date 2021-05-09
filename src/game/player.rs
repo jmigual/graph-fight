@@ -1,6 +1,10 @@
+use std::rc::Rc;
+
 use crate::geometry::*;
 use crate::utils;
 use wasm_bindgen::prelude::*;
+
+use super::{Drawable, Team};
 
 pub mod style {
     pub mod colour {
@@ -30,32 +34,32 @@ pub struct Player {
     pub shape: Circle,
     pub alive: bool,
     pub formula: String,
+    pub team: Rc<Team>
 }
 
 #[allow(dead_code)]
 impl Player {
-    pub fn from_circle(shape: Circle) -> Player {
+    pub fn from_circle(shape: Circle, team: Rc<Team>) -> Player {
         Player {
             shape,
             alive: true,
             formula: String::new(),
+            team
         }
     }
 
-    pub fn new(pos: Point, radius: f64) -> Player {
+    pub fn new(pos: Point, radius: f64, team: Rc<Team>) -> Player {
         Player {
             shape: Circle::new(pos, radius),
             alive: true,
             formula: String::new(),
+            team
         }
     }
+}
 
-    pub fn draw(
-        &self,
-        canvas: &web_sys::HtmlCanvasElement,
-        helper: &math::CanvasHelper,
-        team: usize,
-    ) {
+impl Drawable for Player {
+    fn draw(&self, canvas: &web_sys::HtmlCanvasElement, helper: &math::CanvasHelper) {
         // For now let's draw red circles
 
         let ctx = utils::ctx_from_canvas(&canvas);

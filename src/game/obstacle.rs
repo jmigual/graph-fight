@@ -2,6 +2,8 @@ use crate::geometry::*;
 use crate::utils;
 use wasm_bindgen::prelude::*;
 
+use super::Drawable;
+
 pub mod style {
     pub mod colour {
         pub const OBSTACLE: &str = "#000";
@@ -24,8 +26,10 @@ impl Obstacle {
     pub fn shape(&self) -> &Circle {
         &self.shape
     }
+}
 
-    pub fn draw(&self, canvas: &web_sys::HtmlCanvasElement, helper: &math::CanvasHelper) {
+impl Drawable for Obstacle {
+    fn draw(&self, canvas: &web_sys::HtmlCanvasElement, helper: &math::CanvasHelper) {
         let ctx = utils::ctx_from_canvas(&canvas);
         ctx.set_fill_style(&JsValue::from_str(style::colour::OBSTACLE));
 

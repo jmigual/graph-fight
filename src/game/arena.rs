@@ -1,3 +1,5 @@
+use std::{collections::BTreeMap, rc::Rc};
+
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use web_sys::HtmlCanvasElement;
@@ -10,15 +12,22 @@ use crate::{
     utils::NotFoundError,
 };
 
-use super::{Obstacle, Team};
+use super::{Drawable, Obstacle, Team};
 
 pub struct Arena {
     area: Rectangle,
-    obstacles: Vec<Obstacle>,
+    obstacles: Vec<Rc<Obstacle>>,
     teams: Vec<Team>,
+    objects: BTreeMap<i32, Vec<Rc<dyn Drawable>>>,
 }
 
 const MAX_ITERS: usize = 100;
+
+mod layers {
+    pub const OBSTACLE: i32 = 10;
+    pub const PLAYER: i32 = 20;
+    pub const TEAM_DELIMITER: i32 = 0;
+}
 
 impl Arena {
     pub fn new(width: f64, height: f64) -> Arena {
@@ -26,6 +35,7 @@ impl Arena {
             area: Rectangle::new((0.0, 0.0).into(), width, height),
             obstacles: Vec::new(),
             teams: Vec::new(),
+            objects: BTreeMap::new(),
         }
     }
 
@@ -45,7 +55,16 @@ impl Arena {
                 .clamp(min_obstacle_size, max_obstacle_size);
 
             let shape = self.find_random_pos(obstacle_size, rng)?;
-            self.obstacles.push(Obstacle::from_circle(shape));
+            let obstacle = Rc::new(Obstacle::from_circle(shape));
+            self.obstacles.push(Rc::clone(&obstacle));
+
+            // Insert new vector if it's not there already
+            match self.objects.get_mut(&layers::OBSTACLE) {
+                Some(v) => v.push(obstacle),
+                None => {
+                    self.objects.insert(layers::OBSTACLE, vec![obstacle]);
+                }
+            }
         }
 
         Ok(())
@@ -98,20 +117,6 @@ impl Arena {
         self.teams.clear();
     }
 
-    pub fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
-        for obstacle in &self.obstacles {
-            obstacle.draw(&canvas, &helper);
-        }
-
-        for team in &self.teams {
-            team.draw_area(canvas, helper);
-        }
-
-        for (i, team) in self.teams.iter().enumerate() {
-            team.draw(canvas, helper, i);
-        }
-    }
-
     fn find_random_pos<R: Rng + ?Sized>(
         &self,
         obstacle_size: f64,
@@ -131,5 +136,21 @@ impl Arena {
         }
 
         Err(NotFoundError::new("No valid position found for obstacle"))
+    }
+}
+
+impl Drawable for Arena {
+    fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
+        for obstacle in &self.obstacles {
+            obstacle.draw(&canvas, &helper);
+        }
+
+        for team in &self.teams {
+            team.draw_area(canvas, helper);
+        }
+
+        for (i, team) in self.teams.iter().enumerate() {
+            team.draw(canvas, helper, i);
+        }
     }
 }

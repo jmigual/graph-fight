@@ -14,6 +14,10 @@ pub use self::obstacle::Obstacle;
 pub use self::player::Player;
 pub use self::team::Team;
 
+pub trait Drawable {
+    fn draw(&self, canvas: &web_sys::HtmlCanvasElement, helper: &CanvasHelper);
+}
+
 mod style {
     pub mod colour {
         pub const BACKGROUND: &str = "#FFF";
@@ -24,10 +28,9 @@ const MAX_ITERS: usize = 100;
 const STEP_SIZE: f64 = 0.05;
 
 enum State {
-    EVALUATING(Box<dyn Fn(f64)-> f64>),
-    WAITING
+    EVALUATING(Box<dyn Fn(f64) -> f64>),
+    WAITING,
 }
-
 
 #[wasm_bindgen]
 pub struct Options {
@@ -45,7 +48,7 @@ pub struct Game {
     arena: Arena,
     ops: Options,
     state: State,
-    current_team: usize
+    current_team: usize,
 }
 
 #[wasm_bindgen]
@@ -89,7 +92,7 @@ impl Game {
                 seed: seed as u64,
             },
             state: State::WAITING,
-            current_team: 0
+            current_team: 0,
         }
     }
 
@@ -124,7 +127,6 @@ impl Game {
 
     pub fn shoot(&mut self, formula: &str) -> Result<(), JsValue> {
         // Check if formula is valid
-
 
         let player = self.get_current_player_mut();
         player.formula = String::from(formula);
@@ -173,11 +175,15 @@ impl Game {
     }
 
     fn get_current_player_mut(&mut self) -> &mut Player {
-        self.arena.get_teams_mut()[self.current_team].get_current_player_mut().unwrap()
+        self.arena.get_teams_mut()[self.current_team]
+            .get_current_player_mut()
+            .unwrap()
     }
 
     fn get_current_player(&self) -> &Player {
-        self.arena.get_teams()[self.current_team].get_current_player().unwrap()
+        self.arena.get_teams()[self.current_team]
+            .get_current_player()
+            .unwrap()
     }
 }
 

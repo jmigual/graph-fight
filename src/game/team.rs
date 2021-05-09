@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use rand::Rng;
 use wasm_bindgen::JsValue;
 use web_sys::HtmlCanvasElement;
@@ -13,16 +15,18 @@ const MAX_ITERS: u64 = 100;
 pub struct Team {
     area: Rectangle,
     players: Vec<Player>,
-    current_player: usize
+    current_player: usize,
+    team_id: usize
 }
 
 impl Team {
-    pub fn new(area: Rectangle) -> Team {
-        Team {
+    pub fn new(area: Rectangle, team_id: usize) -> Rc<Team> {
+        Rc::new(Team {
             area,
             players: Vec::new(),
-            current_player: 0
-        }
+            current_player: 0,
+            team_id
+        })
     }
 
     pub fn add_players<R: Rng + ?Sized>(
