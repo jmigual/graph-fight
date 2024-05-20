@@ -7,21 +7,20 @@ use std::{
     ops::{Add, Sub},
 };
 
+use wasm_bindgen::prelude::wasm_bindgen;
+
 #[derive(Clone, Debug)]
+#[wasm_bindgen]
 pub struct Point {
     pub x: f64,
     pub y: f64,
 }
 
-#[allow(dead_code)]
 impl Point {
     pub fn new(x: f64, y: f64) -> Point {
         Point { x, y }
     }
-}
 
-#[allow(dead_code)]
-impl Point {
     pub fn random<R: Rng + ?Sized>(
         x_range: &Range<f64>,
         y_range: &Range<f64>,

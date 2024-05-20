@@ -15,12 +15,12 @@ pub mod style {
 }
 
 #[derive(Clone)]
+#[wasm_bindgen]
 pub struct Player {
     shape: Circle,
     alive: bool,
 }
 
-#[allow(dead_code)]
 impl Player {
     pub fn from_circle(shape: Circle) -> Player {
         Player { shape, alive: true }
@@ -35,6 +35,10 @@ impl Player {
 
     pub fn shape_js(&self) -> Circle {
         self.shape.clone()
+    }
+
+    pub fn alive(&self) -> bool {
+        self.alive
     }
 }
 

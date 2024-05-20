@@ -1,13 +1,16 @@
 pub mod math;
 
 pub use self::math::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Clone)]
+#[wasm_bindgen]
 pub struct Circle {
     pos: Point,
     radius: f64,
 }
 
+#[wasm_bindgen]
 impl Circle {
     pub fn new(pos: Point, radius: f64) -> Circle {
         Circle { pos, radius }
@@ -16,12 +19,17 @@ impl Circle {
     pub fn radius(&self) -> f64 {
         self.radius
     }
+
+    pub fn pos_s(&self) -> Point {
+        self.pos.clone()
+    }
 }
 
 impl Circle {
     pub fn pos(&self) -> &Point {
         &self.pos
     }
+
     pub fn collision_circle(&self, other: &Circle) -> bool {
         self.pos.distance_to(&other.pos) <= self.radius + other.radius
     }

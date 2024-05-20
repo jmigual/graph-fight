@@ -25,8 +25,15 @@ const config: webpack.Configuration = {
     extensions: ['.tsx', '.ts', '.js', '.wasm']
   },
   plugins: [
-    new CopyPlugin(['index.html'])
-  ]
+    new CopyPlugin({
+      patterns: [
+        { from: 'index.html', to: 'index.html' }
+      ]
+    })
+  ],
+  experiments: {
+    asyncWebAssembly: true,
+  }
 }
 
 export default config;

@@ -10,6 +10,6 @@ use graph_fight::game::*;
 
 #[test]
 fn create() {
-    let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.05);
+    let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.05, 0);
     assert!(game.is_ok());
 }

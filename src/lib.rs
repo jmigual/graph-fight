@@ -1,5 +1,5 @@
 pub mod game;
-mod geometry;
+pub mod geometry;
 mod utils;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global

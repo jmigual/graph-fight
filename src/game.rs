@@ -2,7 +2,7 @@ mod obstacle;
 mod player;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use rand_distr::{Normal, Distribution};
+use rand_distr::{Distribution, Normal};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
@@ -42,20 +42,16 @@ impl Game {
         num_players_a: usize,
         num_players_b: usize,
         player_radius: f64,
-        seed: f64,
-    ) -> Result<Game, JsValue> {
+        seed: u64,
+    ) -> Result<Game, String> {
         utils::set_panic_hook();
 
         if x_max <= 0. || y_max <= 0. {
-            return Err(JsValue::from_str(
-                "x_max and y_max must have a positive value",
-            ));
+            return Err("x_max and y_max must have a positive value".into());
         }
 
         if obstacle_size <= 0. || player_radius <= 0. {
-            return Err(JsValue::from_str(
-                "Obstacle size and player radius must be a positive value",
-            ));
+            return Err("Obstacle size and player radius must be a positive value".into());
         }
 
         let mut game = Game {
@@ -63,7 +59,7 @@ impl Game {
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
             arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
-            rng: SmallRng::seed_from_u64(seed as u64),
+            rng: SmallRng::seed_from_u64(seed),
         };
 
         // May fail if the player radius is too big
@@ -72,13 +68,15 @@ impl Game {
 
         Ok(game)
     }
+}
 
+impl Game {
     fn create_team(
         &mut self,
         num_players_a: usize,
         num_players_b: usize,
         player_radius: f64,
-    ) -> Result<(), JsValue> {
+    ) -> Result<(), String> {
         // Vertical range is the same for both sides
         let p_range_y = Range::new(self.arena.bottom(), self.arena.top());
 
@@ -86,32 +84,17 @@ impl Game {
         let p_a_range_x = Range::new(self.arena.left(), 0.);
 
         for _ in 0..num_players_a {
-            let shape = match self.find_random_pos(
-                &p_a_range_x,
-                &p_range_y,
-                player_radius,
-                &Type::Player,
-            ) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
-
+            let shape =
+                self.find_random_pos(&p_a_range_x, &p_range_y, player_radius, &Type::Player)?;
             let new_player = Player::from_circle(shape);
-            self.team_a.push(new_player);
+            self.team_a.push(new_player); 
         }
 
         // Player B goes on the right side
         let p_b_range_x = Range::new(0., self.arena.right());
         for _ in 0..num_players_b {
-            let shape = match self.find_random_pos(
-                &p_b_range_x,
-                &p_range_y,
-                player_radius,
-                &Type::Player,
-            ) {
-                Ok(p) => p,
-                Err(error) => return Err(JsValue::from_str(error.message())),
-            };
+            let shape =
+                self.find_random_pos(&p_b_range_x, &p_range_y, player_radius, &Type::Player)?;
 
             let new_player = Player::from_circle(shape);
             self.team_b.push(new_player);
@@ -124,7 +107,7 @@ impl Game {
         &mut self,
         num_obstacles: usize,
         max_obstacle_size: f64,
-    ) -> Result<(), JsValue> {
+    ) -> Result<(), String> {
         let range_x = Range::new(self.arena.left(), self.arena.right());
         let range_y = Range::new(self.arena.bottom(), self.arena.top());
 
@@ -133,11 +116,7 @@ impl Game {
         for _ in 0..num_obstacles {
             let obstacle_size = distr.sample(&mut self.rng);
 
-            let shape =
-                match self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle) {
-                    Ok(p) => p,
-                    Err(error) => return Err(JsValue::from_str(error.message())),
-                };
+            let shape = self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle)?;
 
             let new_obstacle = Obstacle::from_circle(shape);
             self.obstacles.push(new_obstacle);
@@ -190,7 +169,7 @@ impl Game {
         y_range: &Range<f64>,
         radius: f64,
         pos_type: &Type,
-    ) -> Result<Circle, utils::NotFoundError> {
+    ) -> Result<Circle, String> {
         for _ in 0..100 {
             let pos = Point::random(&x_range, &y_range, &mut self.rng);
             let shape = Circle::new(pos, radius);
@@ -199,7 +178,7 @@ impl Game {
                 return Ok(shape);
             }
         }
-        Err(utils::NotFoundError::new("No valid position found"))
+        Err("No valid position found".into())
     }
 
     pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
@@ -237,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0.0).unwrap();
+        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0).unwrap();
 
         let pos = vec![
             ((0.0, 0.0), true),
@@ -261,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.5, 0.0);
+        let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.5, 0);
         game.unwrap();
     }
 }
