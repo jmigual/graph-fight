@@ -1,42 +1,50 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
+use serde::Serialize;
+use tsify::Tsify;
 use wasm_bindgen::prelude::wasm_bindgen;
-use web_sys::HtmlCanvasElement;
 
 use crate::geometry::{
-    math::{CanvasHelper, Point},
+    math::Point,
     Circle, Rectangle,
 };
 
-use super::{Obstacle, Team};
+use super::Team;
 
-#[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Serialize,Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct Arena {
     x_max: f64,
     y_max: f64,
     area: Rectangle,
-    obstacles: Vec<Obstacle>,
+    obstacles: Vec<Circle>,
+    holes: Vec<Circle>,
     teams: Vec<Team>,
 }
 
 const MAX_ITERS: usize = 100;
 
-#[wasm_bindgen]
 impl Arena {
-    #[wasm_bindgen(js_name = "area")]
-    pub fn js_area(&self) -> Rectangle {
-        self.area.clone()
-    }
+    // #[wasm_bindgen(js_name = "area")]
+    // pub fn js_area(&self) -> Rectangle {
+    //     self.area.clone()
+    // }
 
-    #[wasm_bindgen(js_name = "xMax")]
+    // pub fn js_obstacles(&self) -> Vec<Circle> {
+    //     self.obstacles.clone()
+    // }
+
     pub fn x_max(&self) -> f64 {
         self.x_max
     }
 
-    #[wasm_bindgen(js_name = "yMax")]
     pub fn y_max(&self) -> f64 {
         self.y_max
+    }
+
+    pub fn area(&self) -> Rectangle {
+        self.area.clone()
     }
 }
 
@@ -47,6 +55,7 @@ impl Arena {
             y_max,
             area: Rectangle::new((0.0, 0.0).into(), 2. * x_max, 2. * y_max),
             obstacles: Vec::new(),
+            holes: Vec::new(),
             teams: Vec::new(),
         }
     }
@@ -67,7 +76,7 @@ impl Arena {
                 .clamp(min_obstacle_size, max_obstacle_size);
 
             let shape = self.find_random_pos(obstacle_size, rng)?;
-            self.obstacles.push(Obstacle::from_circle(shape));
+            self.obstacles.push(shape);
         }
 
         Ok(())
@@ -99,7 +108,7 @@ impl Arena {
     pub fn collision_with_obstacle(&self, shape: &Circle) -> bool {
         self.obstacles
             .iter()
-            .any(|o| o.shape().collision_circle(&shape))
+            .any(|o| o.collision_circle(&shape))
     }
 
     pub fn get_area(&self) -> &Rectangle {
@@ -118,20 +127,6 @@ impl Arena {
     pub fn clear(&mut self) {
         self.obstacles.clear();
         self.teams.clear();
-    }
-
-    pub fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
-        for obstacle in &self.obstacles {
-            obstacle.draw(&canvas, &helper);
-        }
-
-        for team in &self.teams {
-            team.draw_area(canvas, helper);
-        }
-
-        for (i, team) in self.teams.iter().enumerate() {
-            team.draw(canvas, helper, i);
-        }
     }
 
     fn find_random_pos<R: Rng + ?Sized>(

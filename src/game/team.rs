@@ -1,16 +1,15 @@
 use rand::Rng;
-use wasm_bindgen::JsValue;
-use web_sys::HtmlCanvasElement;
+use tsify::Tsify;
+use serde::Serialize;
 
 use super::{Arena, Player};
-use crate::{
-    geometry::*,
-    utils::{self},
-};
+use crate::geometry::*;
 
 const MAX_ITERS: u64 = 100;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize,Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct Team {
     area: Rectangle,
     players: Vec<Player>,
@@ -84,29 +83,6 @@ impl Team {
     /// True if some players in a team are still alive
     pub fn is_alive(&self) -> bool {
         self.players.iter().any(|p| p.alive())
-    }
-
-    pub fn draw_area(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper) {
-        // Draw containing rectangle
-        let ctx = utils::ctx_from_canvas(canvas);
-
-        ctx.set_stroke_style(&JsValue::from_str("#000"));
-        ctx.set_line_width(2.0);
-        ctx.set_line_dash(&JsValue::from_serde(&[5.0, 5.0]).unwrap())
-            .unwrap();
-        ctx.begin_path();
-
-        let rec_tp = helper.to_canvas_point(&(self.area.left(), self.area.top()).into());
-        let rec_size = helper.to_canvas_vector(&(self.area.width(), self.area.height()).into());
-
-        ctx.rect(rec_tp.0, rec_tp.1, rec_size.0, rec_size.1);
-        ctx.stroke();
-    }
-
-    pub fn draw(&self, canvas: &HtmlCanvasElement, helper: &CanvasHelper, team_num: usize) {
-        for player in self.players.iter() {
-            player.draw(&canvas, &helper, team_num);
-        }
     }
 
     fn find_random_pos<R: Rng + ?Sized>(

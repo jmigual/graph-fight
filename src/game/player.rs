@@ -1,5 +1,7 @@
 use crate::geometry::*;
 use crate::utils;
+use serde::Serialize;
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
 pub mod style {
@@ -25,8 +27,8 @@ pub mod style {
     }
 }
 
-#[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Serialize,Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct Player {
     shape: Circle,
     alive: bool,
@@ -74,35 +76,5 @@ impl Player {
 
     pub fn formula(&self) -> &str {
         &self.formula
-    }
-
-    pub fn draw(
-        &self,
-        canvas: &web_sys::HtmlCanvasElement,
-        helper: &math::CanvasHelper,
-        team: usize,
-    ) {
-        // For now let's draw red circles
-
-        let ctx = utils::ctx_from_canvas(&canvas);
-
-        ctx.set_fill_style(&JsValue::from_str(&style::colour::get_team_colour(team)));
-        ctx.set_stroke_style(&JsValue::from_str("rgba(1, 1, 1, 0)"));
-        ctx.begin_path();
-
-        let center = helper.to_canvas_point(self.shape.pos());
-        let r = self.shape.radius();
-        let radius = helper.to_canvas_vector(&(r, r).into());
-        ctx.ellipse(
-            center.0,
-            center.1,
-            radius.0,
-            radius.1,
-            0.0,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        )
-        .unwrap();
-        ctx.fill();
     }
 }

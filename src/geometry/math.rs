@@ -2,6 +2,8 @@ use rand::{
     distributions::{uniform::Uniform, Distribution},
     Rng,
 };
+use serde::Serialize;
+use tsify::Tsify;
 use std::{
     cmp::PartialOrd,
     ops::{Add, Sub},
@@ -9,8 +11,8 @@ use std::{
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[wasm_bindgen]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -128,58 +130,9 @@ impl<T: num::Float> Range<T> {
     }
 }
 
-pub struct CanvasHelper {
-    c_x_size: f64,
-    c_y_size: f64,
-
-    g_x_range: Range,
-    g_y_range: Range,
-}
-
-impl CanvasHelper {
-    pub fn new(c_width: f64, c_height: f64, width: f64, height: f64) -> CanvasHelper {
-        CanvasHelper {
-            c_x_size: c_width,
-            c_y_size: c_height,
-            g_x_range: Range::new(-width / 2.0, width / 2.0),
-            g_y_range: Range::new(-height / 2.0, height / 2.0),
-        }
-    }
-
-    pub fn c_width(&self) -> f64 {
-        self.c_x_size
-    }
-
-    pub fn c_height(&self) -> f64 {
-        self.c_y_size
-    }
-
-    pub fn to_canvas_point(&self, p: &Point) -> (f64, f64) {
-        // Canvas coordinates go from left to right and top to bottom while our coordinates
-        // go from left to right and bottom to top
-
-        let mut x = self.g_x_range.interpolate(p.x);
-        let mut y = self.g_y_range.interpolate(p.y);
-
-        x *= self.c_x_size;
-        y = self.c_y_size * (1.0 - y);
-
-        (x, y)
-    }
-
-    pub fn to_canvas_vector(&self, p: &Point) -> (f64, f64) {
-        // Map a vector to a canvas vector
-        let x = p.x * self.c_x_size / self.g_x_range.width();
-        let y = p.y * self.c_y_size / self.g_y_range.width();
-
-        (x, y)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use float_cmp::approx_eq;
 
     #[test]
     fn test_distance() {
@@ -200,44 +153,5 @@ mod tests {
 
         let c = a - b;
         assert!(c.x <= -9.99 && c.x >= -10.01 && c.y <= -4.99 && c.y >= -5.01);
-    }
-
-    #[test]
-    fn test_map_point() {
-        let helper = CanvasHelper::new(50.0, 60.0, 20.0, 20.0);
-
-        let input = vec![
-            (0.0, 0.0),
-            (-10.0, 0.0),
-            (-10.0, -10.0),
-            (-10.0, 10.0),
-            (10.0, 10.0),
-            (10.0, -10.0),
-            (5.0, 5.0),
-        ];
-        let expected = vec![
-            (25.0, 30.0),
-            (0.0, 30.0),
-            (0.0, 60.0),
-            (0.0, 0.0),
-            (50.0, 0.0),
-            (50.0, 60.0),
-            (37.5, 15.0),
-        ];
-
-        for ((i1, i2), (e1, e2)) in input.iter().zip(expected.iter()) {
-            let a = Point::new(*i1, *i2);
-            let mapped = helper.to_canvas_point(&a);
-            let result = approx_eq!(f64, mapped.0, *e1) && approx_eq!(f64, mapped.1, *e2);
-
-            if !result {
-                println!(
-                    "Error comparing points, expected ({}, {}), got ({}, {}) for input point {:?}",
-                    e1, e2, mapped.0, mapped.1, a
-                )
-            }
-
-            assert!(result);
-        }
     }
 }

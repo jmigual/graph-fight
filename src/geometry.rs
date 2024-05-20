@@ -1,28 +1,22 @@
 pub mod math;
 
 pub use self::math::*;
+use serde::Serialize;
+use tsify::Tsify;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct Circle {
     pos: Point,
     radius: f64,
 }
 
-#[wasm_bindgen]
 impl Circle {
     pub fn radius(&self) -> f64 {
         self.radius
     }
 
-    #[wasm_bindgen(js_name = "pos")]
-    pub fn pos_s(&self) -> Point {
-        self.pos.clone()
-    }
-}
-
-impl Circle {
     pub fn new(pos: Point, radius: f64) -> Circle {
         assert!(radius > 0.0, "A circle must have a positive radius");
         Circle { pos, radius }
@@ -57,21 +51,20 @@ impl Circle {
     }
 }
 
-#[derive(Clone, Debug)]
-#[wasm_bindgen]
+#[derive(Clone, Debug, Serialize, Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct Rectangle {
     pos: Point,
     width: f64,
     height: f64,
 }
 
-#[wasm_bindgen]
+
 impl Rectangle {
     pub fn new(pos: Point, width: f64, height: f64) -> Rectangle {
         Rectangle { pos, width, height }
     }
 
-    #[wasm_bindgen(js_name = "pos")]
     pub fn pos_s(&self) -> Point {
         self.pos.clone()
     }
@@ -105,7 +98,7 @@ impl Rectangle {
     pub fn pos(&self) -> &Point {
         &self.pos
     }
-    
+
     pub fn range_h(&self) -> Range {
         Range::new(self.left(), self.right())
     }

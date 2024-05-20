@@ -1,24 +1,15 @@
 mod arena;
-mod obstacle;
 mod player;
 mod team;
 
 use rand::{rngs::SmallRng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
-use crate::geometry::*;
 use crate::utils;
 
 pub use self::arena::Arena;
-pub use self::obstacle::Obstacle;
 pub use self::player::Player;
 pub use self::team::Team;
-
-mod style {
-    pub mod colour {
-        pub const BACKGROUND: &str = "#FFF";
-    }
-}
 
 const MAX_ITERS: usize = 100;
 
@@ -63,6 +54,10 @@ impl Game {
         seed: u64,
     ) -> Result<Game, String> {
         utils::set_panic_hook();
+
+        if players_per_team.len() < 2 {
+            return Err("There must be at least two teams".into());
+        }
 
         if x_max <= 0. || y_max <= 0. {
             return Err("x_max and y_max must have a positive value".into());
@@ -170,24 +165,6 @@ impl Game {
                 return;
             }
         }
-    }
-
-    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement, delta: f64) {
-        let helper = math::CanvasHelper::new(
-            canvas.width() as f64,
-            canvas.height() as f64,
-            self.arena.get_area().width(),
-            self.arena.get_area().height(),
-        );
-
-        // Draw background
-        let ctx = utils::ctx_from_canvas(&canvas);
-
-        ctx.set_fill_style(&JsValue::from_str(style::colour::BACKGROUND));
-        ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
-        ctx.stroke();
-
-        self.arena.draw(&canvas, &helper);
     }
 
     fn get_current_player_mut(&mut self) -> &mut Player {
