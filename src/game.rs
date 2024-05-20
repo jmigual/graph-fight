@@ -1,15 +1,18 @@
+mod arena;
 mod obstacle;
 mod player;
+mod team;
 
 use rand::{rngs::SmallRng, SeedableRng};
-use rand_distr::{Distribution, Normal};
 use wasm_bindgen::prelude::*;
 
 use crate::geometry::*;
 use crate::utils;
 
+pub use self::arena::Arena;
 pub use self::obstacle::Obstacle;
 pub use self::player::Player;
+pub use self::team::Team;
 
 mod style {
     pub mod colour {
@@ -17,20 +20,27 @@ mod style {
     }
 }
 
-enum Type {
-    Player,
-    Obstacle,
+const MAX_ITERS: usize = 100;
+const STEP_SIZE: f64 = 0.05;
+
+
+#[wasm_bindgen]
+#[derive(Clone)]
+pub struct Options {
+    num_obstacles: usize,
+    min_obstacle_size: f64,
+    max_obstacle_size: f64,
+    players_per_team: Vec<usize>,
+    player_radius: f64,
+    seed: u64,
 }
 
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct Game {
-    team_a: Vec<Player>,
-    team_b: Vec<Player>,
-    obstacles: Vec<Circle>,
-    explosions: Vec<Circle>,
-    arena: Rectangle,
-    rng: SmallRng,
+    arena: Arena,
+    ops: Options,
+    current_team: usize
 }
 
 #[wasm_bindgen]
@@ -58,9 +68,9 @@ impl Game {
         x_max: f64,
         y_max: f64,
         num_obstacles: usize,
-        obstacle_size: f64,
-        num_players_a: usize,
-        num_players_b: usize,
+        min_obstacle_size: f64,
+        max_obstacle_size: f64,
+        players_per_team: &[usize],
         player_radius: f64,
         seed: u64,
     ) -> Result<Game, String> {
@@ -70,167 +80,100 @@ impl Game {
             return Err("x_max and y_max must have a positive value".into());
         }
 
-        if obstacle_size <= 0. || player_radius <= 0. {
+        if min_obstacle_size <= 0. || player_radius <= 0. {
             return Err("Obstacle size and player radius must be a positive value".into());
         }
 
+        if min_obstacle_size > max_obstacle_size {
+            return Err("The maximum obstacle size must be at least the minimum obstacle size".into());
+        }
+
         let mut game = Game {
-            team_a: Vec::with_capacity(num_players_a),
-            team_b: Vec::with_capacity(num_players_b),
-            obstacles: Vec::with_capacity(num_obstacles),
-            explosions: Vec::new(),
-            arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
-            rng: SmallRng::seed_from_u64(seed),
+            arena: Arena::new(2.0 * x_max, 2.0 * y_max),
+            ops: Options {
+                num_obstacles,
+                min_obstacle_size,
+                max_obstacle_size,
+                players_per_team: players_per_team.iter().cloned().collect(),
+                player_radius,
+                seed,
+            },
+            current_team: 0
         };
 
-        // May fail if the player radius is too big
-        game.create_team(num_players_a, num_players_b, player_radius)?;
-        game.create_obstables(num_obstacles, obstacle_size)?;
+        game.init()?;
 
         Ok(game)
     }
 
-    #[wasm_bindgen(js_name = "teamA")]
-    pub fn team_a_s(&self) -> Vec<Player> {
-        self.team_a.clone()
-    }
-
-    #[wasm_bindgen(js_name = "teamB")]
-    pub fn team_b_s(&self) -> Vec<Player> {
-        self.team_b.clone()
-    }
-
-    #[wasm_bindgen(js_name = "obstacles")]
-    pub fn obstacles_s(&self) -> Vec<Circle> {
-        self.obstacles.clone()
-    }
-
-    #[wasm_bindgen(js_name = "explosions")]
-    pub fn explosions_s(&self) -> Vec<Circle> {
-        self.explosions.clone()
-    }
-
     #[wasm_bindgen(js_name = "arena")]
-    pub fn arena_s(&self) -> Rectangle {
+    pub fn arena_s(&self) -> Arena {
         self.arena.clone()
+    }
+
+    pub fn get_current_team_idx(&self) -> usize {
+        self.current_team
+    }
+
+    pub fn get_current_formula(&self) -> String {
+        self.get_current_player().formula().into()
     }
 }
 
 impl Game {
-    fn create_team(
-        &mut self,
-        num_players_a: usize,
-        num_players_b: usize,
-        player_radius: f64,
-    ) -> Result<(), String> {
-        // Vertical range is the same for both sides
-        let p_range_y = Range::new(self.arena.bottom(), self.arena.top());
+        // // Vertical range is the same for both sides
+        // let p_range_y = Range::new(self.arena.bottom(), self.arena.top());
 
-        // Player A goes on the left side
-        let p_a_range_x = Range::new(self.arena.left(), 0.);
+    pub fn init(&mut self) -> Result<(), String> {
+        let mut rng: SmallRng = SeedableRng::seed_from_u64(self.ops.seed);
 
-        for _ in 0..num_players_a {
-            let shape =
-                self.find_random_pos(&p_a_range_x, &p_range_y, player_radius, &Type::Player)?;
-            let new_player = Player::from_circle(shape);
-            self.team_a.push(new_player);
-        }
+        for _ in 1..MAX_ITERS {
+            // Clear previous data first, just in case
+            self.arena.clear();
 
-        // Player B goes on the right side
-        let p_b_range_x = Range::new(0., self.arena.right());
-        for _ in 0..num_players_b {
-            let shape =
-                self.find_random_pos(&p_b_range_x, &p_range_y, player_radius, &Type::Player)?;
+            self.arena.add_teams(&self.ops.players_per_team, self.ops.player_radius, &mut rng)?;
 
-            let new_player = Player::from_circle(shape);
-            self.team_b.push(new_player);
+            self.arena.add_obstacles(
+                self.ops.num_obstacles,
+                self.ops.min_obstacle_size,
+                self.ops.max_obstacle_size,
+                &mut rng,
+            )?;
         }
 
         Ok(())
     }
 
-    fn create_obstables(
-        &mut self,
-        num_obstacles: usize,
-        max_obstacle_size: f64,
-    ) -> Result<(), String> {
-        let range_x = Range::new(self.arena.left(), self.arena.right());
-        let range_y = Range::new(self.arena.bottom(), self.arena.top());
+    pub fn shoot(&mut self, formula: &str) -> Result<(), JsValue> {
+        // Check if formula is valid
 
-        let distr = Normal::new(max_obstacle_size / 2.0, 1.0).unwrap();
 
-        for _ in 0..num_obstacles {
-            let obstacle_size = distr.sample(&mut self.rng);
-
-            let shape = self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle)?;
-            self.obstacles.push(shape);
-        }
+        let player = self.get_current_player_mut();
+        player.set_formula(formula.into());
 
         Ok(())
     }
 
-    fn is_valid_pos(&self, shape: &Circle, pos_type: &Type) -> bool {
-        let f = |p: &Player| !p.shape().collision_circle(shape);
+    pub fn next_team(&mut self) {
+        let teams = self.arena.get_teams();
+        assert!(teams.len() > 0);
 
-        // Collision with players from team A
-        if !self.team_a.iter().all(f) {
-            return false;
-        }
+        for i in 1..teams.len() {
+            let idx = (self.current_team + i) % teams.len();
 
-        // Collision with players from team B
-        if !self.team_b.iter().all(f) {
-            return false;
-        }
-
-        match pos_type {
-            Type::Player => {
-                let f = |p: &Circle| !p.collision_circle(shape);
-
-                // Collision with obstacles
-                if !self.obstacles.iter().all(f) {
-                    return false;
-                }
-
-                let pos = shape.pos();
-
-                if !self.arena.inside(&pos) {
-                    return false;
-                }
-
-                self.arena.left() + shape.radius() <= pos.x
-                    && self.arena.right() - shape.radius() >= pos.x
-                    && self.arena.bottom() + shape.radius() <= pos.y
-                    && self.arena.top() - shape.radius() >= pos.y
+            if teams[idx].is_alive() {
+                self.current_team = idx;
+                return;
             }
-            // Obstacles can collide with anything that is not a player
-            Type::Obstacle => true,
         }
     }
 
-    fn find_random_pos(
-        &mut self,
-        x_range: &Range<f64>,
-        y_range: &Range<f64>,
-        radius: f64,
-        pos_type: &Type,
-    ) -> Result<Circle, String> {
-        for _ in 0..100 {
-            let pos = Point::random(&x_range, &y_range, &mut self.rng);
-            let shape = Circle::new(pos, radius);
-
-            if self.is_valid_pos(&shape, &pos_type) {
-                return Ok(shape);
-            }
-        }
-        Err("No valid position found".into())
-    }
-
-    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement) {
+    pub fn draw(&self, canvas: web_sys::HtmlCanvasElement, delta: f64) {
         let helper = math::CanvasHelper::new(
             canvas.width() as f64,
             canvas.height() as f64,
-            self.arena.width(),
-            self.arena.height(),
+            self.arena.get_area().width(),
+            self.arena.get_area().height(),
         );
 
         // Draw background
@@ -240,17 +183,15 @@ impl Game {
         ctx.fill_rect(0.0, 0.0, helper.c_width(), helper.c_height());
         ctx.stroke();
 
-        for player in &self.team_a {
-            player.draw(&canvas, &helper, player::style::Team::Right);
-        }
+        self.arena.draw(&canvas, &helper);
+    }
 
-        for player in &self.team_b {
-            player.draw(&canvas, &helper, player::style::Team::Left);
-        }
+    fn get_current_player_mut(&mut self) -> &mut Player {
+        self.arena.get_teams_mut()[self.current_team].get_current_player_mut().unwrap()
+    }
 
-        // for obstacle in &self.obstacles {
-            // obstacle.draw(&canvas, &helper);
-        // }
+    fn get_current_player(&self) -> &Player {
+        self.arena.get_teams()[self.current_team].get_current_player().unwrap()
     }
 }
 
@@ -259,32 +200,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_valid_pos() {
-        let game = Game::new(10.0, 10.0, 0, 0.1, 0, 0, 0.1, 0).unwrap();
-
-        let pos = vec![
-            ((0.0, 0.0), true),
-            ((5.0, 5.0), true),
-            ((-5.0, 5.0), true),
-            ((-5.0, -5.0), true),
-            ((5.0, -5.0), true),
-            ((20.0, 20.0), false),
-            ((-20.0, 20.0), false),
-            ((-20.0, -20.0), false),
-            ((20.0, -20.0), false),
-            ((7.0, 0.0), false),
-            ((7.0, 7.0), false),
-        ];
-
-        for (p, r) in pos {
-            let c = Circle::new(p.into(), 4.0);
-            assert_eq!(game.is_valid_pos(&c, &Type::Player), r);
-        }
-    }
-
-    #[test]
     fn test_build() {
-        let game = Game::new(20.0, 10.0, 2, 0.2, 4, 4, 0.5, 0);
-        game.unwrap();
+        let game = Game::new(20.0, 10.0, 5, 0.2, 2.0, &[4, 4], 1.0, 0);
+        assert!(game.is_ok());
     }
 }

@@ -9,8 +9,8 @@ use std::{
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[derive(Clone, Debug)]
 #[wasm_bindgen]
+#[derive(Clone, Debug)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
