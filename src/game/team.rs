@@ -115,8 +115,8 @@ impl Team {
         arena: &Arena,
         rng: &mut R,
     ) -> Result<Circle, String> {
-        let x_range = self.area.range_h();
-        let y_range = self.area.range_v();
+        let x_range = self.area.range_h().subtract_both(player_size);
+        let y_range = self.area.range_v().subtract_both(player_size);
 
         for _ in 0..MAX_ITERS {
             let pos = Point::random(&x_range, &y_range, rng);
@@ -138,6 +138,6 @@ impl Team {
             return false;
         }
 
-        !arena.collision_with_obstacle(shape) && self.area.circle_inside(shape)
+        !arena.collision_with_obstacle(shape)
     }
 }

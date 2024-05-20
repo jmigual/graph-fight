@@ -36,11 +36,11 @@ impl Arena {
         max_obstacle_size: f64,
         rng: &mut R,
     ) -> Result<(), String> {
-        let distr = Normal::new((max_obstacle_size - min_obstacle_size) / 2.0, 0.8).unwrap();
+        let distribution = Normal::new((max_obstacle_size - min_obstacle_size) / 2.0, 0.8).unwrap();
 
         self.obstacles.reserve(num_obstacles);
         for _ in 0..num_obstacles {
-            let obstacle_size = distr
+            let obstacle_size = distribution
                 .sample(rng)
                 .clamp(min_obstacle_size, max_obstacle_size);
 

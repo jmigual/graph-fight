@@ -121,6 +121,11 @@ impl<T: num::Float> Range<T> {
     pub fn interpolate(&self, x: T) -> T {
         (x - self.min) / self.width()
     }
+
+    /// Reduce the length of the range by x on both sides
+    pub fn subtract_both(&self, x: T) -> Range<T> {
+        Range::new(self.min + x, self.max - x)
+    }
 }
 
 pub struct CanvasHelper {
