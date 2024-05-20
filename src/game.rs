@@ -23,16 +23,36 @@ enum Type {
 }
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct Game {
     team_a: Vec<Player>,
     team_b: Vec<Player>,
-    obstacles: Vec<Obstacle>,
+    obstacles: Vec<Circle>,
+    explosions: Vec<Circle>,
     arena: Rectangle,
     rng: SmallRng,
 }
 
 #[wasm_bindgen]
+/// Represents a game instance.
 impl Game {
+    /// Creates a new game instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `x_max` - The maximum absolute x-coordinate value of the game arena.
+    /// * `y_max` - The maximum absolute y-coordinate value of the game arena.
+    /// * `num_obstacles` - The number of obstacles in the game.
+    /// * `obstacle_size` - The size of each obstacle.
+    /// * `num_players_a` - The number of players in team A.
+    /// * `num_players_b` - The number of players in team B.
+    /// * `player_radius` - The radius of each player.
+    /// * `seed` - The seed value for the random number generator.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the created `Game` instance if successful, or an error 
+    /// message if any of the input values are invalid.
     #[wasm_bindgen(constructor)]
     pub fn new(
         x_max: f64,
@@ -58,6 +78,7 @@ impl Game {
             team_a: Vec::with_capacity(num_players_a),
             team_b: Vec::with_capacity(num_players_b),
             obstacles: Vec::with_capacity(num_obstacles),
+            explosions: Vec::new(),
             arena: Rectangle::new((0.0, 0.0).into(), 2.0 * x_max, 2.0 * y_max),
             rng: SmallRng::seed_from_u64(seed),
         };
@@ -67,6 +88,31 @@ impl Game {
         game.create_obstables(num_obstacles, obstacle_size)?;
 
         Ok(game)
+    }
+
+    #[wasm_bindgen(js_name = "teamA")]
+    pub fn team_a_s(&self) -> Vec<Player> {
+        self.team_a.clone()
+    }
+
+    #[wasm_bindgen(js_name = "teamB")]
+    pub fn team_b_s(&self) -> Vec<Player> {
+        self.team_b.clone()
+    }
+
+    #[wasm_bindgen(js_name = "obstacles")]
+    pub fn obstacles_s(&self) -> Vec<Circle> {
+        self.obstacles.clone()
+    }
+
+    #[wasm_bindgen(js_name = "explosions")]
+    pub fn explosions_s(&self) -> Vec<Circle> {
+        self.explosions.clone()
+    }
+
+    #[wasm_bindgen(js_name = "arena")]
+    pub fn arena_s(&self) -> Rectangle {
+        self.arena.clone()
     }
 }
 
@@ -87,7 +133,7 @@ impl Game {
             let shape =
                 self.find_random_pos(&p_a_range_x, &p_range_y, player_radius, &Type::Player)?;
             let new_player = Player::from_circle(shape);
-            self.team_a.push(new_player); 
+            self.team_a.push(new_player);
         }
 
         // Player B goes on the right side
@@ -117,9 +163,7 @@ impl Game {
             let obstacle_size = distr.sample(&mut self.rng);
 
             let shape = self.find_random_pos(&range_x, &range_y, obstacle_size, &Type::Obstacle)?;
-
-            let new_obstacle = Obstacle::from_circle(shape);
-            self.obstacles.push(new_obstacle);
+            self.obstacles.push(shape);
         }
 
         Ok(())
@@ -140,7 +184,7 @@ impl Game {
 
         match pos_type {
             Type::Player => {
-                let f = |p: &Obstacle| !p.shape().collision_circle(shape);
+                let f = |p: &Circle| !p.collision_circle(shape);
 
                 // Collision with obstacles
                 if !self.obstacles.iter().all(f) {
@@ -204,9 +248,9 @@ impl Game {
             player.draw(&canvas, &helper, player::style::Team::Left);
         }
 
-        for obstacle in &self.obstacles {
-            obstacle.draw(&canvas, &helper);
-        }
+        // for obstacle in &self.obstacles {
+            // obstacle.draw(&canvas, &helper);
+        // }
     }
 }
 

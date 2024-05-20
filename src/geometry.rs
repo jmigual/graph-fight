@@ -12,20 +12,21 @@ pub struct Circle {
 
 #[wasm_bindgen]
 impl Circle {
-    pub fn new(pos: Point, radius: f64) -> Circle {
-        Circle { pos, radius }
-    }
-
     pub fn radius(&self) -> f64 {
         self.radius
     }
 
+    #[wasm_bindgen(js_name = "pos")]
     pub fn pos_s(&self) -> Point {
         self.pos.clone()
     }
 }
 
 impl Circle {
+    pub fn new(pos: Point, radius: f64) -> Circle {
+        Circle { pos, radius }
+    }
+
     pub fn pos(&self) -> &Point {
         &self.pos
     }
@@ -55,19 +56,23 @@ impl Circle {
     }
 }
 
+#[derive(Clone)]
+#[wasm_bindgen]
 pub struct Rectangle {
     pos: Point,
     width: f64,
     height: f64,
 }
 
+#[wasm_bindgen]
 impl Rectangle {
     pub fn new(pos: Point, width: f64, height: f64) -> Rectangle {
         Rectangle { pos, width, height }
     }
 
-    pub fn pos(&self) -> &Point {
-        &self.pos
+    #[wasm_bindgen(js_name = "pos")]
+    pub fn pos_s(&self) -> Point {
+        self.pos.clone()
     }
 
     pub fn width(&self) -> f64 {
@@ -93,7 +98,13 @@ impl Rectangle {
     pub fn bottom(&self) -> f64 {
         self.pos.y - self.height / 2.0
     }
+}
 
+impl Rectangle {
+    pub fn pos(&self) -> &Point {
+        &self.pos
+    }
+    
     pub fn collision_rec(&self, other: &Rectangle) -> bool {
         self.right() >= other.left()
             && self.left() <= other.right()

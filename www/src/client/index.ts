@@ -5,6 +5,11 @@ let game = null;
 function draw(timestamp: number) {
     let canvas = <HTMLCanvasElement>document.getElementById('arena');
 
+    // We clone it because the user might mutate the game state in the draw function
+    const tmpGame = game.clone();
+
+    
+
     window.requestAnimationFrame(draw);
 }
 
