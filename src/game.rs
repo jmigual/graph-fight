@@ -79,7 +79,7 @@ impl Game {
         }
 
         let mut game = Game {
-            arena: Arena::new(2.0 * x_max, 2.0 * y_max),
+            arena: Arena::new(x_max, y_max),
             ops: Options {
                 num_obstacles,
                 min_obstacle_size,
@@ -97,8 +97,13 @@ impl Game {
     }
 
     #[wasm_bindgen(js_name = "arena")]
-    pub fn arena_s(&self) -> Arena {
+    pub fn js_arena(&self) -> Arena {
         self.arena.clone()
+    }
+
+    #[wasm_bindgen(js_name = "clone")]
+    pub fn js_clone(&self) -> Game {
+        self.clone()
     }
 
     pub fn get_current_team_idx(&self) -> usize {

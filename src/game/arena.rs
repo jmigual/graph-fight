@@ -1,7 +1,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
-use web_sys::HtmlCanvasElement;
 use wasm_bindgen::prelude::wasm_bindgen;
+use web_sys::HtmlCanvasElement;
 
 use crate::geometry::{
     math::{CanvasHelper, Point},
@@ -13,6 +13,8 @@ use super::{Obstacle, Team};
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct Arena {
+    x_max: f64,
+    y_max: f64,
     area: Rectangle,
     obstacles: Vec<Obstacle>,
     teams: Vec<Team>,
@@ -20,10 +22,30 @@ pub struct Arena {
 
 const MAX_ITERS: usize = 100;
 
+#[wasm_bindgen]
 impl Arena {
-    pub fn new(width: f64, height: f64) -> Arena {
+    #[wasm_bindgen(js_name = "area")]
+    pub fn js_area(&self) -> Rectangle {
+        self.area.clone()
+    }
+
+    #[wasm_bindgen(js_name = "xMax")]
+    pub fn x_max(&self) -> f64 {
+        self.x_max
+    }
+
+    #[wasm_bindgen(js_name = "yMax")]
+    pub fn y_max(&self) -> f64 {
+        self.y_max
+    }
+}
+
+impl Arena {
+    pub fn new(x_max: f64, y_max: f64) -> Arena {
         Arena {
-            area: Rectangle::new((0.0, 0.0).into(), width, height),
+            x_max,
+            y_max,
+            area: Rectangle::new((0.0, 0.0).into(), 2. * x_max, 2. * y_max),
             obstacles: Vec::new(),
             teams: Vec::new(),
         }

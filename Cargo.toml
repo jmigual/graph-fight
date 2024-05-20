@@ -3,6 +3,7 @@ name = "graph-fight"
 version = "0.1.0"
 authors = ["J. Marcè i Igual <j.marce.i.igual@tue.nl>"]
 edition = "2021"
+categories = ["wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,4 +1,4 @@
-edition = "2018"
+edition = "2021"
 imports_granularity = "Module"
 normalize_doc_attributes = true
 normalize_comments = true
