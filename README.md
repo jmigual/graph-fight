@@ -15,8 +15,6 @@ To build the project, you need to have the following tools installed:
 
 Then, you can build the project by running the following commands:
 ```bash
-wasm-pack build
-cd www
 npm install
 npm run start
 ```
