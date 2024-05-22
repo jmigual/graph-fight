@@ -1,11 +1,11 @@
 const path = require("path");
 const CopyPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
+const HtmlMinimizerPlugin = require("html-minimizer-webpack-plugin");
 
 const dist = path.resolve(__dirname, "dist");
 
 const crypto = require("crypto");
-const { experiments } = require("webpack");
 const crypto_orig_createHash = crypto.createHash;
 crypto.createHash = algorithm => crypto_orig_createHash(algorithm == "md4" ? "sha256" : algorithm);
 
@@ -46,5 +46,11 @@ module.exports = {
   ],
   experiments: {
     asyncWebAssembly: true,
+  },
+  optimization: {
+    minimizer: [
+      `...`,
+      new HtmlMinimizerPlugin(),
+    ],
   }
 };

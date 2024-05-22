@@ -1,5 +1,8 @@
 [package]
 name = "graph-fight"
+description = "A simple formula-based fighting game"
+repository = "https://github.com/jmigual/graph-fight"
+license = "MIT"
 version = "0.1.0"
 authors = ["J. Marcè i Igual <j.marce.i.igual@tue.nl>"]
 edition = "2021"
