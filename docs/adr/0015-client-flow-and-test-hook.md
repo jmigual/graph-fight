@@ -17,7 +17,8 @@ read game state.
   - Construction was checked natively for 2 to 8 teams on the disc over 300 seeds.
 - **Lobby.** One `joinLobby` for the page's lifetime. Hosting joins the game room `selfId` and
   announces `{name, field, players, seats}`; `players` is re-announced whenever a peer joins or
-  leaves. `xy` fixes seats at 2. Games that are full or on another build get no Join button.
+  leaves. `xy` fixes seats at 2. A full game shows a disabled Join button; a game on another
+  build shows "different version — reload" instead.
 - **Start.** The host enables Start with 2 or more players, takes `[host, ...connected]` cut to
   `seats`, relays `start` (seed from `crypto.getRandomValues`, as a decimal string) and then
   withdraws its listing. A connected peer that did not get a seat sees "game full".

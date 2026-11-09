@@ -46,6 +46,8 @@ let hostId = "";
 let offer: Announce | null = null;
 let connected: string[] = [];
 let play: Play | null = null;
+/** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
+let ended = false;
 
 function renderLobby(games: OpenGame[]) {
     $("games").replaceChildren(
@@ -85,13 +87,16 @@ hostField.onchange = () => {
 $<HTMLFormElement>("host-form").onsubmit = (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
-    offer = { name: $<HTMLInputElement>("host-name").value, field, players: 1, seats: Number(hostSeats.value) };
+    const seats = Number(hostSeats.value);
+    if (!Number.isInteger(seats) || seats < 2 || seats > MAX_PLAYERS) return;
+    offer = { name: $<HTMLInputElement>("host-name").value, field, players: 1, seats };
     enterRoom(selfId);
 };
 
 function enterRoom(id: string) {
     hostId = id;
     connected = [];
+    ended = false;
     $("error").textContent = "";
     room = joinGame(id, {
         onMessage,
@@ -120,7 +125,7 @@ function enterRoom(id: string) {
 }
 
 function roomChanged() {
-    if (play) return;
+    if (play || ended) return;
     const all = [selfId, ...connected];
     $("room-players").replaceChildren(
         ...all.map((id) => {
@@ -155,6 +160,7 @@ $("leave").onclick = $("back").onclick = () => {
     play = null;
     if (offer) lobby.announce(null);
     offer = null;
+    $("error").textContent = "";
     show("lobby");
 };
 
@@ -225,6 +231,8 @@ function refresh(p: Play) {
 }
 
 function end(message: string) {
+    if (ended) return;
+    ended = true;
     if (play) {
         play.over = true;
         clearTimeout(play.clock);
