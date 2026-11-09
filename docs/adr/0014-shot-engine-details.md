@@ -34,6 +34,13 @@ ADRs 4, 5, 7 and 8 fix the shot model and the API but leave a few engine details
   players. An unknown index is ignored.
 - **No living shooter.** If the current team has no living player (everyone eliminated),
   `fire`, `fire_param` and `skip_turn` change nothing and the shot is empty.
+- **Shot direction (disc).** `fire` and `fire_param` take `clockwise: bool`;
+  `check` and `check_param` do not, since both errors are raised before the frame is built.
+  Counter-clockwise (`false`) is the ADR 5 frame. Clockwise reflects the shooter's local frame across its x axis (θ → −θ, i.e. across the shooter-to-centre axis) by
+  negating the local `y` column of `D`; it applies to both `r = f(θ)` and `r(t), θ(t)`. On the
+  XY field the flag is ignored (XY already mirrors toward the centre), so a client may always
+  send it. The direction is part of the shot, so it must travel in the shot message (ADR 7)
+  for every peer to apply the same shot.
 - **`winner()`** is `undefined` when no team has living players, as well as while several do.
 
 ## Consequences

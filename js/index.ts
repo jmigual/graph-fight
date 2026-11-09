@@ -244,7 +244,7 @@ function onMessage(msg: GameMsg) {
             p.shot = [];
             try {
                 if (msg.type === "timeout") p.sim.skip_turn();
-                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0]) : p.sim.fire_param(msg.exprs[0], msg.exprs[1])).points;
+                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], false) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], false)).points;
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
                 p.sim.skip_turn();
