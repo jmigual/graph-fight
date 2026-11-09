@@ -142,6 +142,15 @@
               <button id="save" type="button" class="secondary">Save</button>
               <button id="fire" type="submit" class="primary" disabled>Fire</button>
             </div>
+
+            <div id="save-row" class="save-row" hidden>
+              <label class="field"><span>Name</span><input id="save-name" maxlength="64" autocomplete="off"></label>
+              <p id="save-error" class="error" role="alert"></p>
+              <div class="actions">
+                <button id="save-confirm" type="button" class="primary">Save formula</button>
+                <button id="save-cancel" type="button" class="secondary">Cancel</button>
+              </div>
+            </div>
           </form>
 
           <section aria-labelledby="roster-heading">
@@ -150,7 +159,8 @@
           </section>
 
           <section id="saved" aria-labelledby="saved-heading">
-            <h2 id="saved-heading">Saved formulas</h2>
+            <h2 id="saved-heading" tabindex="-1">Saved formulas</h2>
+            <p id="saved-notice" class="hint" role="status" hidden></p>
             <ul id="saved-list"></ul>
             <p id="saved-empty" class="hint">Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x).</p>
           </section>

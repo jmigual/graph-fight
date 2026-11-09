@@ -38,9 +38,9 @@ const comparable = async (page) => {
 /**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
  * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` installs
- * Playwright's fake clock on the host before it loads.
+ * Playwright's fake clock on the host before it loads; `blockStorage` makes the host's localStorage refuse writes.
  */
-async function startGame(n, field, label, { seats = n, fakeHostClock = false } = {}) {
+async function startGame(n, field, label, { seats = n, fakeHostClock = false, blockStorage = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -68,6 +68,15 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false } =
                 }
             };
         });
+        if (i === 0 && blockStorage) {
+            await page.addInitScript(() => {
+                const set = Storage.prototype.setItem;
+                Storage.prototype.setItem = function (key, value) {
+                    if (this === localStorage) throw new DOMException("blocked", "QuotaExceededError");
+                    return set.call(this, key, value);
+                };
+            });
+        }
         if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
         pages.push(page);
@@ -294,6 +303,128 @@ const scenarios = {
         await assertSynced(players, 0);
         await takeTurn(players, 0, ["x"]);
         await takeTurn(players, 1, ["-x"]);
+        return errors;
+    },
+    async I() {
+        // Helper buttons insert at the caret of the last focused formula input and keep the focus.
+        const { pages, errors } = await startGame(2, "xy", "I");
+        const page = pages[0];
+        const input = page.locator("#input-a");
+        const key = (label) => page.locator("#helpers").getByRole("button", { name: label, exact: true });
+        const caret = () => page.evaluate(() => [document.activeElement.id, document.activeElement.selectionStart, document.activeElement.selectionEnd]);
+        await input.fill("x+1");
+        await input.selectText();
+        await key("sin").click();
+        assert.equal(await input.inputValue(), "sin(x+1)");
+        assert.deepEqual(await caret(), ["input-a", 8, 8], "a wrapped selection leaves the caret after the bracket");
+        await input.fill("");
+        await key("cos").click();
+        assert.equal(await input.inputValue(), "cos()");
+        assert.deepEqual(await caret(), ["input-a", 4, 4], "without a selection the caret goes between the brackets");
+        await input.fill("");
+        await key("π").click();
+        assert.equal(await input.inputValue(), "pi");
+        await key("√").click();
+        await key("( )").click();
+        await key("^").click();
+        assert.equal(await input.inputValue(), "pisqrt((^))");
+        await page.locator("#helpers summary").click();
+        await key("floor").click();
+        assert.equal(await input.inputValue(), "pisqrt((^floor()))");
+        // The variable follows the field and mode; the parametric buttons target the last focused input.
+        assert.equal(await text(page, "#insert-var"), "x");
+        await page.check("#mode-parametric");
+        assert.equal(await text(page, "#insert-var"), "t");
+        await page.fill("#input-b", "");
+        await key("t").click();
+        assert.equal(await page.inputValue("#input-b"), "t");
+        await page.check("#mode-explicit");
+        assert.equal(await text(page, "#insert-var"), "x");
+        // The hidden second input is never the target, even if it was the last one focused.
+        await page.evaluate(() => (document.getElementById("input-a").value = ""));
+        await key("sin").click();
+        assert.equal(await input.inputValue(), "sin()");
+        assert.equal(await page.inputValue("#input-b"), "t");
+        // A helper does not overrun the parser's 256 character limit.
+        await input.fill("x".repeat(255));
+        await key("sin").click();
+        assert.equal((await input.inputValue()).length, 255);
+        return errors;
+    },
+    async J() {
+        // Starter templates, saving a template, its sliders, Insert and Fire.
+        const { pages, errors } = await startGame(2, "xy", "J");
+        await assertSynced(pages, 0);
+        const page = await shooter(pages);
+        // The first visit lists the starters of this field only.
+        assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1);
+        assert.equal(await page.locator("#saved-list li", { hasText: "Spiral" }).count(), 0);
+        // A slider letter in the editor is refused with a friendlier message than the parser's.
+        await assertRejected(pages, 0, "a*x");
+        assert.match(await text(page, "#error"), /slider letter/);
+        await page.fill("#input-a", "a*x");
+        await page.click("#save");
+        assert.equal(await page.inputValue("#save-name"), "a*x");
+        await page.fill("#save-name", "Mine");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        assert.equal(await page.isHidden("#save-row"), true);
+        const item = page.locator("#saved-list li", { hasText: "Mine" });
+        assert.equal(await item.locator("details").evaluate((d) => d.open), true, "a new template opens its sliders");
+        const slider = (label) => item.locator(`[aria-label="${label}"]`);
+        await slider("Value of a").fill("-2");
+        assert.equal(await item.locator(".preview").innerText(), "→ (-2)*x");
+        // Editing the limits updates the range; limits that cross keep the old ones.
+        await slider("Highest a").fill("-50");
+        await slider("Highest a").press("Tab");
+        assert.equal(await slider("a").getAttribute("max"), "10");
+        assert.equal(await slider("Highest a").evaluate((i) => i.validity.valid), false);
+        await slider("Lowest a").fill("-20");
+        await slider("Lowest a").press("Tab");
+        assert.equal(await slider("a").getAttribute("min"), "-20");
+        await slider("Step of a").fill("0.5");
+        await slider("Step of a").press("Tab");
+        assert.equal(await slider("a").getAttribute("step"), "0.5");
+        assert.equal(await item.locator(".preview").innerText(), "→ (-2)*x");
+        // Slider changes are saved.
+        const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("graph-fight.formulas")).items.find((i) => i.name === "Mine"));
+        assert.deepEqual(saved.sliders.a, { min: -20, max: 10, step: 0.5, value: -2 });
+        await item.getByRole("button", { name: "Insert" }).click();
+        assert.equal(await page.inputValue("#input-a"), "(-2)*x");
+        assert.equal(await text(page, "#error"), "");
+        assert.equal(await page.evaluate(() => document.activeElement.id), "input-a");
+        await page.click("#fire");
+        await assertSynced(pages, 1);
+        // Delete asks first and removes the template from the list and from storage.
+        await item.getByRole("button", { name: "Delete Mine" }).click();
+        assert.equal(await page.locator("#saved-list li", { hasText: "Mine" }).count(), 0);
+        assert.equal(await page.evaluate(() => localStorage.getItem("graph-fight.formulas").includes("Mine")), false);
+        return errors;
+    },
+    async K() {
+        // Storage that refuses writes: the notice shows and the list keeps working in memory.
+        const { pages, errors } = await startGame(2, "xy", "K", { blockStorage: true });
+        const page = pages[0];
+        assert.equal(await page.isVisible("#saved-notice"), true);
+        assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1, "starters are listed from memory");
+        // `2a` would silently become `21.5`, so saving it is refused.
+        await page.fill("#input-a", "2b");
+        await page.click("#save");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        assert.equal(await page.isVisible("#save-row"), true);
+        assert.match(await text(page, "#save-error"), /2\*b/);
+        await page.fill("#input-a", "a+".repeat(100) + "a");
+        await page.click("#save");
+        await page.fill("#save-name", "Long");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        const item = page.locator("#saved-list li", { hasText: "Long" });
+        assert.equal(await item.count(), 1, "saving works in memory");
+        assert.equal(await item.getByRole("button", { name: "Insert Long" }).isDisabled(), false);
+        // Each `a` grows from 1 to (-2) characters wide: the result passes 256 and Insert is disabled.
+        await item.locator('[aria-label="Value of a"]').fill("-2");
+        assert.equal(await item.getByRole("button", { name: "Insert Long" }).isDisabled(), true);
+        assert.match(await item.locator(".error").innerText(), /256/);
+        await item.getByRole("button", { name: "Delete Long" }).click();
+        assert.equal(await page.evaluate(() => document.activeElement.tagName), "BUTTON", "focus moves to the next item");
         return errors;
     },
 };

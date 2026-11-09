@@ -10,7 +10,7 @@ export const MAX_EXPR = 256;
 /** Longest saved name. */
 export const MAX_NAME = 64;
 /** Largest |value| a slider limit or value may have, so `toFixed` never yields an exponent. */
-const LIMIT = 1e6;
+export const LIMIT = 1e6;
 
 export type Mode = "explicit" | "parametric";
 /** `step` is null when empty (continuous). */
@@ -74,6 +74,17 @@ export function decimals(s: Slider): number {
         if (Math.abs(k - Math.round(k)) < 1e-9) return d;
     }
     return 6;
+}
+
+/**
+ * The value moved onto the slider's step grid, which starts at `min` (where a range input puts its
+ * thumb), and kept inside the limits. Unchanged when there is no step.
+ */
+export function snapValue(s: Slider): number {
+    if (s.step === null) return s.value;
+    let k = Math.round((s.value - s.min) / s.step);
+    if (s.min + k * s.step > s.max) k--;
+    return Math.max(s.min, Number((s.min + k * s.step).toFixed(9)));
 }
 
 /** A plain decimal literal: no exponent, no trailing zeros, no `-0`, negatives in parentheses. */

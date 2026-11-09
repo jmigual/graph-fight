@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/library.test.mjs
 import assert from "node:assert/strict";
 import {
-    decimals, defaultSlider, findSliders, formatValue, loadItems, newItem, parseItem, saveItems, sliderLetters, STORAGE_KEY, substitute,
+    decimals, defaultSlider, findSliders, formatValue, loadItems, newItem, parseItem, saveItems, sliderLetters, snapValue, STORAGE_KEY, substitute,
 } from "../js/library.ts";
 import starters from "../js/starters.json" with { type: "json" };
 
@@ -190,5 +190,16 @@ assert.equal(saveItems([good]), false);
 Object.defineProperty(globalThis, "localStorage", { value: memory(), configurable: true });
 assert.equal(saveItems([good]), true);
 assert.deepEqual(loadItems().items, [good]);
+
+// Snapping to the step grid that starts at min.
+const snap = (min, max, step, value) => snapValue({ min, max, step, value });
+assert.equal(snap(0, 10, 0.5, 2.5), 2.5, "on the grid");
+assert.equal(snap(0, 10, 0.5, 2.6), 2.5, "off the grid goes to the nearest point");
+assert.equal(snap(-1, 10, 2, 1.9), 1, "the grid starts at min, not at 0");
+assert.equal(snap(0, 10, 3, 9.9), 9, "the last grid point below max");
+assert.equal(snap(0, 1, 5, 0.9), 0, "a step larger than the span leaves min");
+assert.equal(snap(0, 1, 0.1, 0.30000000000000004), 0.3, "float noise is removed");
+assert.equal(snap(0, 1, 0.1, 0.7), 0.7, "0.1 steps stay exact");
+assert.equal(snap(0, 10, null, 3.14159), 3.14159, "no step, no change");
 
 console.log("library tests ok");

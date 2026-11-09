@@ -256,6 +256,31 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 
 #roster, #saved-list { list-style: none; padding: 0; }
 
+/* Save row and saved formulas */
+
+.save-row { margin-top: 0.75rem; }
+.save-row .field { max-width: none; }
+#shot-form .save-row .actions { justify-content: flex-start; }
+.slider input:invalid { border-color: var(--danger); }
+
+.saved-group { margin-top: 1rem; }
+.saved-group h3 { margin: 0; font: 400 1rem/1.5 var(--font-math); color: var(--ink-soft); }
+.saved-item { padding: 0.75rem 0; border-bottom: 1px solid var(--grid-major); }
+.saved-name { display: block; font-weight: 700; }
+.saved-expr { display: block; font-size: 1.125rem; margin-bottom: 0.25rem; }
+.saved-item summary { min-height: var(--control-h); line-height: var(--control-h); cursor: pointer; }
+.saved-item .preview { margin: 0.5rem 0 0; font-size: 1.125rem; color: var(--ink-soft); }
+.saved-item .error { margin: 0.25rem 0 0; }
+.saved-item .actions { margin-top: 0.5rem; }
+
+.slider { display: grid; gap: 0.5rem; padding: 0.5rem 0; }
+.slider input[type=number] { width: 6rem; min-width: 0; }
+.slider-value, .slider-step { display: flex; align-items: center; gap: 0.5rem; }
+.slider-value > span { font-style: italic; font-size: 1.25rem; }
+.slider-limits { display: grid; grid-template-columns: 5rem minmax(0, 1fr) 5rem; align-items: center; gap: 0.5rem; }
+.slider-limits input[type=number] { width: 100%; }
+.slider-limits input[type=range] { width: 100%; min-width: 0; }
+
 @media (max-width: 959px) {
     .status-area { position: sticky; top: 0; z-index: 1; }
 }
