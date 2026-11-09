@@ -403,6 +403,10 @@ dropped (name ≤ 64, each expr ≤ 256, `field` in `xy|disc`, `mode` in `explic
 1 or 2 exprs to match the mode, finite numbers). If storage is unavailable or full, the list keeps
 working in memory and shows "Can't save in this browser; saved formulas last until you close the
 tab." Slider limits and values are saved on `change` (not on every `input`).
+Settled in S5 (`js/library.ts`): an empty step is stored as `null`; read also requires |number| <= 1e6,
+`min < max`, `min <= value <= max`, `step > 0`, no `2a`-style slider, and slider keys equal to the
+formulas' slider letters. Corrupt data or unreadable storage gives an empty list (no starters), and
+`loadItems` reports `available: false` when storage could not be read or the first write failed.
 
 **Starter templates.** When the storage key is absent (first visit), the list is seeded with the
 templates below and written to storage. Deleted starters stay deleted, because the key then
