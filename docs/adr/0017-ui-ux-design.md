@@ -195,6 +195,10 @@ The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the 
 the `θ = 0` label. Grid rays are all `--grid`. The board redraws on `document.fonts`
 `loadingdone`, since the game's fonts may load only once the game section is shown. A missing
 token falls back to its light value.
+Faces: eye whites are plain white (not a token). Heads under 5 px use the 5 to 9 px face. Eyes
+and mouth shift 0.1 r times the gaze's x. A disconnected face keeps its team mouth; a dead one
+shows as dead even when disconnected. The direction arc and `π/2` are drawn above the obstacles
+so they stay visible. The board redraws when the set of disconnected seats changes.
 
 ### 5. Motion
 

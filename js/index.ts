@@ -2,8 +2,8 @@
 import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
-import { draw } from "./render";
-import type { LastShot, View } from "./render";
+import { draw, lookAfterShot, lookKey } from "./render";
+import type { LastShot, Look, View } from "./render";
 
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
@@ -32,6 +32,8 @@ type Play = {
     /** Number of applied shots and timeouts. */
     turn: number;
     shot: LastShot | null;
+    /** Display only, never in `__state`: each player's gaze after its last shot (ADR 17). */
+    looks: Map<string, Look>;
     /** The board as last drawn. */
     view?: View;
     /** Our shot is sent and not yet applied. */
@@ -210,7 +212,7 @@ function startGame(msg: Start) {
         return end(`Could not start the game: ${err}`);
     }
     $("game").dataset.field = msg.field;
-    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, looks: new Map(), pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -249,8 +251,11 @@ function onMessage(msg: GameMsg) {
                 if (msg.type === "timeout") p.sim.skip_turn();
                 else {
                     const team = p.sim.get_current_team_idx();
+                    const key = lookKey(team, p.sim.arena().teams[team].currentPlayer);
                     const points = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points;
                     p.shot = { team, exprs: msg.exprs, points };
+                    const look = lookAfterShot(p.field, p.looks.get(key), points);
+                    if (look) p.looks.set(key, look);
                 }
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
@@ -279,12 +284,15 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    p.view = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot };
+    p.view = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
     draw($<HTMLCanvasElement>("arena"), p.view);
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
 }
+
+/** Teams whose seat this page knows is disconnected (ADR 16). */
+const absentTeams = (p: Play) => (room && !p.over ? room.absent().map((id) => p.peers.indexOf(id)).filter((t) => t >= 0) : []);
 
 // The board redraws when its size, the colour scheme or the fonts change (ADR 17).
 const redraw = () => play?.view && draw($<HTMLCanvasElement>("arena"), play.view);
@@ -344,6 +352,7 @@ setInterval(() => {
     if (p && !p.over) $("countdown").textContent = String(Math.max(0, Math.ceil((p.deadline - Date.now()) / 1000)));
     const away = p && !p.over && room ? room.absent().map((id) => `Team ${p.peers.indexOf(id) + 1} (${short(id)})`) : [];
     $("absent").textContent = away.length ? `Disconnected: ${away.join(", ")}` : "";
+    if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
 }, 250);
 
 // Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours).

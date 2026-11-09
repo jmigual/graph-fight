@@ -5,7 +5,7 @@
   "scripts": {
     "build": "rimraf dist pkg && webpack",
     "start": "rimraf dist pkg && webpack-dev-server --open -d eval --mode development",
-    "test": "cargo test && node --experimental-strip-types --no-warnings tests/net.test.mjs && node --experimental-strip-types --no-warnings tests/library.test.mjs",
+    "test": "cargo test && node --experimental-strip-types --no-warnings tests/net.test.mjs && node --experimental-strip-types --no-warnings tests/library.test.mjs && node --experimental-strip-types --no-warnings tests/render.test.mjs",
     "e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
