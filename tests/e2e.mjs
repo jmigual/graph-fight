@@ -407,11 +407,11 @@ const scenarios = {
         assert.equal(await page.isVisible("#saved-notice"), true);
         assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1, "starters are listed from memory");
         // `2a` would silently become `21.5`, so saving it is refused.
-        await page.fill("#input-a", "2a");
+        await page.fill("#input-a", "2b");
         await page.click("#save");
         await page.getByRole("button", { name: "Save formula" }).click();
         assert.equal(await page.isVisible("#save-row"), true);
-        assert.match(await text(page, "#save-error"), /\*/);
+        assert.match(await text(page, "#save-error"), /2\*b/);
         await page.fill("#input-a", "a+".repeat(100) + "a");
         await page.click("#save");
         await page.fill("#save-name", "Long");

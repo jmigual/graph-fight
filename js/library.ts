@@ -76,6 +76,17 @@ export function decimals(s: Slider): number {
     return 6;
 }
 
+/**
+ * The value moved onto the slider's step grid, which starts at `min` (where a range input puts its
+ * thumb), and kept inside the limits. Unchanged when there is no step.
+ */
+export function snapValue(s: Slider): number {
+    if (s.step === null) return s.value;
+    let k = Math.round((s.value - s.min) / s.step);
+    if (s.min + k * s.step > s.max) k--;
+    return Math.max(s.min, Number((s.min + k * s.step).toFixed(9)));
+}
+
 /** A plain decimal literal: no exponent, no trailing zeros, no `-0`, negatives in parentheses. */
 export function formatValue(v: number, digits: number): string {
     let text = v.toFixed(digits);

@@ -1,7 +1,7 @@
 // Formula editor helpers and the saved formulas panel (ADR 17, sections 7 and 8). DOM only; the
 // logic (slider letters, substitution, storage) lives in library.ts.
 import type { Field } from "./net";
-import { decimals, formatValue, LIMIT, loadItems, MAX_NAME, newItem, saveItems, sliderLetters, substitute } from "./library";
+import { decimals, formatValue, LIMIT, loadItems, MAX_NAME, newItem, saveItems, sliderLetters, snapValue, substitute } from "./library";
 import type { Item, LibraryError, Mode, Slider } from "./library";
 
 /** The variable button's text per field and mode (the parser accepts t in every parametric mode). */
@@ -132,13 +132,6 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         step.value = s.step === null ? "" : String(s.step);
         for (const field of [min, max, step]) field.setCustomValidity("");
     };
-    // The range's step grid starts at its minimum, and the browser moves the thumb onto it; so does the value.
-    const snap = () => {
-        if (s.step === null) return;
-        let k = Math.round((s.value - s.min) / s.step);
-        if (s.min + k * s.step > s.max) k--;
-        s.value = Math.max(s.min, Number((s.min + k * s.step).toFixed(9)));
-    };
     // Refuses an edit that leaves the limits or the step invalid, keeping the old ones.
     const refuse = (field: HTMLInputElement, msg: string) => {
         field.setCustomValidity(msg);
@@ -181,7 +174,7 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         if (v >= s.max) return refuse(min, "Lowest must be below highest.");
         s.min = v;
         s.value = Math.max(s.value, v);
-        snap();
+        s.value = snapValue(s);
         accept();
     };
     max.onchange = () => {
@@ -190,7 +183,7 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         if (v <= s.min) return refuse(max, "Highest must be above lowest.");
         s.max = v;
         s.value = Math.min(s.value, v);
-        snap();
+        s.value = snapValue(s);
         accept();
     };
     step.onchange = () => {
@@ -199,7 +192,7 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         else if (!(v > 0)) return refuse(step, "Step must be above 0.");
         else if (v > LIMIT) return refuse(step, OUT_OF_RANGE);
         else s.step = v;
-        snap();
+        s.value = snapValue(s);
         accept();
     };
     sync();
@@ -247,7 +240,7 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
             render();
             // Focus would fall to the body; move it to the next item, or the heading when none is left.
             const left = list.querySelectorAll(".saved-item");
-            const next = left[Math.min(at, left.length - 1)]?.querySelector("button");
+            const next = left[Math.min(at, left.length - 1)]?.querySelector<HTMLButtonElement>("button:not(:disabled)");
             (next ?? $("saved-heading")).focus();
         };
         const actions = make("div", "actions");
