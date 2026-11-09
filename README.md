@@ -36,4 +36,4 @@ described in [docs/adr/0010](docs/adr/0010-hosting-github-pages-custom-domain.md
 
 ## Design
 
-Architecture decisions are recorded in [docs/adr/](docs/adr/).
+Design decisions: [docs/adr/README.md](docs/adr/README.md) (index of all ADRs; start there).

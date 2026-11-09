@@ -16,7 +16,8 @@ Michael Nygard format (Title, Status, Context, Decision, Consequences), each wel
 Anyone implementing the plan who makes a decision the existing ADRs do not settle (a new
 dependency, a protocol field, a changed constant that affects outcomes, a known limitation
 accepted) adds a new ADR in the same commit. A replaced decision gets
-`Status: Superseded by NNNN`; it is not deleted.
+`Status: Superseded by NNNN`; it is not deleted. Each new ADR also adds a row to the index in
+`docs/adr/README.md`.
 
 ## Consequences
 
