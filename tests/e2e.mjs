@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
 
@@ -46,6 +46,8 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false } =
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
+        // Leave game asks for confirmation (ADR 17).
+        page.on("dialog", (d) => d.accept());
         // Records the page's WebRTC connections so a scenario can drop its links with `__drop`.
         await page.addInitScript(() => {
             const Native = RTCPeerConnection;
