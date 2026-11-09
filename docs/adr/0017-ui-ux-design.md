@@ -170,7 +170,8 @@ Layering, back to front:
        none is that far). An empty shot leaves the gaze unchanged. The gaze stays until that
        player shoots again.
      - Gaze is UI state in `index.ts`, keyed by team and player index. It is not in `__state` and
-       not synchronised, and it resets to the default on a new game or a reload.
+       not synchronised. It resets to the default on a new game, and after a reload it is
+       rebuilt from the replayed log (see "Settled in S2" below).
    - **States.** Current shooter: a 2 px `--ink` ring 3 px outside the halo; it is also the origin
      of the grid. Dead: X eyes, flat mouth, head at 40 % alpha, cap kept so the team stays
      identifiable. Disconnected (reconnection work): closed eyes (two short lines), plus a small
@@ -199,6 +200,9 @@ Faces: eye whites are plain white (not a token). Heads under 5 px use the 5 to 9
 and mouth shift 0.1 r times the gaze's x. A disconnected face keeps its team mouth; a dead one
 shows as dead even when disconnected. The direction arc and `π/2` are drawn above the obstacles
 so they stay visible. The board redraws when the set of disconnected seats changes.
+After a reload the rejoin replays the whole log (ADR 16), so each gaze is rebuilt from the
+replayed shots; it is still display only and matches the other screens. Number tags are drawn
+after all faces, kept inside the canvas. The board also redraws when `devicePixelRatio` changes.
 Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r = …, θ = …`; it appears
 with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
 scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
