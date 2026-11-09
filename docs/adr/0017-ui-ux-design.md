@@ -345,9 +345,9 @@ One list, "Saved formulas", below the editor. Any saved formula that contains sl
 input prefilled with the formula text (cut to 64 characters), plus **Save formula** and
 **Cancel** (Escape cancels). Saving stores the current field, mode and input text(s) and does not
 validate the formula, so unfinished work can be saved; Fire validates. Slider letters are
-detected when saving. A letter right after a digit or `.` (`2a`) blocks the save with "Put * between a
-number and a slider: 2*a." Without that check, substitution would silently turn `2a` with
-`a = 1.5` into `21.5`.
+detected when saving. A letter right after a digit or `.` (`2a`), or right before a `.` (`a.5`,
+`a.`), blocks the save with "Put * between a number and a slider: 2*a." Without that check,
+substitution would silently turn `2a` with `a = 1.5` into `21.5` and `a.5` with `a = 1` into `1.5`.
 
 **Slider letters** are identifier tokens that are one ASCII letter, optionally followed by digits
 (`a`, `b`, `k2`), except `x`, `t`, `e`. The tokenizer mirrors the parser: an identifier is a
@@ -405,8 +405,11 @@ working in memory and shows "Can't save in this browser; saved formulas last unt
 tab." Slider limits and values are saved on `change` (not on every `input`).
 Settled in S5 (`js/library.ts`): an empty step is stored as `null`; read also requires |number| <= 1e6,
 `min < max`, `min <= value <= max`, `step > 0`, no `2a`-style slider, and slider keys equal to the
-formulas' slider letters. Corrupt data or unreadable storage gives an empty list (no starters), and
-`loadItems` reports `available: false` when storage could not be read or the first write failed.
+formulas' slider letters. If the stored text exists but does not fully validate (corrupt JSON,
+another version, or any invalid item), `loadItems` returns its valid items (none if the top level is
+bad), no starters, and `available: false`, and `saveItems` refuses to overwrite it, so a bad read
+never destroys the original; the UI shows the storage notice. `available: false` also means storage
+could not be read (empty list) or the first write failed.
 
 **Starter templates.** When the storage key is absent (first visit), the list is seeded with the
 templates below and written to storage. Deleted starters stay deleted, because the key then

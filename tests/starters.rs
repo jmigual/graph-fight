@@ -6,7 +6,8 @@ use graph_fight::formula::Formula;
 use serde_json::{Map, Value};
 
 /// Replaces every slider token with the `pick` value (`min`, `value` or `max`), negatives in
-/// parentheses, like `js/library.ts` does. Tokens are a letter followed by letters or digits.
+/// parentheses. This uses `f64`'s `Display`, not `formatValue` from `js/library.ts`; the text is
+/// the same for the starters' values. Tokens are a letter followed by letters or digits.
 fn substitute(src: &str, sliders: &Map<String, Value>, pick: &str) -> String {
     let mut out = String::new();
     let mut chars = src.chars().peekable();

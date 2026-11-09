@@ -33,7 +33,8 @@ function sliderTokens(exprs: readonly string[]): { name: string; glued: boolean 
         for (const m of text.matchAll(IDENT)) {
             if (!SLIDER.test(m[0])) continue;
             const at = m.index ?? 0;
-            out.push({ name: m[0], glued: at > 0 && /[\d.]/.test(text[at - 1]) });
+            const end = at + m[0].length;
+            out.push({ name: m[0], glued: (at > 0 && /[\d.]/.test(text[at - 1])) || text[end] === "." });
         }
     }
     return out;
@@ -44,7 +45,7 @@ export function sliderLetters(exprs: readonly string[]): string[] {
     return [...new Set(sliderTokens(exprs).map((t) => t.name))];
 }
 
-/** Like `sliderLetters`, but fails with `glued` on forms like `2a` that substitution would silently change. */
+/** Like `sliderLetters`, but fails with `glued` on forms like `2a`, `a.5` or `a.` that substitution would silently change. */
 export function findSliders(exprs: readonly string[]): Result<string[]> {
     const glued = sliderTokens(exprs).find((t) => t.glued);
     return glued ? { ok: false, error: { kind: "glued", slider: glued.name } } : { ok: true, value: sliderLetters(exprs) };
@@ -89,7 +90,7 @@ export function formatValue(v: number, digits: number): string {
  */
 export function substitute(exprs: Item["exprs"], sliders: Record<string, Slider>): Result<Item["exprs"]> {
     const out = exprs.map((e) =>
-        e.replace(IDENT, (tok) => (SLIDER.test(tok) && tok in sliders ? formatValue(sliders[tok].value, decimals(sliders[tok])) : tok)),
+        e.replace(IDENT, (tok) => (SLIDER.test(tok) && Object.prototype.hasOwnProperty.call(sliders, tok) ? formatValue(sliders[tok].value, decimals(sliders[tok])) : tok)),
     ) as Item["exprs"];
     const length = Math.max(...out.map((e) => e.length));
     return length > MAX_EXPR ? { ok: false, error: { kind: "too-long", length, max: MAX_EXPR } } : { ok: true, value: out };
@@ -126,30 +127,43 @@ export function parseItem(v: unknown): Item | undefined {
 /** The part of `Storage` used here. */
 export type Store = Pick<Storage, "getItem" | "setItem">;
 
-/** Writes the list; false when storage is blocked or full, so the caller can show the in-memory notice. */
-export function saveItems(items: readonly Item[], storage?: Store): boolean {
+/** `items` are the valid ones; `complete` is false when anything in the text failed validation. */
+function parseStored(text: string): { items: Item[]; complete: boolean } {
     try {
-        (storage ?? localStorage).setItem(STORAGE_KEY, JSON.stringify({ v: 1, items }));
+        const data: unknown = JSON.parse(text);
+        if (!isObj(data) || data.v !== 1 || !Array.isArray(data.items)) return { items: [], complete: false };
+        const items = data.items.flatMap((i) => parseItem(i) ?? []);
+        return { items, complete: items.length === data.items.length };
+    } catch {
+        return { items: [], complete: false };
+    }
+}
+
+/**
+ * Writes the list; false when storage is blocked or full, so the caller can show the in-memory
+ * notice. It also refuses to write an item `parseItem` rejects, which would make the next load
+ * unavailable, and to overwrite stored text that does not fully validate (corrupt, another
+ * version, or with invalid items), so a bad read never destroys the original.
+ */
+export function saveItems(items: readonly Item[], storage?: Store): boolean {
+    if (!items.every((i) => parseItem(i))) return false;
+    try {
+        const store = storage ?? localStorage;
+        const current = store.getItem(STORAGE_KEY);
+        if (current !== null && !parseStored(current).complete) return false;
+        store.setItem(STORAGE_KEY, JSON.stringify({ v: 1, items }));
         return true;
     } catch {
         return false;
     }
 }
 
-function parseStored(text: string): Item[] {
-    try {
-        const data: unknown = JSON.parse(text);
-        return isObj(data) && data.v === 1 && Array.isArray(data.items) ? data.items.flatMap((i) => parseItem(i) ?? []) : [];
-    } catch {
-        return [];
-    }
-}
-
 /**
  * Reads the saved list. A missing key (first visit) seeds and writes the starter templates; a
- * deleted starter stays deleted because the key then exists. Corrupt data gives an empty list and
- * invalid items are dropped. `available` is false when storage cannot be read (the list is then
- * empty) or the first write failed; the list still works in memory.
+ * deleted starter stays deleted because the key then exists. `available` is false, and the stored
+ * text is never overwritten, when it does not fully validate (the list then holds only its valid
+ * items), when storage cannot be read (the list is then empty) or when the first write failed.
+ * The list still works in memory.
  */
 export function loadItems(storage?: Store): { items: Item[]; available: boolean } {
     let store: Store;
@@ -160,7 +174,10 @@ export function loadItems(storage?: Store): { items: Item[]; available: boolean 
     } catch {
         return { items: [], available: false };
     }
-    if (text !== null) return { items: parseStored(text), available: true };
+    if (text !== null) {
+        const { items, complete } = parseStored(text);
+        return { items, available: complete };
+    }
     const items = starters.flatMap((s) => parseItem(s) ?? []);
     return { items, available: saveItems(items, store) };
 }

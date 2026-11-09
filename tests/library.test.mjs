@@ -20,7 +20,7 @@ assert.deepEqual(sliderLetters(["a*atan(b)"]), ["a", "b"], "atan beside real sli
 assert.deepEqual(findSliders(["a*x"]), { ok: true, value: ["a"] });
 
 // `2a` would silently change meaning on substitution (a = 1.5 gives 21.5), so it is rejected.
-for (const bad of ["2a", "2.5a", ".5a", "x+3k2", "x^2b"]) {
+for (const bad of ["2a", "2.5a", ".5a", "x+3k2", "x^2b", "a.5*x", "a.*x", "x+k2.5"]) {
     const r = findSliders([bad]);
     assert.equal(r.ok, false, bad);
     assert.equal(r.error.kind, "glued", bad);
@@ -115,10 +115,11 @@ assert.equal(loadItems(first).items.length, 10, "deleted starter stays deleted")
 assert.equal(saveItems([], first), true);
 assert.deepEqual(loadItems(first).items, [], "an empty list is not reseeded");
 
-// Corrupt storage gives an empty list and does not reseed.
+// Text that does not validate gives an unavailable list, is not reseeded and is never overwritten.
 for (const raw of ["not json", "null", "[]", "7", '"s"', "{}", '{"v":2,"items":[]}', '{"v":1}', '{"v":1,"items":5}']) {
     const store = memory({ [STORAGE_KEY]: raw });
-    assert.deepEqual(loadItems(store), { items: [], available: true }, raw);
+    assert.deepEqual(loadItems(store), { items: [], available: false }, raw);
+    assert.equal(saveItems([good], store), false, raw);
     assert.equal(store.m.get(STORAGE_KEY), raw, "left alone");
 }
 
@@ -153,8 +154,26 @@ const dropped = [
 ];
 for (const bad of dropped) assert.equal(parseItem(bad), undefined, JSON.stringify(bad));
 const kept = [good, { ...base, sliders: { a: { ...slider, step: 0.1 } } }, { ...base, mode: "parametric", exprs: ["t", "a*t"] }];
-assert.deepEqual(loadItems(withItems([...dropped, ...kept])).items, kept);
-assert.deepEqual(loadItems(withItems({ not: "a list" })).items, []);
+const partial = withItems([...dropped, ...kept]);
+assert.deepEqual(loadItems(partial), { items: kept, available: false }, "valid items stay in memory");
+const raw = partial.m.get(STORAGE_KEY);
+assert.equal(saveItems(kept, partial), false, "one invalid item blocks the write");
+assert.equal(partial.m.get(STORAGE_KEY), raw, "original kept");
+assert.deepEqual(loadItems(withItems(kept)), { items: kept, available: true });
+assert.deepEqual(loadItems(withItems({ not: "a list" })), { items: [], available: false });
+assert.deepEqual(loadItems(withItems([], 2)), { items: [], available: false }, "unknown version");
+// A "__proto__" key from JSON.parse is an own key, so it is rejected like any other extra slider.
+for (const exprs of ["a*x", "x"]) {
+    const text = JSON.stringify({ ...base, exprs: [exprs] }).replace('"sliders":{', '"sliders":{"__proto__":{"min":0,"max":1,"step":null,"value":0.5},');
+    assert.equal(parseItem(JSON.parse(text)), undefined, exprs);
+}
+
+// An item that would not read back is not written, so it cannot lock the store.
+const sane = withItems(kept);
+const rawSane = sane.m.get(STORAGE_KEY);
+assert.equal(saveItems([...kept, { ...base, sliders: { a: { ...slider, value: 2 } } }], sane), false);
+assert.equal(sane.m.get(STORAGE_KEY), rawSane, "store unchanged");
+assert.equal(saveItems(kept, sane), true);
 
 // Blocked or full storage: nothing throws, the list works in memory.
 const blocked = { getItem: () => { throw new Error("SecurityError"); }, setItem: () => { throw new Error("SecurityError"); } };
