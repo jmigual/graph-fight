@@ -296,6 +296,47 @@ const scenarios = {
         await takeTurn(players, 1, ["-x"]);
         return errors;
     },
+    async I() {
+        // Helper buttons insert at the caret of the last focused formula input and keep the focus.
+        const { pages, errors } = await startGame(2, "xy", "I");
+        const page = pages[0];
+        const input = page.locator("#input-a");
+        const key = (label) => page.locator("#helpers").getByRole("button", { name: label, exact: true });
+        const caret = () => page.evaluate(() => [document.activeElement.id, document.activeElement.selectionStart, document.activeElement.selectionEnd]);
+        await input.fill("x+1");
+        await input.selectText();
+        await key("sin").click();
+        assert.equal(await input.inputValue(), "sin(x+1)");
+        assert.deepEqual(await caret(), ["input-a", 8, 8], "a wrapped selection leaves the caret after the bracket");
+        await input.fill("");
+        await key("cos").click();
+        assert.equal(await input.inputValue(), "cos()");
+        assert.deepEqual(await caret(), ["input-a", 4, 4], "without a selection the caret goes between the brackets");
+        await input.fill("");
+        await key("π").click();
+        assert.equal(await input.inputValue(), "pi");
+        await key("√").click();
+        await key("( )").click();
+        await key("^").click();
+        assert.equal(await input.inputValue(), "pisqrt((^))");
+        await page.locator("#helpers summary").click();
+        await key("floor").click();
+        assert.equal(await input.inputValue(), "pisqrt((^floor()))");
+        // The variable follows the field and mode; the parametric buttons target the last focused input.
+        assert.equal(await text(page, "#insert-var"), "x");
+        await page.check("#mode-parametric");
+        assert.equal(await text(page, "#insert-var"), "t");
+        await page.fill("#input-b", "");
+        await key("t").click();
+        assert.equal(await page.inputValue("#input-b"), "t");
+        await page.check("#mode-explicit");
+        assert.equal(await text(page, "#insert-var"), "x");
+        // A helper does not overrun the parser's 256 character limit.
+        await input.fill("x".repeat(255));
+        await key("sin").click();
+        assert.equal((await input.inputValue()).length, 255);
+        return errors;
+    },
 };
 
 let failed = 0;

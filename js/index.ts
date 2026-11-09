@@ -3,6 +3,7 @@ import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import type { Point } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
+import { initEditor } from "./editor";
 import { draw } from "./render";
 
 const TURN_MS = 60_000;
@@ -299,8 +300,10 @@ function end(message: string) {
 }
 
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
+const editor = initEditor();
 function setMode() {
     if (!play) return;
+    editor.refresh(play.field, parametric());
     const [a, b] = LABELS[play.field][parametric() ? "parametric" : "explicit"];
     $("label-a").textContent = a;
     $("label-b").textContent = b ?? "";
