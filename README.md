@@ -29,10 +29,8 @@ npm run e2e        # browser P2P test (Playwright); needs public relays
 ## Deployment
 
 `.github/workflows/pages.yml` tests, builds and deploys `dist/` to GitHub Pages on every push to
-`master`. The site is served at https://graph-fight.marceigual.eu. One-time setup:
-
-- DNS: CNAME `graph-fight` pointing to `jmigual.github.io`.
-- Repo Settings, Pages: source "GitHub Actions" and custom domain `graph-fight.marceigual.eu`.
+`master`. The site is served at https://graph-fight.marceigual.eu. DNS and Pages settings are
+described in [docs/adr/0010](docs/adr/0010-hosting-github-pages-custom-domain.md).
 
 ## Design
 
