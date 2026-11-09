@@ -207,31 +207,32 @@ impl Game {
     }
 
     /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc.
+    /// On the disc `clockwise` mirrors the shot across the shooter-to-centre axis; XY ignores it.
     /// On an error nothing changes and the turn is not consumed.
-    pub fn fire(&mut self, expr: &str) -> Result<Shot, FireError> {
+    pub fn fire(&mut self, expr: &str, clockwise: bool) -> Result<Shot, FireError> {
         let var = match self.arena.field() {
             Field::Xy => "x",
             Field::Disc => "θ",
         };
         let f = Formula::parse(expr, var)?;
-        self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f))
+        self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f, clockwise))
     }
 
     /// Fires `a`, `b` from the current player: `x(t), y(t)` on the XY field, `r(t), θ(t)` on the
-    /// disc. On an error nothing changes and the turn is not consumed.
-    pub fn fire_param(&mut self, a: &str, b: &str) -> Result<Shot, FireError> {
+    /// disc. `clockwise` as in `fire`. On an error nothing changes and the turn is not consumed.
+    pub fn fire_param(&mut self, a: &str, b: &str, clockwise: bool) -> Result<Shot, FireError> {
         let (a, b) = (Formula::parse(a, "t")?, Formula::parse(b, "t")?);
-        self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b))
+        self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b, clockwise))
     }
 
     /// Fails exactly when `fire(expr)` would, without changing the game.
     pub fn check(&self, expr: &str) -> Result<(), FireError> {
-        self.clone().fire(expr).map(|_| ())
+        self.clone().fire(expr, false).map(|_| ())
     }
 
     /// Fails exactly when `fire_param(a, b)` would, without changing the game.
     pub fn check_param(&self, a: &str, b: &str) -> Result<(), FireError> {
-        self.clone().fire_param(a, b).map(|_| ())
+        self.clone().fire_param(a, b, false).map(|_| ())
     }
 
     /// Passes the turn without shooting (timeout, or a remote formula that failed to parse).
@@ -517,15 +518,15 @@ mod tests {
         let mut game = three_teams();
         let before = game.js_arena();
         assert_eq!(
-            game.fire("1+").err(),
+            game.fire("1+", false).err(),
             Some(FireError::Parse(ParseError::UnexpectedEnd))
         );
         assert_eq!(
-            game.fire_param("t", "foo(t)").err(),
+            game.fire_param("t", "foo(t)", false).err(),
             Some(FireError::Parse(ParseError::UnknownName("foo".into())))
         );
         // x is not the disc variable
-        assert!(game.fire("x").is_err());
+        assert!(game.fire("x", false).is_err());
         assert!(game.js_arena() == before);
         assert_eq!(game.get_current_team_idx(), 0);
     }
@@ -533,7 +534,7 @@ mod tests {
     #[test]
     fn fire_kills_and_passes_the_turn() {
         let mut game = three_teams();
-        let shot = game.fire_param("t", "0").unwrap();
+        let shot = game.fire_param("t", "0", false).unwrap();
         assert!(!shot.points.is_empty());
         assert_eq!(
             game.arena.alive(),
@@ -576,7 +577,7 @@ mod tests {
     fn nothing_alive_does_not_panic() {
         let mut game = three_teams();
         (0..3).for_each(|i| game.eliminate_team(i));
-        assert!(game.fire("theta").unwrap().points.is_empty());
+        assert!(game.fire("theta", false).unwrap().points.is_empty());
         game.skip_turn();
         assert_eq!(game.get_current_formula(), "");
         assert_eq!(game.winner(), None);
@@ -609,19 +610,22 @@ mod tests {
         let before = game.js_arena();
         for (a, b) in [("1/t", "0"), ("t", "ln(t)")] {
             assert_eq!(
-                game.fire_param(a, b).err(),
+                game.fire_param(a, b, false).err(),
                 Some(FireError::UndefinedAtShooter)
             );
             assert_eq!(game.check_param(a, b), Err(FireError::UndefinedAtShooter));
         }
         for expr in ["1/theta", "ln(theta)"] {
-            assert_eq!(game.fire(expr).err(), Some(FireError::UndefinedAtShooter));
+            assert_eq!(
+                game.fire(expr, false).err(),
+                Some(FireError::UndefinedAtShooter)
+            );
             assert_eq!(game.check(expr), Err(FireError::UndefinedAtShooter));
         }
         let xy = game_with(Field::Xy, (10., 5.), &[&[(-8., 0.)], &[(8., 0.)]]);
         for expr in ["1/x", "x^-1", "sin(x)/x"] {
             assert_eq!(
-                xy.clone().fire(expr).err(),
+                xy.clone().fire(expr, false).err(),
                 Some(FireError::UndefinedAtShooter)
             );
             assert_eq!(xy.check(expr), Err(FireError::UndefinedAtShooter));
@@ -649,7 +653,7 @@ mod tests {
     fn a_kill_by_fire_can_decide_the_winner() {
         let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(-5., 0.)]]);
         assert_eq!(game.winner(), None);
-        game.fire_param("t", "0").unwrap();
+        game.fire_param("t", "0", false).unwrap();
         assert_eq!(game.winner(), Some(0));
     }
 
@@ -657,5 +661,27 @@ mod tests {
     fn empty_teams_are_rejected() {
         let game = Game::new(Field::Disc, 10.0, 10.0, 0, 0.2, 1.0, &[2, 0, 2], 0.3, 0);
         assert_eq!(game.err(), Some(GameError::EmptyTeam));
+    }
+
+    #[test]
+    fn clockwise_shot_can_hit_what_counter_clockwise_misses() {
+        // r = θ from (8, 0) passes (8, -π/2) counter-clockwise and (8, π/2) clockwise;
+        // r = t, θ = 0.5 passes (4.49, -1.92) counter-clockwise and (4.49, 1.92) clockwise
+        for clockwise in [false, true] {
+            for (x, y, param) in [
+                (8., 1.5, false),
+                (8., -1.5, false),
+                (4.49, 1.92, true),
+                (4.49, -1.92, true),
+            ] {
+                let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(x, y)]]);
+                if param {
+                    game.fire_param("t", "0.5", clockwise).unwrap();
+                } else {
+                    game.fire("theta", clockwise).unwrap();
+                }
+                assert_eq!(game.arena.alive()[1][0], (y < 0.) == clockwise);
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 # 5. Disc field with polar shots; field kind is a host option
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0014 (shot direction: CCW is the default; clockwise mirrors θ).
 
 ## Context
 

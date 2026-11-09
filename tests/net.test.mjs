@@ -4,25 +4,28 @@ import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayE
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", peers: ["h", "p"], version: "v1" };
-assert.deepEqual(parseGameMsg({ type: "shot", turn: 3, exprs: ["x"] }), { type: "shot", turn: 3, exprs: ["x"] });
-assert.deepEqual(parseGameMsg({ type: "shot", turn: 0, exprs: ["a", "b"] }), { type: "shot", turn: 0, exprs: ["a", "b"] });
+assert.deepEqual(parseGameMsg({ type: "shot", turn: 3, exprs: ["x"], cw: true }), { type: "shot", turn: 3, exprs: ["x"], cw: true });
+assert.deepEqual(parseGameMsg({ type: "shot", turn: 0, exprs: ["a", "b"], cw: false }), { type: "shot", turn: 0, exprs: ["a", "b"], cw: false });
 assert.deepEqual(parseGameMsg({ type: "timeout", turn: 1 }), { type: "timeout", turn: 1 });
 assert.deepEqual(parseGameMsg({ type: "leave", peer: "p" }), { type: "leave", peer: "p" });
 assert.deepEqual(parseGameMsg(start), start);
-assert.ok(parseGameMsg({ type: "shot", turn: 0, exprs: ["x".repeat(256)] }), "formula at the cap");
+assert.ok(parseGameMsg({ type: "shot", turn: 0, exprs: ["x".repeat(256)], cw: false }), "formula at the cap");
 assert.ok(parseGameMsg({ ...start, peers: Array(MAX_PLAYERS).fill("p") }), "peers at the cap");
 
 // Malformed or oversized input is dropped, one row per cap.
 for (const bad of [
     null, 7, "shot", [], {}, { type: "nope" },
-    { type: "shot", turn: -1, exprs: ["x"] },
-    { type: "shot", turn: 1.5, exprs: ["x"] },
-    { type: "shot", turn: 1, exprs: [] },
-    { type: "shot", turn: 1, exprs: ["a", "b", "c"] },
-    { type: "shot", turn: 1, exprs: [1] },
-    { type: "shot", exprs: ["x"] },
-    { type: "shot", turn: 0, exprs: ["x".repeat(257)] },
-    { type: "shot", turn: 0, exprs: ["x", "x".repeat(257)] },
+    { type: "shot", turn: -1, exprs: ["x"], cw: false },
+    { type: "shot", turn: 1.5, exprs: ["x"], cw: false },
+    { type: "shot", turn: 1, exprs: [], cw: false },
+    { type: "shot", turn: 1, exprs: ["a", "b", "c"], cw: false },
+    { type: "shot", turn: 1, exprs: [1], cw: false },
+    { type: "shot", exprs: ["x"], cw: false },
+    { type: "shot", turn: 0, exprs: ["x"] },
+    { type: "shot", turn: 0, exprs: ["x"], cw: "true" },
+    { type: "shot", turn: 0, exprs: ["x"], cw: 1 },
+    { type: "shot", turn: 0, exprs: ["x".repeat(257)], cw: false },
+    { type: "shot", turn: 0, exprs: ["x", "x".repeat(257)], cw: false },
     { type: "timeout", turn: "1" },
     { type: "leave" },
     { type: "leave", peer: "p".repeat(65) },
@@ -38,7 +41,7 @@ for (const bad of [
 
 // Routing: only the host's sequenced broadcasts are delivered; the host also takes bare shot
 // requests from others; nothing else gets through.
-const shot = { type: "shot", turn: 0, exprs: ["x"] };
+const shot = { type: "shot", turn: 0, exprs: ["x"], cw: false };
 const timeout = { type: "timeout", turn: 0 };
 const leave = { type: "leave", peer: "p" };
 for (const m of [shot, timeout, leave, start]) {
@@ -75,7 +78,7 @@ assert.equal(box.started(), false, "a refused start does not start the game");
 assert.deepEqual(box.stamp(start), { seq: 0, msg: start });
 assert.equal(box.started(), true);
 assert.throws(() => box.stamp(start), /already relayed/, "no second start");
-assert.throws(() => box.stamp({ type: "shot", turn: 0, exprs: ["x".repeat(257)] }), /invalid/);
+assert.throws(() => box.stamp({ type: "shot", turn: 0, exprs: ["x".repeat(257)], cw: false }), /invalid/);
 assert.deepEqual(box.stamp(shot), { seq: 1, msg: shot }, "refused messages consume no number");
 assert.deepEqual(box.stamp(leave), { seq: 2, msg: leave });
 assert.deepEqual(box.log, [{ seq: 0, msg: start }, { seq: 1, msg: shot }, { seq: 2, msg: leave }], "the log holds every stamped message, in order");

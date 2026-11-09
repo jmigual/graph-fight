@@ -20,8 +20,9 @@ The game id is the sender's peer id.
 Game room (action `msg`):
 - `start {seed: string, field, peers: string[]}`: host to all. `peers[i]` plays team `i`, and
   the host is `peers[0]`. A room peer not in `peers` shows "game full" and leaves.
-- `shot {turn, exprs: [f] | [a, b]}`: the current shooter to all. Arity selects explicit or
-  parametric mode.
+- `shot {turn, exprs: [f] | [a, b], cw}`: the current shooter to all. Arity selects explicit or
+  parametric mode. `cw` is the disc shot direction (clockwise when true; ADR 14), required so
+  every peer applies the same shot.
 - `timeout {turn}`: the current shooter to all, sent when its own 60 s turn clock expires.
 - `leave {peer}`: host to all, sent when the host's `onPeerLeave` fires for a player.
 
