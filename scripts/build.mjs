@@ -11,13 +11,15 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = resolve(root, "dist");
 
 // Identifies the build so peers on different builds refuse to play together (ADR 12):
-// the commit hash, or a hash of the sources when the repository is unavailable.
+// the commit hash, or a hash of the sources (and Cargo.lock, which fixes the arenas) when the
+// repository is unavailable.
 function buildVersion() {
   try {
     return execSync("git rev-parse --short HEAD", { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
   } catch {
     const hash = createHash("sha256");
-    for (const dir of ["js", "src"]) {
+    hash.update(readFileSync(resolve(root, "Cargo.lock")));
+    for (const dir of ["js", "src", "static"]) {
       for (const f of readdirSync(resolve(root, dir), { recursive: true }).sort()) {
         const file = resolve(root, dir, f);
         if (statSync(file).isFile()) hash.update(readFileSync(file));
@@ -32,7 +34,8 @@ const serve = process.argv.includes("--serve");
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(resolve(root, "static"), dist, { recursive: true });
-cpSync(resolve(root, "pkg/index_bg.wasm"), resolve(dist, "index_bg.wasm"));
+const copyWasm = () => cpSync(resolve(root, "pkg/index_bg.wasm"), resolve(dist, "index_bg.wasm"));
+copyWasm();
 
 const options = {
   entryPoints: [resolve(root, "js/index.ts")],
@@ -44,6 +47,8 @@ const options = {
   minify: !serve,
   sourcemap: serve,
   logLevel: "info",
+  // `npm run build:wasm` rewrites the glue, which triggers a rebuild; pick up the new wasm too.
+  plugins: [{ name: "copy-wasm", setup: (b) => b.onEnd(copyWasm) }],
 };
 
 if (serve) {

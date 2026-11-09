@@ -16,7 +16,7 @@ externref wasm in ADR 13.
 - `scripts/build.mjs` (esbuild JS API): empties `dist/`, copies `static/`, copies
   `index_bg.wasm` into `dist/`, and bundles `js/index.ts` and `trystero` into `dist/index.js` as
   ESM (target es2022, minified). `define` sets `__BUILD_VERSION__` as `DefinePlugin` did: the
-  short commit hash, or a hash of `js/` and `src/` outside a git checkout (ADR 12).
+  short commit hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` outside a git checkout (ADR 12).
 - `js/index.ts` runs `await init()`. The web-target glue fetches `index_bg.wasm` relative to
   `import.meta.url`, so it works from the domain root (ADR 10) and from the e2e static server.
   `static/index.html` loads the bundle with `<script type="module">`.
@@ -25,8 +25,9 @@ externref wasm in ADR 13.
   the build and CI. `tsconfig.json` sets `verbatimModuleSyntax` (esbuild compiles each file alone)
   and target/lib ES2022.
 - `npm start` builds the wasm once, then runs `scripts/build.mjs --serve`: esbuild watches the
-  TypeScript and serves `dist/` on port 8080. After a Rust change run `npm run build:wasm`
-  again; `static/` is copied once per start.
+  TypeScript and serves `dist/` on port 8080. After a Rust change run `npm run build:wasm` in
+  another terminal; the rewritten glue triggers a rebuild and the build copies the new
+  `index_bg.wasm` into `dist/`. `static/` is copied once per start.
 - TypeScript 7 is used only for `tsc`. Removed: webpack, webpack-cli, webpack-dev-server,
   `@wasm-tool/wasm-pack-plugin`, `copy-webpack-plugin`, `html-minimizer-webpack-plugin`,
   `ts-loader`, `rimraf`, and `webpack.config.js`.

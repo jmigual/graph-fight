@@ -69,7 +69,8 @@ room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby i
 - Dead relays are retried with a doubling delay (5 s up to 60 s); `leave()` stops reconnecting.
 
 Version check (peers on different builds would desync silently):
-- webpack's DefinePlugin sets `__BUILD_VERSION__` to the short commit hash, or a hash of `js/`
+- esbuild's `define` (ADR 19; webpack's DefinePlugin before) sets `__BUILD_VERSION__` to the short
+  commit hash, or a hash of `js/`
   and `src/` when the repository is unavailable. `net.ts` exports it as `BUILD_VERSION`.
 - Listings and `start` carry it. Lobby entries get `compatible: false` on a mismatch, kept in
   the list so the UI can grey them out ("different version - reload"). A peer receiving a

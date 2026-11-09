@@ -21,7 +21,7 @@ Nostr relays lets them find each other.
 ```bash
 npm ci
 npm start          # wasm build once, then esbuild watch + serve on :8080
-npm run build:wasm # rebuild the wasm (pkg/); run again after Rust changes in `npm start`
+npm run build:wasm # rebuild the wasm (pkg/); run in another terminal after Rust changes, `npm start` picks it up
 npm run build      # wasm, type check (tsc) and bundle into dist/
 npm test           # Rust and net tests
 npm run e2e        # browser P2P test (Playwright); needs public relays
