@@ -11,17 +11,17 @@ const LIVE_DELAY_MS = 50;
 const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 
 export const short = (id: string) => id.slice(0, 6);
-export const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
+const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
 
-/** Writes only a changed text: a live region re-announces on every write, even of the same text. */
+/** Writes only a changed text, since some screen readers announce a live region on every write, even of the same text. */
 export function setText(el: HTMLElement, text: string) {
     if (el.textContent !== text) el.textContent = text;
 }
 
 /**
  * Replaces the text of a live region. It is emptied first and filled `LIVE_DELAY_MS` later,
- * because screen readers do not announce a text identical to the last one. `then` runs on fill.
+ * because some screen readers do not announce a text identical to the last one. `then` runs on fill.
  */
 export function setLive(el: HTMLElement, text: string, then?: () => void) {
     clearTimeout(timers.get(el));

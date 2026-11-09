@@ -79,8 +79,6 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, bl
         }
         if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
-        // The empty-list text shows exactly when the list is empty.
-        if (i === 0) assert.ok(await page.evaluate(() => (document.querySelectorAll("#games tr").length === 0) === !document.getElementById("no-games").hidden));
         pages.push(page);
     }
     const name = `e2e-${label}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,6 +90,8 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, bl
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
     const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
+    // With a game listed, the empty-list text gives way to the table.
+    for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");

@@ -355,6 +355,7 @@ function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
+    cueTurn(false);
     if (play) {
         play.over = true;
         clearTimeout(play.clock);
