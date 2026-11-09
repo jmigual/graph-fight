@@ -5,6 +5,10 @@ use std::f64::consts::{E, PI};
 /// Maximum nesting of unary minus, parentheses and `^` exponents.
 const MAX_DEPTH: usize = 64;
 
+/// Maximum formula length in characters; also bounds the depth of left-deep
+/// `+ - * /` chains, which the nesting limit does not see.
+const MAX_LEN: usize = 256;
+
 /// Why a formula failed to parse.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParseError {
@@ -20,6 +24,8 @@ pub enum ParseError {
     UnknownName(String),
     /// Nesting deeper than [`MAX_DEPTH`].
     TooDeep,
+    /// More than [`MAX_LEN`] characters.
+    TooLong,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,6 +75,9 @@ impl Formula {
     /// Parses `src`, where `var` is the one variable name allowed (`x`, `t` or
     /// `θ`). `theta` is accepted as an ASCII alias of `θ`.
     pub fn parse(src: &str, var: &str) -> Result<Self, ParseError> {
+        if src.chars().count() > MAX_LEN {
+            return Err(ParseError::TooLong);
+        }
         let mut p = Parser {
             chars: src.chars().collect(),
             pos: 0,
@@ -78,13 +87,23 @@ impl Formula {
         let node = p.expr()?;
         match p.peek() {
             None => Ok(Formula(node)),
-            Some(c) => Err(ParseError::UnexpectedToken(c)),
+            Some(c) => Err(unexpected(c)),
         }
     }
 
     /// Evaluates the formula with the variable set to `v`.
     pub fn eval(&self, v: f64) -> f64 {
         self.0.eval(v)
+    }
+}
+
+/// `UnexpectedToken` for characters the grammar knows, `UnexpectedChar` for
+/// the rest, wherever they appear.
+fn unexpected(c: char) -> ParseError {
+    if c.is_alphanumeric() || ".+-*/^()".contains(c) {
+        ParseError::UnexpectedToken(c)
+    } else {
+        ParseError::UnexpectedChar(c)
     }
 }
 
@@ -117,7 +136,7 @@ impl Parser<'_> {
                 self.pos += 1;
                 Ok(())
             }
-            Some(found) => Err(ParseError::UnexpectedToken(found)),
+            Some(found) => Err(unexpected(found)),
             None => Err(ParseError::UnexpectedEnd),
         }
     }
@@ -190,8 +209,7 @@ impl Parser<'_> {
             }
             Some(c) if c.is_ascii_digit() || c == '.' => self.number(),
             Some(c) if c.is_alphabetic() => self.name(),
-            Some(c) if "+-*/^)".contains(c) => Err(ParseError::UnexpectedToken(c)),
-            Some(c) => Err(ParseError::UnexpectedChar(c)),
+            Some(c) => Err(unexpected(c)),
         }
     }
 
@@ -220,16 +238,16 @@ impl Parser<'_> {
             self.pos += 1;
         }
         let name: String = self.chars[start..self.pos].iter().collect();
-        let name = if name == "theta" { "θ" } else { &name };
-        if name == self.var {
+        let canonical = if name == "theta" { "θ" } else { &name };
+        if canonical == self.var {
             return Ok(Node::Var);
         }
-        match name {
+        match canonical {
             "pi" => return Ok(Node::Num(PI)),
             "e" => return Ok(Node::Num(E)),
             _ => {}
         }
-        let f: fn(f64) -> f64 = match name {
+        let f: fn(f64) -> f64 = match canonical {
             "sin" => f64::sin,
             "cos" => f64::cos,
             "tan" => f64::tan,
@@ -246,7 +264,7 @@ impl Parser<'_> {
             "log10" => f64::log10,
             "floor" => f64::floor,
             "ceil" => f64::ceil,
-            _ => return Err(ParseError::UnknownName(name.to_string())),
+            _ => return Err(ParseError::UnknownName(name)),
         };
         self.expect('(')?;
         let arg = self.expr()?;
@@ -309,7 +327,7 @@ mod tests {
         assert_eq!(b.eval(3.0), 9.0);
         assert_eq!(
             Formula::parse("theta", "x").unwrap_err(),
-            ParseError::UnknownName("θ".into())
+            ParseError::UnknownName("theta".into())
         );
     }
 
@@ -321,7 +339,7 @@ mod tests {
 
     #[test]
     fn errors() {
-        assert_eq!(err("2 $ 3"), ParseError::UnexpectedToken('$'));
+        assert_eq!(err("2 $ 3"), ParseError::UnexpectedChar('$'));
         assert_eq!(err("$"), ParseError::UnexpectedChar('$'));
         assert_eq!(err(""), ParseError::UnexpectedEnd);
         assert_eq!(err("1 +"), ParseError::UnexpectedEnd);
@@ -334,7 +352,11 @@ mod tests {
         assert_eq!(err("."), ParseError::InvalidNumber(".".into()));
         assert_eq!(err("y + 1"), ParseError::UnknownName("y".into()));
         assert_eq!(err("foo(1)"), ParseError::UnknownName("foo".into()));
-        assert_eq!(err(&"(".repeat(1000)), ParseError::TooDeep);
-        assert_eq!(err(&"-".repeat(1000)), ParseError::TooDeep);
+        assert_eq!(err(&"(".repeat(100)), ParseError::TooDeep);
+        assert_eq!(err(&"-".repeat(100)), ParseError::TooDeep);
+        assert_eq!(
+            err(&format!("{}x", "x+".repeat(300_000))),
+            ParseError::TooLong
+        );
     }
 }
