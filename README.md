@@ -26,6 +26,8 @@ npm test           # Rust and net tests
 npm run e2e        # browser P2P test (Playwright); needs public relays
 ```
 
+Run `npx playwright install chromium` once before the first `npm run e2e`.
+
 ## Deployment
 
 `.github/workflows/pages.yml` tests, builds and deploys `dist/` to GitHub Pages on every push to
