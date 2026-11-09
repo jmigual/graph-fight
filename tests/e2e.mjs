@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
 
@@ -46,6 +46,12 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false } =
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
+        // Leave game asks for confirmation (ADR 17): record the message, then accept unless told to dismiss.
+        page.dialogs = [];
+        page.on("dialog", (d) => {
+            page.dialogs.push(d.message());
+            return page.dismissDialogs ? d.dismiss() : d.accept();
+        });
         // Records the page's WebRTC connections so a scenario can drop its links with `__drop`.
         await page.addInitScript(() => {
             const Native = RTCPeerConnection;
@@ -136,6 +142,12 @@ const scenarios = {
         await takeTurn(pages, 1, ["t", "t"]);
         await takeTurn(pages, 2, ["-x"]);
         // The guest leaves the game, so the host's team is the last one standing.
+        // Dismissing the confirm keeps the player in the game.
+        pages[1].dismissDialogs = true;
+        await pages[1].click("#quit");
+        assert.match(pages[1].dialogs.at(-1), /Leave the game/);
+        assert.equal(await pages[1].isVisible("#game"), true, "dismissing Leave game stays in the game");
+        pages[1].dismissDialogs = false;
         await pages[1].click("#quit");
         await pages[0].waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(pages[0], "#end-message"), /win/i);

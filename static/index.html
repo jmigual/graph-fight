@@ -2,60 +2,161 @@
 <html lang="en-US">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>Graph fight!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&amp;family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&amp;display=swap">
+    <link rel="stylesheet" href="./style.css">
   </head>
-  <body style="background-color: rgb(223, 223, 223);">
+  <body>
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
 
-    <section id="lobby">
-      <h1>Graph fight!</h1>
-      <h2>Open games</h2>
-      <table>
-        <thead><tr><th>Name</th><th>Field</th><th>Players</th><th></th></tr></thead>
-        <tbody id="games"></tbody>
-      </table>
-      <h2>Host a game</h2>
-      <form id="host-form">
-        <label>Name <input id="host-name" value="game" maxlength="64"></label>
-        <label>Field
-          <select id="host-field">
-            <option value="xy">xy (2 players)</option>
-            <option value="disc">disc</option>
-          </select>
-        </label>
-        <label>Seats <input id="host-seats" type="number" min="2" value="2" required disabled></label>
-        <button type="submit">Host</button>
-      </form>
-    </section>
+    <main>
+      <section id="lobby">
+        <header class="masthead">
+          <h1>Graph fight!</h1>
+          <svg class="title-curve" viewBox="0 0 240 40" aria-hidden="true">
+            <path pathLength="1" d="M10 30 C 60 -12, 120 52, 230 10"/>
+            <circle cx="10" cy="30" r="5" class="dot-1"/>
+            <circle cx="230" cy="10" r="5" class="dot-2"/>
+          </svg>
+          <p class="tagline">Aim with a formula. Your shot follows the curve.</p>
+        </header>
+        <div class="lobby-grid">
+          <section aria-labelledby="open-games">
+            <h2 id="open-games">Open games</h2>
+            <table>
+              <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
+              <tbody id="games"></tbody>
+            </table>
+          </section>
+          <section aria-labelledby="host-game">
+            <h2 id="host-game">Host a game</h2>
+            <form id="host-form">
+              <label class="field"><span>Game name</span><input id="host-name" value="game" maxlength="64"></label>
+              <label class="field"><span>Field</span>
+                <select id="host-field">
+                  <option value="xy">XY plane, 2 players</option>
+                  <option value="disc">Polar disc, 2 to 8 players</option>
+                </select>
+              </label>
+              <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
+              <button type="submit" class="primary">Host game</button>
+            </form>
+          </section>
+        </div>
+      </section>
 
-    <section id="room" hidden>
-      <h2>Waiting room</h2>
-      <p id="room-status"></p>
-      <ul id="room-players"></ul>
-      <button id="start" type="button">Start</button>
-      <button id="leave" type="button">Leave</button>
-    </section>
+      <section id="room" hidden>
+        <h2>Waiting room</h2>
+        <p id="room-status"></p>
+        <ul id="room-players"></ul>
+        <p id="room-error" class="error" role="alert"></p>
+        <div class="actions">
+          <button id="start" type="button" class="primary">Start</button>
+          <span id="start-hint" class="hint">Start needs at least 2 players</span>
+          <span id="guest-hint" class="hint">Waiting for the host to start.</span>
+          <button id="leave" type="button" class="secondary">Leave</button>
+        </div>
+      </section>
 
-    <section id="game" hidden>
-      <p><span id="turn"></span> &mdash; <span id="countdown"></span> s <button id="quit" type="button">Leave game</button></p>
-      <p id="absent"></p>
-      <canvas id="arena" width="800" height="400" style="outline: black 1px solid"></canvas>
-      <form id="shot-form">
-        <label><input type="radio" name="mode" id="mode-explicit" checked> explicit</label>
-        <label><input type="radio" name="mode" id="mode-parametric"> parametric</label>
-        <br>
-        <label><span id="label-a"></span> <input id="input-a" autocomplete="off"></label>
-        <label id="wrap-b" hidden><span id="label-b"></span> <input id="input-b" autocomplete="off"></label>
-        <button id="fire" type="submit" disabled>Fire</button>
-      </form>
-    </section>
+      <section id="end" hidden>
+        <p id="end-message" tabindex="-1"></p>
+        <button id="back" type="button" class="primary">Back to lobby</button>
+      </section>
 
-    <p id="error"></p>
+      <section id="game" hidden>
+        <div class="game-main">
+          <div class="status-area">
+          <div class="status">
+            <span id="turn-swatch" class="swatch" aria-hidden="true"></span>
+            <span id="turn"></span>
+            <span class="timer"><span id="countdown"></span> s</span>
+            <button id="quit" type="button" class="secondary">Leave game</button>
+          </div>
+          <div class="timer-bar" aria-hidden="true"><div id="timer-fill"></div></div>
+          </div>
+          <p id="absent"></p>
+          <canvas id="arena" width="800" height="400" role="img" aria-label="Board"></canvas>
+          <p id="last-shot" aria-live="polite"></p>
+        </div>
 
-    <section id="end" hidden>
-      <p id="end-message"></p>
-      <button id="back" type="button">Back to lobby</button>
-    </section>
+        <div class="game-side">
+          <form id="shot-form">
+            <fieldset class="segmented">
+              <legend class="sr-only">Formula type</legend>
+              <label><input type="radio" name="mode" id="mode-explicit" checked>
+                <span class="math"><span class="f-xy">y = f(x)</span><span class="f-disc">r = f(θ)</span></span></label>
+              <label><input type="radio" name="mode" id="mode-parametric">
+                <span class="math"><span class="f-xy">x(t), y(t)</span><span class="f-disc">r(t), θ(t)</span></span></label>
+            </fieldset>
+
+            <label class="formula"><span id="label-a" class="math"></span>
+              <input id="input-a" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="error"></label>
+            <label id="wrap-b" class="formula" hidden><span id="label-b" class="math"></span>
+              <input id="input-b" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="error"></label>
+            <p id="error" class="error" role="alert"></p>
+
+            <div id="helpers" class="helpers" role="group" aria-label="Insert">
+              <button type="button" id="insert-var">x</button>
+              <button type="button">π</button>
+              <button type="button">e</button>
+              <button type="button">( )</button>
+              <button type="button">^</button>
+              <button type="button">√</button>
+              <button type="button">sin</button>
+              <button type="button">cos</button>
+              <button type="button">tan</button>
+              <button type="button">abs</button>
+              <button type="button">exp</button>
+              <button type="button">ln</button>
+              <details>
+                <summary>More</summary>
+                <div class="more-keys">
+                  <button type="button">asin</button>
+                  <button type="button">acos</button>
+                  <button type="button">atan</button>
+                  <button type="button">sinh</button>
+                  <button type="button">cosh</button>
+                  <button type="button">tanh</button>
+                  <button type="button">log10</button>
+                  <button type="button">floor</button>
+                  <button type="button">ceil</button>
+                </div>
+              </details>
+            </div>
+
+            <fieldset id="direction" class="segmented" hidden>
+              <legend>Direction</legend>
+              <label><input type="radio" name="dir" id="dir-ccw" checked>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Counterclockwise</label>
+              <label><input type="radio" name="dir" id="dir-cw">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                Clockwise</label>
+            </fieldset>
+
+            <div class="actions">
+              <button id="save" type="button" class="secondary">Save</button>
+              <button id="fire" type="submit" class="primary" disabled>Fire</button>
+            </div>
+          </form>
+
+          <section aria-labelledby="roster-heading">
+            <h2 id="roster-heading">Teams</h2>
+            <ol id="roster"></ol>
+          </section>
+
+          <section id="saved" aria-labelledby="saved-heading">
+            <h2 id="saved-heading">Saved formulas</h2>
+            <ul id="saved-list"></ul>
+            <p id="saved-empty" class="hint">Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x).</p>
+          </section>
+        </div>
+      </section>
+    </main>
 
     <script src="./index.js"></script>
   </body>

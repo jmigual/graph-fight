@@ -542,6 +542,15 @@ Changes:
   single button or change the test to `#host-form button[type=submit]`.
 - `tests/e2e.mjs` gains `".css": "text/css"` in its MIME map for `static/style.css`.
 
+Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-field` (`xy`/`disc`) on
+`#game`; CSS uses it for `--ratio` on the canvas and to show the field's notation in the mode labels
+(the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
+`hidden` and stays that way until the direction change is wired. "Seats" is hidden by CSS while
+`#host-seats` is disabled. The start hints and "Waiting for the host to start." are static text that CSS
+shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown. The `#rejoin` line is not
+built: ADR 16 rejoins on reload without asking. `Leave game` asks `confirm("Leave the game? Your team
+will be out.")`, so the e2e test accepts dialogs. "Could not start" goes to `#room-error`.
+
 ## Consequences
 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access

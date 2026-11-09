@@ -3,7 +3,7 @@ import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import type { Point } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
-import { draw, TEAM_COLORS } from "./render";
+import { draw } from "./render";
 
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
@@ -76,7 +76,7 @@ function renderLobby(games: OpenGame[]) {
                 join.onclick = () => enterRoom(g.id);
                 cell("").append(join);
             } else {
-                tr.style.color = "grey";
+                tr.className = "muted";
                 cell("different version — reload");
             }
             return tr;
@@ -105,6 +105,7 @@ function enterRoom(id: string, seat?: Seat) {
     connected = [];
     ended = false;
     $("error").textContent = "";
+    $("room-error").textContent = "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
@@ -160,7 +161,7 @@ $("start").onclick = () => {
         // Delivered to our own onMessage, which starts the game.
         room.relay({ type: "start", seed, field: offer.field, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
     } catch (err) {
-        $("error").textContent = `Could not start: ${err}`;
+        $("room-error").textContent = `Could not start: ${err}`;
         return;
     }
     offer = null;
@@ -176,10 +177,12 @@ function toLobby() {
     if (offer) lobby.announce(null);
     offer = null;
     $("error").textContent = "";
+    $("room-error").textContent = "";
     show("lobby");
 }
 $("leave").onclick = $("back").onclick = toLobby;
 $("quit").onclick = () => {
+    if (!confirm("Leave the game? Your team will be out.")) return;
     room?.quit();
     toLobby();
 };
@@ -207,6 +210,7 @@ function startGame(msg: Start) {
     const canvas = $<HTMLCanvasElement>("arena");
     canvas.width = a.canvasWidth;
     canvas.height = (a.canvasWidth * a.y) / a.x;
+    $("game").dataset.field = msg.field;
     play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: [], pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
@@ -275,7 +279,6 @@ function refresh(p: Play) {
     draw($<HTMLCanvasElement>("arena"), { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot });
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
-    turnEl.style.color = TEAM_COLORS[team % TEAM_COLORS.length];
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
 }
 
