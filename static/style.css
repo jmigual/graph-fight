@@ -133,6 +133,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* Segmented radio pair: the radios stay visible. */
 .segmented { display: flex; flex-wrap: wrap; border: 0; padding: 0; margin: 0 0 0.75rem; min-width: 0; }
 #direction { flex-direction: column; }
+#direction label + label { margin: -1px 0 0; }
+#direction label:first-of-type { border-radius: 4px 4px 0 0; }
+#direction label:last-of-type { border-radius: 0 0 4px 4px; }
 #direction legend { padding: 0; margin-bottom: 0.25rem; width: 100%; }
 .segmented label {
     flex: 1 1 0;
@@ -178,7 +181,7 @@ th:last-child, td:last-child { padding-right: 0; text-align: right; }
 td:nth-child(3) { font-variant-numeric: tabular-nums; }
 
 /* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
-#games td, #room-players, #turn, #absent, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
+#games td:not(:last-child), #room-players, #turn, #absent, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
 .muted { color: var(--ink-soft); }
 
 /* Waiting room and end screen */
