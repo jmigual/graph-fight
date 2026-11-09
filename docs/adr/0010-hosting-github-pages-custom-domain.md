@@ -10,9 +10,10 @@ game at `https://graph-fight.marceigual.eu`.
 ## Decision
 
 - Deploy `dist/` to GitHub Pages from `.github/workflows/pages.yml` on pushes to `master`.
-  Steps: checkout, Rust stable with the `wasm32-unknown-unknown` target, `wasm-pack` via
-  `taiki-e/install-action`, Node 22, `npm ci`, `npm test`, `npm run build`,
-  `actions/upload-pages-artifact` (path `dist`), and `actions/deploy-pages`. Permissions are
+  Steps: checkout, Rust stable with the `wasm32-unknown-unknown` target (cached with
+  `Swatinem/rust-cache`), `wasm-pack` via `taiki-e/install-action`, Node 22, `npm ci`,
+  `npm test`, `npm run build`, `actions/configure-pages`, `actions/upload-pages-artifact`
+  (path `dist`), and `actions/deploy-pages` in a separate job. Permissions are
   `pages: write` and `id-token: write`, under the `github-pages` environment.
 - The site is served at the domain root, so the current root-relative build works unchanged.
   No base-path config.
