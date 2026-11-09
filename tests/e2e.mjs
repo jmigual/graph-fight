@@ -437,6 +437,7 @@ const scenarios = {
         assert.equal(await other.title(), "Graph fight!");
         assert.equal(await text(page, "#turn"), "Your turn");
         assert.match(await text(other, "#turn"), /^Team \d is aiming$/);
+        assert.equal(await page.isHidden("#direction"), true, "the direction is for the disc only");
         assert.equal(await page.locator("#roster li").count(), 2);
         assert.equal(await page.locator('#roster li [aria-label="3 of 3 players left"]').count(), 2);
         assert.match(await text(page, "#roster li >> nth=0"), /aiming|you/);
@@ -469,6 +470,36 @@ const scenarios = {
         await page.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(page, "#end-message"), /win/i);
         assert.equal(await page.evaluate(() => document.activeElement.id), "end-message");
+        return errors;
+    },
+    async M() {
+        // Direction (disc only): clockwise mirrors the shot across the shooter's axis to the centre.
+        const { pages, errors } = await startGame(2, "disc", "M");
+        await assertSynced(pages, 0);
+        // `r = t, θ = 0.5` is a straight ray 0.5 rad from the axis: to the left (counter-clockwise) or right.
+        const aim = async (cw) => {
+            const page = await shooter(pages);
+            const before = JSON.parse(await state(page));
+            const { pos } = before.arena.teams[before.current].players[before.arena.teams[before.current].currentPlayer].shape;
+            assert.equal(await page.isVisible("#direction"), true);
+            await page.check(cw ? "#dir-cw" : "#dir-ccw");
+            await page.check("#mode-parametric");
+            await page.fill("#input-a", "t");
+            await page.fill("#input-b", "0.5");
+            await page.click("#fire");
+            await assertSynced(pages, before.turn + 1);
+            const { shot } = JSON.parse(await state(page));
+            const [from, to] = shot.points;
+            const d = Math.hypot(pos.x, pos.y);
+            const forward = { x: -pos.x / d, y: -pos.y / d };
+            const v = { x: to.x - from.x, y: to.y - from.y };
+            return Math.atan2(forward.x * v.y - forward.y * v.x, forward.x * v.x + forward.y * v.y);
+        };
+        const ccw = await aim(false);
+        const cw = await aim(true);
+        assert.equal(await pages[0].isHidden("#direction"), false);
+        assert.ok(Math.abs(ccw - 0.5) < 0.05, `counter-clockwise turns left (${ccw})`);
+        assert.ok(Math.abs(cw + 0.5) < 0.05, `clockwise turns right (${cw})`);
         return errors;
     },
 };

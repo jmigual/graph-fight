@@ -562,7 +562,7 @@ Changes:
 Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-field` (`xy`/`disc`) on
 `#game`; CSS uses it for `--ratio` on the canvas and to show the field's notation in the mode labels
 (the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
-`hidden` and stays that way until the direction change is wired. "Seats" is hidden by CSS while
+`hidden` until a disc game starts (S7). "Seats" is hidden by CSS while
 `#host-seats` is disabled. The start hints and "Waiting for the host to start." are static text that CSS
 shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown. The `#rejoin` line is not
 built: ADR 16 rejoins on reload without asking. `Leave game` asks `confirm("Leave the game? Your team
@@ -586,6 +586,10 @@ turn and Fire clear it. The roster's state word joins what applies ("disconnecte
 waiting room's open-seat line (`#room-seats`) also carries the host's "More players than seats" text. A guest takes the
 room's name and field from the lobby listing it joined from; after a reload the heading falls back to "Waiting room". The
 empty lobby shows `#no-games` instead of the table. The tab title is also restored when the game ends or on leaving.
+
+Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
+checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
+carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
 ## Consequences
 

@@ -238,6 +238,9 @@ function startGame(msg: Start) {
         return end("Could not start the game.", `${err}`);
     }
     $("game").dataset.field = msg.field;
+    // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
+    $("direction").hidden = msg.field !== "disc";
+    $<HTMLInputElement>("dir-ccw").checked = true;
     play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
@@ -328,7 +331,7 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    const view: View = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
+    const view: View = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
@@ -431,6 +434,8 @@ function showError(message: string) {
 }
 for (const input of formulaInputs) input.addEventListener("input", clearError);
 
+const clockwise = () => $<HTMLInputElement>("dir-cw").checked;
+document.querySelectorAll("input[name=dir]").forEach((el) => ((el as HTMLInputElement).onchange = () => play && refresh(play)));
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
 const editor = initEditor();
 function setMode() {
@@ -461,7 +466,7 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         // The shooter checks locally, so a bad formula never costs the turn (ADR 14).
         if (exprs.length === 1) p.sim.check(exprs[0]);
         else p.sim.check_param(exprs[0], exprs[1]);
-        room.shoot({ type: "shot", turn: p.turn, exprs, cw: false });
+        room.shoot({ type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() });
     } catch (err) {
         p.pending = false;
         showError(String(err));
@@ -482,7 +487,7 @@ setInterval(() => {
 
 // Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours).
 (window as unknown as { __state: () => unknown }).__state = () =>
-    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena() };
+    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot };
 
 // After a reload, rejoin the game we hold a seat in (ADR 16).
 const saved = sessionStorage.getItem(SEAT_KEY);
