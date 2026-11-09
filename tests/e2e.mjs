@@ -268,8 +268,15 @@ const scenarios = {
         });
         // Trystero only opens a new connection to the host once it has noticed the old one died.
         await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
-        await takeTurn(pages, 0, ["2"]);
-        await takeTurn(pages, 1, ["t", "0"]);
+        // Reconnecting can outlast the host's 60 s turn clock, which then relays a timeout that the
+        // replay brings along: when the drop lands right after the link came up, a slower relay can
+        // still deliver that link's offer, and Trystero answers it, ignoring the real new offer until
+        // the next steady announce, about 67 s after the drop. So play on from the host's turn; O
+        // covers a turn passed by timeout during the drop.
+        const { turn } = JSON.parse(await state(pages[0]));
+        await assertSynced(pages, turn);
+        await takeTurn(pages, turn, ["2"]);
+        await takeTurn(pages, turn + 1, ["t", "0"]);
         return errors;
     },
     async H() {
@@ -529,6 +536,27 @@ const scenarios = {
         assert.match(await text(host, "#roster li >> nth=1"), /disconnected/);
         assert.doesNotMatch(await text(host, "#roster li >> nth=0"), /disconnected/);
         assert.match(await text(host, "#turn"), /^Team 2 is disconnected/);
+        return errors;
+    },
+    async O() {
+        // As G, but the host's turn clock runs out while the guest's links are down: the replay
+        // brings the timeout the guest missed, and both sides play on from there.
+        const { pages, errors } = await startGame(2, "disc", "O", { fakeHostClock: true });
+        const guest = pages[1];
+        await assertSynced(pages, 0);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const links = await guest.evaluate(() => {
+            window.__pcs.forEach(window.__drop);
+            return window.__pcs.length;
+        });
+        // Runs before Trystero can open a new link, which takes Nostr round trips.
+        await pages[0].clock.fastForward("01:01");
+        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
+        const { turn } = JSON.parse(await state(pages[0]));
+        assert.ok(turn >= 1, "the turn clock ran out during the drop");
+        await assertSynced(pages, turn);
+        await takeTurn(pages, turn, ["2"]);
+        await takeTurn(pages, turn + 1, ["t", "0"]);
         return errors;
     },
 };
