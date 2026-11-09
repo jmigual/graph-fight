@@ -1,6 +1,7 @@
 # 16. Reconnection by seat token and log replay
 
 Status: Accepted (2026-11-09)
+Amended by 0018: a seated peer whose host link stays down for 25 s rejoins the game room.
 
 ## Context
 

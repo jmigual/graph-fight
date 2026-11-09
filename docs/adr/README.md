@@ -19,8 +19,9 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 | [0013](0013-bump-webpack-for-externref-wasm.md) | Bump webpack for externref wasm | Superseded by 0019 | Upgrade webpack to 5.112 so it parses externref/multivalue wasm; no config change. |
 | [0014](0014-shot-engine-details.md) | Shot engine and turn details | Accepted | `FireError`, `check`/`check_param`, turn rotation, elimination, `clockwise` flag (θ→−θ) on disc, `winner()` semantics. |
 | [0015](0015-client-flow-and-test-hook.md) | Client flow and test hook | Superseded in part by 0016; amended by 0017 | Arena constants in `js/index.ts`; lobby/start/end flow; host 60 s turn clock; read-only `window.__state()` for e2e. |
-| [0016](0016-reconnection-and-log-replay.md) | Reconnection and log replay | Accepted | Seat tokens in `sessionStorage`; `rejoin` replays host's full log; dropped link keeps seat; explicit `quit` eliminates. |
+| [0016](0016-reconnection-and-log-replay.md) | Reconnection and log replay | Accepted; amended by 0018 | Seat tokens in `sessionStorage`; `rejoin` replays host's full log; dropped link keeps seat; explicit `quit` eliminates. |
 | [0017](0017-ui-ux-design.md) | UI and UX design | Accepted; amends 0015 | Graph paper in shooter's frame, CSS tokens, emoji-face players, formula editor, saved formulas/templates with sliders, e2e selectors. |
+| [0018](0018-reconnect-watchdog.md) | Reconnect watchdog | Accepted; amends 0016 | A seated guest whose host link stays down 25 s leaves and rejoins the game room; works around a Trystero 0.26.0 stale-offer stall; guests leave the room when the game ends. |
 | [0019](0019-esbuild-instead-of-webpack.md) | esbuild instead of webpack | Accepted; supersedes 0013 and bundling in 0009 | `wasm-pack --target web` + `scripts/build.mjs` (esbuild ESM bundle, `await init()`); `tsc --noEmit` (TypeScript 7) inside `npm run build`. |
 
 ## Where to look
@@ -30,7 +31,7 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 - Shot model, sampling, collisions, turn rotation, elimination: 0004, 0014
 - Disc field, polar shots, shot direction (clockwise): 0005, 0014, 0011 (placement)
 - Rust/TS API (`Game`, `fire`, errors): 0008, 0014, 0011
-- Network: lobby 0012 (0006 for rooms); wire messages 0007 then 0012; turn authority and clock 0012, 0015; reconnection/rejoin/leave 0016
+- Network: lobby 0012 (0006 for rooms); wire messages 0007 then 0012; turn authority and clock 0012, 0015; reconnection/rejoin/leave 0016, 0018
 - Client flow, arena constants, `window.__state()` test hook: 0015
 - UI/UX, theme, board drawing, formula editor, saved formulas, selectors for e2e: 0017
 - Build (esbuild, wasm-pack web target, TypeScript type check), test, CI, deploy, hosting: 0019, 0009, 0010 (0013 is superseded)

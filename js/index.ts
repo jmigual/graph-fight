@@ -363,10 +363,10 @@ function end(headline: string, detail = "") {
         play.over = true;
         clearTimeout(play.clock);
         refresh(play);
-    } else {
-        // No game to show: leave the room, or the host's next game there would seat this page.
-        room?.leave();
     }
+    // Leave the room, or the host's next game there would seat this page, and a guest would keep
+    // rejoining a gone host (ADR 18). The host stays so its last broadcast is not cut off.
+    if (!play || hostId !== selfId) room?.leave();
     $("end-message").textContent = headline;
     $("end-detail").textContent = detail;
     show(...(play ? ["game", "end"] : ["end"]));

@@ -34,6 +34,11 @@ export const MAX_PLAYERS = 8;
 const MAX_EXPR = 256;
 /** Longest id, seed or name accepted off the wire. */
 const MAX_TEXT = 64;
+/**
+ * How long a seated peer's host link may stay down before it rejoins the game room (ADR 18):
+ * past the 23.3 s Trystero 0.26.0 keeps a pending answer, well before its 60 s re-announce.
+ */
+const REJOIN_MS = 25_000;
 
 export type Field = "xy" | "disc";
 
@@ -379,20 +384,52 @@ export type Game = {
  * Join room `game-<hostId>`; the host joins with its own `selfId`. Peers accept messages only
  * from the host. A seated peer whose link drops keeps its seat: with its seat `token` (passed
  * here after a reload) it asks the host for a replay of the game when the host link comes
- * back or when it sees a gap (ADR 16). Peer ids are announced by the peers themselves during
- * signalling, so a modified client can claim any id; that is accepted under ADR 7's
- * trusted-peers model.
+ * back or when it sees a gap (ADR 16), and rejoins the room when that link stays down for
+ * `REJOIN_MS` (ADR 18). Peer ids are announced by the peers themselves during signalling, so a
+ * modified client can claim any id; that is accepted under ADR 7's trusted-peers model.
  */
 export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
-    const room = joinRoom({ appId: APP_ID }, `game-${hostId}`);
-    const action = room.makeAction<JsonValue>("msg");
     const isHost = hostId === selfId;
     let left = false;
     let seats: ReturnType<typeof seatBook> | undefined;
+
+    // room.leave() takes a moment, so events from a room we left or replaced are dropped.
+    function open() {
+        const r = joinRoom({ appId: APP_ID }, `game-${hostId}`);
+        const a = r.makeAction<JsonValue>("msg");
+        const live = () => !left && r === room;
+        a.onMessage = (data, { peerId }) => {
+            if (live()) onData(data, peerId);
+        };
+        r.onPeerJoin = (id) => {
+            if (live()) onPeerJoin(id);
+        };
+        r.onPeerLeave = (id) => {
+            if (live()) onPeerLeave(id);
+        };
+        return [r, a] as const;
+    }
+    let [room, action] = open();
     const hostConnected = () => hostId in room.getPeers();
+
+    // A seated peer whose host link stays down rejoins the room, which starts a fresh signalling
+    // exchange (ADR 18). A rejoin that does not connect either is retried after the same delay.
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    function watch() {
+        clearTimeout(watchdog);
+        if (!isHost && token && !left) watchdog = setTimeout(reopen, REJOIN_MS);
+    }
+    function reopen() {
+        void room.leave();
+        [room, action] = open();
+        watch();
+    }
+    // After a reload the host link is not up yet.
+    watch();
 
     function leave() {
         left = true;
+        clearTimeout(watchdog);
         void room.leave();
     }
 
@@ -454,8 +491,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         },
     );
 
-    action.onMessage = (data, { peerId }) => {
-        if (left) return;
+    function onData(data: JsonValue, peerId: string) {
         const routed = routeIncoming(hostId, selfId, peerId, data);
         if (routed?.kind === "relayed") {
             accept(routed.seq, routed.msg);
@@ -472,18 +508,19 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
             if (seat && routed.kind === "request") handlers.onShotRequest?.(seat, routed.shot);
             else if (seat && routed.kind === "quit") relay({ type: "leave", peer: seat });
         }
-    };
-    room.onPeerJoin = (id) => {
+    }
+    function onPeerJoin(id: string) {
+        if (id === hostId) clearTimeout(watchdog);
         if (id === hostId && token) rejoin(token);
         // A seated peer back under the same id may have missed the last broadcasts, which it
         // would otherwise only notice at the next one (ADR 16).
         else if (seats?.seatOf(id)) replay(id);
         handlers.onPeerJoin?.(id);
-    };
-    room.onPeerLeave = (id) => {
-        if (left) return; // room.leave() takes a moment; don't report after leaving
+    }
+    function onPeerLeave(id: string) {
+        if (id === hostId) watch();
         handlers.onPeerLeave?.(id);
-    };
+    }
 
     return {
         shoot(shot) {

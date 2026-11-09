@@ -11,6 +11,8 @@ const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
+/** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */
+const RECONNECT_MS = 35_000;
 
 // Tiny static server for dist/.
 const server = createServer(async (req, res) => {
@@ -267,16 +269,13 @@ const scenarios = {
             return window.__pcs.length;
         });
         // Trystero only opens a new connection to the host once it has noticed the old one died.
-        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
-        // Reconnecting can outlast the host's 60 s turn clock, which then relays a timeout that the
-        // replay brings along: when the drop lands right after the link came up, a slower relay can
-        // still deliver that link's offer, and Trystero answers it, ignoring the real new offer until
-        // the next steady announce, about 67 s after the drop. So play on from the host's turn; O
-        // covers a turn passed by timeout during the drop.
-        const { turn } = JSON.parse(await state(pages[0]));
-        await assertSynced(pages, turn);
-        await takeTurn(pages, turn, ["2"]);
-        await takeTurn(pages, turn + 1, ["t", "0"]);
+        // When the drop lands right after the link came up, a slower relay can still deliver that
+        // link's offer, and Trystero answers it, ignoring the real new offer until the next steady
+        // announce, about 67 s after the drop; the guest's watchdog rejoins the room sooner (ADR 18).
+        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: RECONNECT_MS });
+        // Back before the host's 60 s turn clock runs out; O covers a turn passed during the drop.
+        await takeTurn(pages, 0, ["2"]);
+        await takeTurn(pages, 1, ["t", "0"]);
         return errors;
     },
     async H() {
