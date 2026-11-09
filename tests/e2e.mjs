@@ -264,15 +264,19 @@ const scenarios = {
         const hostAgain = async () => {
             await host.fill("#host-name", `e2e-H-${Math.random().toString(36).slice(2, 8)}`);
             await host.click("#host-form button");
-            await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
         };
+        const twoPlayers = () => host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
         await hostAgain();
+        await twoPlayers();
         await host.click("#leave");
         await restored.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(restored, "#end-message"), /host left/i);
-        // Reload before the host comes back, so the host never sees the page's previous peer id.
-        await restored.reload();
+        // The ended page left the room, so the host's next game in the same room does not pick it up.
         await hostAgain();
+        await host.waitForTimeout(5000);
+        assert.equal(await host.locator("#room-players li").count(), 1, "the ended page stays out of the next game");
+        await restored.reload();
+        await twoPlayers();
         await host.click("#start");
         const players = [host, restored];
         await assertSynced(players, 0);

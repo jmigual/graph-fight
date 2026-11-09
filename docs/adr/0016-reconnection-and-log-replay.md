@@ -62,7 +62,8 @@ the game from it.
   waiting, showing the host as disconnected, until they leave. A page with no game yet (the
   waiting room, or a stored seat whose replay has not arrived) ends with "Host left" when the
   host link drops. That includes a stale seat in the host's next waiting room; the price is
-  that a link blip during the short rejoin wait also ends the game for that page.
+  that a link blip during the short rejoin wait also ends the game for that page. A page that
+  ends without a game leaves the room, so the host's next game there does not seat it.
 - **Presence.** `Game.absent()` reports only what the page itself knows. On the host, it lists
   seats whose holder is not connected. On a peer, it lists the host while the host link is down.
   The UI shows these as "Disconnected". Peers do not see other peers' absence, because after a

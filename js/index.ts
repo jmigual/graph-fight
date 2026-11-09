@@ -287,6 +287,9 @@ function end(message: string) {
         play.over = true;
         clearTimeout(play.clock);
         refresh(play);
+    } else {
+        // No game to show: leave the room, or the host's next game there would seat this page.
+        room?.leave();
     }
     $("end-message").textContent = message;
     show(...(play ? ["game", "end"] : ["end"]));
