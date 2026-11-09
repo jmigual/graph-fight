@@ -233,6 +233,7 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         }
     }
 
+    const tags: [string, number, number, string][] = [];
     arena.teams.forEach((t, ti) =>
         t.players.forEach((player, pi) => {
             const ours = player === shooter;
@@ -242,9 +243,16 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
                 look = lookAlong(look, { x: -turn * forward.y, y: turn * forward.x });
             }
             const state = !player.alive ? "dead" : view.absent.includes(ti) ? "away" : "here";
-            face(ctx, colour, ...at(player.shape.pos), player.shape.radius * scale, ti, look, state, ours, text);
+            const [x, y] = at(player.shape.pos);
+            const top = face(ctx, colour, x, y, player.shape.radius * scale, ti, look, state, ours, text);
+            tags.push([String(ti + 1), x, top, colour(`team-${(ti % 8) + 1}`)]);
         }),
     );
+    // Number tags carry team identity on small screens: above every face and inside the canvas.
+    ctx.font = `700 11px ${UI_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    for (const [s, x, y, fill] of tags) text(s, clamp(x, 8, w - 8), Math.max(y, 14), fill, 3);
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -347,8 +355,8 @@ function arrowhead(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
 }
 
 /**
- * A player as an emoji-style face at its true hit radius `r` (ADR 17, section 4): team cap and
- * number tag, a mouth per team, eyes following `look`.
+ * A player as an emoji-style face at its true hit radius `r` (ADR 17, section 4): team cap, a
+ * mouth per team, eyes following `look`. Returns the y where its number tag sits.
  */
 function face(ctx: CanvasRenderingContext2D, colour: Colour, x: number, y: number, r: number, team: number, look: Look, state: "here" | "away" | "dead", current: boolean, text: Text) {
     const full = r >= FULL_FACE;
@@ -439,7 +447,7 @@ function face(ctx: CanvasRenderingContext2D, colour: Colour, x: number, y: numbe
     }
 
     // Team 8's brows, below the brim and over the eye tops: two V strokes, one V line when small.
-    if (team % 8 === 7) {
+    if (team % 8 === 7 && state !== "dead") {
         ctx.lineWidth = 1.5 * lw;
         ctx.beginPath();
         const [l, rr] = eyes;
@@ -465,10 +473,7 @@ function face(ctx: CanvasRenderingContext2D, colour: Colour, x: number, y: numbe
         ctx.textBaseline = "bottom";
         text("z", x - s * r, y - 0.7 * r, colour("ink"), 2);
     }
-    ctx.font = `700 11px ${UI_FONT}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    text(String(team + 1), x, y - (current ? ring + 1 : halo), cap, 3);
+    return y - (current ? ring + 1 : halo);
 }
 
 /** The mouth of team `kind` (0-based, ADR 17 table) centred at (`x`, `y`); kind 2 is the flat line. */
