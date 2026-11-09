@@ -74,7 +74,7 @@ let changed = false;
 
 function main(GF: GraphFight_t) {
     try {
-        game = new GF.Game(20, 10, 30, .2, 2, new Uint32Array([4, 4]), .3, 3n);
+        game = new GF.Game(GF.Field.Xy, 20, 10, 30, .2, 2, new Uint32Array([4, 4]), .3, 3n);
 
         let canvas = <HTMLCanvasElement>document.getElementById('arena');
         let arena = game.arena();

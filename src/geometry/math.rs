@@ -11,7 +11,7 @@ use std::{
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[derive(Clone, Debug, Serialize, Tsify)]
+#[derive(Clone, Debug, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 pub struct Point {
     pub x: f64,
