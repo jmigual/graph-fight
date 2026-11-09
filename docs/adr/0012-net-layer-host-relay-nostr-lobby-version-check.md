@@ -61,6 +61,16 @@ room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby i
 - Signatures are not re-verified on receipt; content is shape-checked and untrusted.
 - Dead relays are retried with a doubling delay (5 s up to 60 s); `leave()` stops reconnecting.
 
+Version check (peers on different builds would desync silently):
+- webpack's DefinePlugin sets `__BUILD_VERSION__` to the short commit hash, or a hash of `js/`
+  and `src/` when the repository is unavailable. `net.ts` exports it as `BUILD_VERSION`.
+- Listings and `start` carry it. Lobby entries get `compatible: false` on a mismatch, kept in
+  the list so the UI can grey them out ("different version - reload"). A peer receiving a
+  `start` from another build leaves the room and gets `onVersionMismatch` instead of the
+  message.
+- The commit hash does not change between uncommitted edits, so two dev builds of the same
+  commit count as compatible.
+
 ## Consequences
 
 - A hung shooter stalls only until the host's 60 s clock relays `timeout`; a host leaving

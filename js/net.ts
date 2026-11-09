@@ -5,6 +5,11 @@ import type { JsonValue } from "trystero";
 
 export { selfId };
 
+// Replaced by webpack's DefinePlugin; undefined when run outside a bundle (tests).
+declare const __BUILD_VERSION__: string;
+/** Identifies this build; peers on another build cannot play together. */
+export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : "dev";
+
 const APP_ID = "graph-fight";
 const LOBBY_TOPIC = "graph-fight:lobby";
 // Relays checked to accept and forward ephemeral events (ADR 12); re-check after a trystero bump.
@@ -34,11 +39,12 @@ export type Field = "xy" | "disc";
 
 /** What a host advertises in the lobby. */
 export type Announce = { name: string; field: Field; players: number; seats: number };
-/** The lobby wire format and list entry: `id` is the host's peer id and names the game room. */
-export type Listing = Announce & { id: string };
-export type OpenGame = Listing;
+/** The lobby wire format: `id` is the host's peer id and names the game room. */
+export type Listing = Announce & { id: string; version: string };
+/** A lobby entry; `compatible` is false when the host runs another build. */
+export type OpenGame = Listing & { compatible: boolean };
 
-export type Start = { type: "start"; seed: string; field: Field; peers: string[] };
+export type Start = { type: "start"; seed: string; field: Field; peers: string[]; version: string };
 export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string] };
 export type Timeout = { type: "timeout"; turn: number };
 export type Leave = { type: "leave"; peer: string };
@@ -58,8 +64,8 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start":
-            if (isText(v.seed) && isField(v.field) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
-                return { type: "start", seed: v.seed, field: v.field, peers: v.peers };
+            if (isText(v.seed) && isField(v.field) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
+                return { type: "start", seed: v.seed, field: v.field, peers: v.peers, version: v.version };
             }
             return undefined;
         case "shot":
@@ -120,10 +126,10 @@ export function sequencer(deliver: (msg: GameMsg) => void, onDesync: () => void)
 
 /** Returns the listing if `v` has the right shape and sizes, otherwise undefined. */
 export function parseListing(v: unknown): Listing | undefined {
-    if (!isObj(v) || !isText(v.id) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
+    if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
         return undefined;
     }
-    return { id: v.id, name: v.name, field: v.field, players: v.players, seats: v.seats };
+    return { id: v.id, version: v.version, name: v.name, field: v.field, players: v.players, seats: v.seats };
 }
 
 /**
@@ -132,13 +138,14 @@ export function parseListing(v: unknown): Listing | undefined {
  * `expireMs` after their last refresh, and stop growing at `MAX_LISTINGS`. `apply` and
  * `expire` return true when the list changed.
  */
-export function lobbyBook(self: string, expireMs = EXPIRE_MS) {
+export function lobbyBook(self: string, version: string, expireMs = EXPIRE_MS) {
     const entries = new Map<string, { game: OpenGame; at: number }>();
 
     function apply(key: string, content: unknown, now: number): boolean {
         if (isObj(content) && content.withdraw === true) return entries.delete(key);
-        const game = parseListing(content);
-        if (!game || game.id === self) return false;
+        const listing = parseListing(content);
+        if (!listing || listing.id === self) return false;
+        const game = { ...listing, compatible: listing.version === version };
         const prev = entries.get(key);
         if (!prev && entries.size >= MAX_LISTINGS) return false;
         entries.set(key, { game, at: now });
@@ -185,7 +192,7 @@ export type Lobby = {
  * receives the full list of open games whenever it changes.
  */
 export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
-    const book = lobbyBook(selfId);
+    const book = lobbyBook(selfId, BUILD_VERSION);
     const sockets = new Set<WebSocket>();
     let mine: Announce | null = null;
     let closed = false;
@@ -219,7 +226,7 @@ export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
     // A lost announcement is replaced by the next one, so failures are only logged.
     const logFailure = (err: unknown) => console.warn("lobby publish failed", err);
     function announceMine(to?: Iterable<WebSocket>) {
-        if (mine) publish({ ...mine, id: selfId }, to).catch(logFailure);
+        if (mine) publish({ ...mine, id: selfId, version: BUILD_VERSION }, to).catch(logFailure);
     }
 
     LOBBY_RELAYS.forEach((url) => connect(url));
@@ -242,6 +249,11 @@ export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
     };
 }
 
+/** Passes messages on, except a `start` from another build, which goes to `onMismatch`. */
+export function versionGate(version: string, deliver: (msg: GameMsg) => void, onMismatch: (theirs: string) => void) {
+    return (msg: GameMsg) => (msg.type === "start" && msg.version !== version ? onMismatch(msg.version) : deliver(msg));
+}
+
 export type GameHandlers = {
     /**
      * A broadcast from the host, in the order the host sent it. On the host this also fires
@@ -254,6 +266,8 @@ export type GameHandlers = {
      * current turn, then calls `relay(shot)`; otherwise it ignores the request.
      */
     onShotRequest?(from: string, shot: Shot): void;
+    /** The host's `start` came from a different build; we left the room, tell the user to reload. */
+    onVersionMismatch(hostVersion: string): void;
     /** We missed a broadcast, so we left the room: the game cannot continue for us. */
     onDesync(): void;
     /** A send failed; the message may not have reached everyone. */
@@ -316,10 +330,16 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
         deliverLocal(msg);
     }
 
-    const accept = sequencer(handlers.onMessage, () => {
-        leave();
-        handlers.onDesync();
-    });
+    const accept = sequencer(
+        versionGate(BUILD_VERSION, handlers.onMessage, (hostVersion) => {
+            leave();
+            handlers.onVersionMismatch(hostVersion);
+        }),
+        () => {
+            leave();
+            handlers.onDesync();
+        },
+    );
 
     action.onMessage = (data, { peerId }) => {
         if (left) return;
