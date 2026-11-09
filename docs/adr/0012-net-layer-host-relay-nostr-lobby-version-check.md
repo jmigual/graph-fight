@@ -13,7 +13,7 @@ ordering while knowing nothing about game rules.
 ## Decision
 
 Turn authority (replaces the shooter-broadcast rule of ADR 7):
-- The shooter sends a bare `shot {turn, exprs}` to the host only. The host checks that the
+- The shooter sends a bare `shot {turn, exprs, cw}` to the host only. The host checks that the
   sender is the current shooter and `turn` is current (game state, so the UI does this in
   `onShotRequest`), then `relay`s it to everyone and applies it through the same path. The
   shooter applies its own shot only when the host's broadcast arrives.

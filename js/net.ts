@@ -45,7 +45,8 @@ export type Listing = Announce & { id: string; version: string };
 export type OpenGame = Listing & { compatible: boolean };
 
 export type Start = { type: "start"; seed: string; field: Field; peers: string[]; version: string };
-export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string] };
+/** `cw` is the disc shot direction: clockwise when true, counter-clockwise when false (ADR 14). */
+export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string]; cw: boolean };
 export type Timeout = { type: "timeout"; turn: number };
 export type Leave = { type: "leave"; peer: string };
 export type GameMsg = Start | Shot | Timeout | Leave;
@@ -69,8 +70,8 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
             }
             return undefined;
         case "shot":
-            if (isCount(v.turn) && Array.isArray(v.exprs) && (v.exprs.length === 1 || v.exprs.length === 2) && v.exprs.every((e) => isText(e, MAX_EXPR))) {
-                return { type: "shot", turn: v.turn, exprs: v.exprs as Shot["exprs"] };
+            if (isCount(v.turn) && Array.isArray(v.exprs) && (v.exprs.length === 1 || v.exprs.length === 2) && v.exprs.every((e) => isText(e, MAX_EXPR)) && typeof v.cw === "boolean") {
+                return { type: "shot", turn: v.turn, exprs: v.exprs as Shot["exprs"], cw: v.cw };
             }
             return undefined;
         case "timeout":

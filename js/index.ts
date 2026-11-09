@@ -244,7 +244,7 @@ function onMessage(msg: GameMsg) {
             p.shot = [];
             try {
                 if (msg.type === "timeout") p.sim.skip_turn();
-                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], false) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], false)).points;
+                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points;
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
                 p.sim.skip_turn();
@@ -318,7 +318,7 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         // The shooter checks locally, so a bad formula never costs the turn (ADR 14).
         if (exprs.length === 1) p.sim.check(exprs[0]);
         else p.sim.check_param(exprs[0], exprs[1]);
-        room.shoot({ type: "shot", turn: p.turn, exprs });
+        room.shoot({ type: "shot", turn: p.turn, exprs, cw: false });
     } catch (err) {
         p.pending = false;
         $("error").textContent = String(err);
