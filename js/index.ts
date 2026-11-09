@@ -76,7 +76,7 @@ function renderLobby(games: OpenGame[]) {
                 join.onclick = () => enterRoom(g.id);
                 cell("").append(join);
             } else {
-                tr.style.color = "grey";
+                tr.className = "muted";
                 cell("different version — reload");
             }
             return tr;
@@ -279,7 +279,6 @@ function refresh(p: Play) {
     draw($<HTMLCanvasElement>("arena"), { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot });
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
-    turnEl.style.color = TEAM_COLORS[team % TEAM_COLORS.length];
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
 }
 

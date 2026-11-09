@@ -67,12 +67,10 @@ body {
     background: var(--paper);
     color: var(--ink);
     font: 400 1rem/1.5 var(--font-ui);
-    overflow-wrap: anywhere;
 }
 
 main {
     max-width: 80rem;
-    margin: 0 auto;
     padding: 1rem var(--gutter) 3rem;
 }
 
@@ -106,7 +104,7 @@ button, input, select {
     min-height: var(--control-h);
 }
 
-input:not([type=radio]), select {
+input:is([type=text], [type=number], :not([type])), select {
     background: var(--paper);
     border: 1px solid var(--ink-soft);
     border-radius: 4px;
@@ -134,6 +132,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Segmented radio pair: the radios stay visible. */
 .segmented { display: flex; flex-wrap: wrap; border: 0; padding: 0; margin: 0 0 0.75rem; min-width: 0; }
+#direction { flex-direction: column; }
 #direction legend { padding: 0; margin-bottom: 0.25rem; width: 100%; }
 .segmented label {
     flex: 1 1 0;
@@ -176,6 +175,11 @@ th { text-align: left; font-weight: 700; border-bottom: 2px solid var(--ink); }
 th, td { padding: 0.5rem 0.5rem 0.5rem 0; vertical-align: middle; }
 td { border-bottom: 1px solid var(--grid-major); }
 th:last-child, td:last-child { padding-right: 0; text-align: right; }
+td:nth-child(3) { font-variant-numeric: tabular-nums; }
+
+/* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
+#games td, #room-players, #turn, #absent, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
+.muted { color: var(--ink-soft); }
 
 /* Waiting room and end screen */
 
@@ -195,15 +199,12 @@ th:last-child, td:last-child { padding-right: 0; text-align: right; }
 .game-main { min-width: 0; }
 .game-side { display: grid; gap: 1.5rem; align-content: start; min-width: 0; }
 
+.status-area { background: var(--paper); }
 .status {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     padding: 0.5rem 0;
-    background: var(--paper);
 }
 #turn { flex: 1 1 auto; min-width: 0; font-weight: 700; }
 .timer { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -221,7 +222,7 @@ th:last-child, td:last-child { padding-right: 0; text-align: right; }
 .swatch:empty { display: none; }
 
 .timer-bar { height: 4px; background: var(--grid); }
-#timer-fill { height: 100%; background: var(--team, var(--ink-soft)); }
+#timer-fill { height: 100%; width: 0; background: var(--team, var(--ink-soft)); }
 #absent { color: var(--ink-soft); margin: 0.5rem 0 0; }
 #absent:empty { display: none; }
 
@@ -245,12 +246,16 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 .helpers { display: flex; flex-wrap: wrap; gap: 0.375rem; margin: 0.75rem 0; }
 .helpers button { min-width: var(--control-h); padding: 0 0.5rem; font-family: var(--font-math); font-size: 1.125rem; }
 .helpers details { flex-basis: 100%; }
-.helpers summary { display: list-item; list-style-position: inside; line-height: var(--control-h); cursor: pointer; }
+.helpers summary { line-height: var(--control-h); cursor: pointer; }
 .more-keys { display: flex; flex-wrap: wrap; gap: 0.375rem; }
 
 #shot-form .actions { justify-content: space-between; }
 
 #roster, #saved-list { list-style: none; padding: 0; }
+
+@media (max-width: 959px) {
+    .status-area { position: sticky; top: 0; z-index: 1; }
+}
 
 /* Desktop: two columns. */
 @media (min-width: 960px) {

@@ -544,7 +544,7 @@ Changes:
 
 Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-field` (`xy`/`disc`) on
 `#game`; CSS uses it for `--ratio` on the canvas and to show the field's notation in the mode labels
-(the radios keep the accessible names "Function"/"Parametric"). The `#direction` fieldset carries
+(the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
 `hidden` and stays that way until the direction change is wired. "Seats" is hidden by CSS while
 `#host-seats` is disabled. The start hints and "Waiting for the host to start." are static text that CSS
 shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown. The `#rejoin` line is not
