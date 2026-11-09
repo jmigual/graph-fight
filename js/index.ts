@@ -247,19 +247,19 @@ function onMessage(msg: GameMsg) {
             p.turn++;
             p.pending = false;
             p.shot = null;
+            const team = p.sim.get_current_team_idx();
+            const key = lookKey(team, p.sim.arena().teams[team].currentPlayer);
+            // Only the engine call is in here: anything else failing must not skip a second turn.
             try {
                 if (msg.type === "timeout") p.sim.skip_turn();
-                else {
-                    const team = p.sim.get_current_team_idx();
-                    const key = lookKey(team, p.sim.arena().teams[team].currentPlayer);
-                    const points = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points;
-                    p.shot = { team, exprs: msg.exprs, points };
-                    const look = lookAfterShot(p.field, p.looks.get(key), points);
-                    if (look) p.looks.set(key, look);
-                }
+                else p.shot = { team, exprs: msg.exprs, points: (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points };
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
                 p.sim.skip_turn();
+            }
+            if (p.shot) {
+                const look = lookAfterShot(p.field, p.looks.get(key), p.shot.points);
+                if (look) p.looks.set(key, look);
             }
         }
     } catch (err) {
