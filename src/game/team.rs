@@ -11,31 +11,32 @@ const MAX_ITERS: u64 = 100;
 #[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct Team {
-    area: Rectangle,
     players: Vec<Player>,
     current_player: usize,
 }
 
 impl Team {
-    pub fn new(area: Rectangle) -> Team {
+    pub fn new() -> Team {
         Team {
-            area,
             players: Vec::new(),
             current_player: 0,
         }
     }
 
+    /// Places `team_size` players. `sample(rng, radius)` draws a candidate centre for a player
+    /// of the given radius, from wherever this team is allowed to stand.
     pub fn add_players<R: Rng + ?Sized>(
         &mut self,
         team_size: usize,
         player_size: f64,
         arena: &Arena,
         rng: &mut R,
+        sample: impl Fn(&mut R, f64) -> Point,
     ) -> Result<(), String> {
         self.players.reserve(team_size);
 
         for _ in 0..team_size {
-            let shape = self.find_random_pos(player_size, &arena, rng)?;
+            let shape = self.find_random_pos(player_size, &arena, rng, &sample)?;
             self.players.push(Player::from_circle(shape));
         }
 
@@ -90,12 +91,10 @@ impl Team {
         player_size: f64,
         arena: &Arena,
         rng: &mut R,
+        sample: &impl Fn(&mut R, f64) -> Point,
     ) -> Result<Circle, String> {
-        let x_range = self.area.range_h().subtract_both(player_size);
-        let y_range = self.area.range_v().subtract_both(player_size);
-
         for _ in 0..MAX_ITERS {
-            let pos = Point::random(&x_range, &y_range, rng);
+            let pos = sample(rng, player_size);
             let shape = Circle::new(pos, player_size);
 
             if self.is_valid_pos(&shape, &arena) {
@@ -114,6 +113,7 @@ impl Team {
             return false;
         }
 
-        !arena.collision_with_obstacle(shape)
+        // Earlier teams are already in the arena; sectors can touch on a disc
+        !arena.collision_with_obstacle(shape) && !arena.collision_with_player(shape)
     }
 }

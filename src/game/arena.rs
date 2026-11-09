@@ -91,8 +91,14 @@ impl Arena {
         let areas = self.area.partition(players_per_team.len() as u64);
 
         for (team_size, area) in players_per_team.iter().zip(areas.iter()) {
-            let mut team = Team::new(area.clone());
-            team.add_players(*team_size, player_size, &self, rng)?;
+            let mut team = Team::new();
+            team.add_players(*team_size, player_size, &self, rng, |rng, radius| {
+                Point::random(
+                    &area.range_h().subtract_both(radius),
+                    &area.range_v().subtract_both(radius),
+                    rng,
+                )
+            })?;
             self.teams.push(team);
         }
 
