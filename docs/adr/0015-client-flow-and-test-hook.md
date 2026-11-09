@@ -25,9 +25,13 @@ read game state.
 - **End screen.** Winner, draw (nobody left), "host left", "desynced", "version mismatch".
   The board stays visible below the message. Back to lobby leaves the room.
 - **Turn clock.** Every peer counts `turn` (applied shots and timeouts). The host alone arms a
-  60 s `setTimeout` that relays `timeout {turn}`, and re-arms it after every applied message,
-  including `leave`, so a new shooter always gets a full minute. Other peers only show a
-  countdown from the same events; it is cosmetic.
+  60 s `setTimeout` that relays `timeout {turn}`, and re-arms it after every applied shot or
+  timeout and after a `leave` that passes the turn on, so a new shooter always gets a full
+  minute. A `leave` of a peer without a seat is ignored and one that keeps the same current team leaves
+  the clock alone, so joining and leaving cannot stall the shooter. The timeout carries the turn that
+  was current when the clock was armed. Other peers only show a
+  countdown from the same events; it is cosmetic. If the engine throws while applying a
+  message (even `skip_turn`), the peer ends the game with an engine error.
 - **Shooting.** The shooter validates with `check`/`check_param` and does not send on error. After
   sending, Fire stays disabled until the host's broadcast is applied or a send error is reported.
   The host's `onShotRequest` accepts a request only from the current team's peer with the

@@ -179,44 +179,59 @@ function startGame(msg: Start) {
     play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: [], pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
-    changed(play);
+    changed(play, true);
 }
 
 /** The host owns the turn clock (ADR 12); everyone shows a countdown from the same event. */
 function resetClock(p: Play) {
     clearTimeout(p.clock);
     p.deadline = Date.now() + TURN_MS;
-    if (hostId === selfId) p.clock = setTimeout(() => room?.relay({ type: "timeout", turn: p.turn }), TURN_MS);
+    const turn = p.turn;
+    if (hostId === selfId) p.clock = setTimeout(() => room?.relay({ type: "timeout", turn }), TURN_MS);
 }
 
 function onMessage(msg: GameMsg) {
     if (msg.type === "start") return startGame(msg);
     const p = play;
     if (!p || p.over) return;
-    if (msg.type === "leave") {
-        const team = p.peers.indexOf(msg.peer);
-        if (team >= 0) p.sim.eliminate_team(team);
-    } else {
-        p.turn++;
-        p.pending = false;
-        p.shot = [];
-        try {
-            if (msg.type === "timeout") p.sim.skip_turn();
-            else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0]) : p.sim.fire_param(msg.exprs[0], msg.exprs[1])).points;
-        } catch {
-            // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
-            p.sim.skip_turn();
+    // A leave from a peer without a seat changes nothing. One from a seated peer only restarts the
+    // clock when it passes the turn on, so joining and leaving cannot stall the shooter.
+    let newTurn = true;
+    try {
+        if (msg.type === "leave") {
+            const team = p.peers.indexOf(msg.peer);
+            if (team < 0) return;
+            const before = p.sim.get_current_team_idx();
+            p.sim.eliminate_team(team);
+            newTurn = p.sim.get_current_team_idx() !== before;
+        } else {
+            p.turn++;
+            p.pending = false;
+            p.shot = [];
+            try {
+                if (msg.type === "timeout") p.sim.skip_turn();
+                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0]) : p.sim.fire_param(msg.exprs[0], msg.exprs[1])).points;
+            } catch {
+                // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
+                p.sim.skip_turn();
+            }
         }
+    } catch (err) {
+        // The engine itself failed, so this peer's state can no longer be trusted.
+        return end(`Engine error: ${err}`);
     }
-    changed(p);
+    changed(p, newTurn);
 }
 
-/** After any applied message: end the game if it is decided, otherwise restart the clock. */
-function changed(p: Play) {
+/** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
+function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
     if (winner !== undefined) return end(p.peers[winner] === selfId ? "You win!" : `Team ${winner + 1} (${short(p.peers[winner])}) wins.`);
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw: nobody is left.");
-    resetClock(p);
+    if (newTurn) {
+        $("error").textContent = "";
+        resetClock(p);
+    }
     refresh(p);
 }
 
