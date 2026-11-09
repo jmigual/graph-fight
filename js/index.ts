@@ -87,9 +87,7 @@ hostField.onchange = () => {
 $<HTMLFormElement>("host-form").onsubmit = (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
-    const seats = Number(hostSeats.value);
-    if (!Number.isInteger(seats) || seats < 2 || seats > MAX_PLAYERS) return;
-    offer = { name: $<HTMLInputElement>("host-name").value, field, players: 1, seats };
+    offer = { name: $<HTMLInputElement>("host-name").value, field, players: 1, seats: Number(hostSeats.value) };
     enterRoom(selfId);
 };
 

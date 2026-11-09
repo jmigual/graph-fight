@@ -175,7 +175,7 @@ const scenarios = {
     },
     async E() {
         // Three pages, two seats: the host starts with the first guest to connect.
-        const { pages, errors } = await startGame(3, "disc", "E", { seats: 2 });
+        const { pages, errors } = await startGame(3, "disc", "E", { seats: 2, fakeHostClock: true });
         const [host, ...guests] = pages;
         const full = [];
         const seated = [];
@@ -184,9 +184,14 @@ const scenarios = {
         assert.match(await text(full[0], "#end-message"), /full/i);
         const players = [host, ...seated];
         await assertSynced(players, 0);
-        // The seatless guest leaving changes nothing for the others.
+        // The seatless guest leaving must not restart the host's turn clock: 40 s, the leave, then
+        // 25 s more reach the original 60 s deadline. A re-armed clock would not fire yet.
+        await host.clock.fastForward("00:40");
         await full[0].close({ runBeforeUnload: true });
-        await takeTurn(players, 0, ["t", "0"]);
+        await host.waitForTimeout(3000); // real time for the host to see the peer leave
+        await host.clock.fastForward("00:25");
+        await assertSynced(players, 1);
+        await takeTurn(players, 1, ["t", "0"]);
         return errors;
     },
 };
