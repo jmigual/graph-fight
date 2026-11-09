@@ -297,10 +297,15 @@ function refresh(p: Play) {
 /** Teams whose seat this page knows is disconnected (ADR 16). */
 const absentTeams = (p: Play) => (room && !p.over ? room.absent().map((id) => p.peers.indexOf(id)).filter((t) => t >= 0) : []);
 
-// The board redraws when its size, the colour scheme or the fonts change (ADR 17), which also
-// ends a running shot animation on its final frame.
+// The board redraws when its size, the pixel ratio, the colour scheme or the fonts change (ADR 17),
+// which also ends a running shot animation on its final frame.
 const redraw = () => play?.view && draw($<HTMLCanvasElement>("arena"), play.view);
 new ResizeObserver(redraw).observe($("arena"));
+// A query for the current ratio fires once when it changes (another screen, zoom), then re-arms.
+function watchRatio() {
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => (redraw(), watchRatio()), { once: true });
+}
+watchRatio();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
 document.fonts.addEventListener("loadingdone", redraw);
 
