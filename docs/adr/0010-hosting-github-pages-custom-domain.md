@@ -10,10 +10,12 @@ game at `https://graph-fight.marceigual.eu`.
 ## Decision
 
 - Deploy `dist/` to GitHub Pages from `.github/workflows/pages.yml` on pushes to `master`.
-  Steps: checkout, Rust stable with the `wasm32-unknown-unknown` target, `wasm-pack` via
-  `taiki-e/install-action`, Node 22, `npm ci`, `npm test`, `npm run build`,
-  `actions/upload-pages-artifact` (path `dist`), and `actions/deploy-pages`. Permissions are
-  `pages: write` and `id-token: write`, under the `github-pages` environment.
+  Steps: checkout, Rust stable with the `wasm32-unknown-unknown` target (cached with
+  `Swatinem/rust-cache`), `wasm-pack` via `taiki-e/install-action`, Node 22, `npm ci`,
+  `npm test`, `npm run build`, and `actions/upload-pages-artifact` (path `dist`); then
+  `actions/deploy-pages` in a separate job. The build job has only `contents: read`; the
+  deploy job adds `pages: write` and `id-token: write`, under the `github-pages` environment.
+  `actions/configure-pages` is omitted: it only yields a base path, which is not needed.
 - The site is served at the domain root, so the current root-relative build works unchanged.
   No base-path config.
 - The custom domain is set in repo Settings, Pages, Custom domain. With Actions-based
