@@ -3,7 +3,7 @@ import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import type { Point } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
-import { draw, TEAM_COLORS } from "./render";
+import { draw } from "./render";
 
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
