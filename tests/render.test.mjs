@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/render.test.mjs
 import assert from "node:assert/strict";
-import { lookAfterShot } from "../js/render.ts";
+import { lookAfterShot, shotLabel } from "../js/render.ts";
 
 const line = (from, dx, dy, n = 40) => Array.from({ length: n }, (_, i) => ({ x: from.x + dx * i * 0.05, y: from.y + dy * i * 0.05 }));
 
@@ -23,5 +23,14 @@ const up = line({ x: 0, y: 0 }, 0.1, 1);
 assert.equal(lookAfterShot("xy", { dir: { x: -1, y: 0 }, side: -1 }, up).side, -1);
 assert.equal(lookAfterShot("xy", undefined, line({ x: 5, y: 0 }, 0.1, 1)).side, -1, "a right-hand XY shooter faces left");
 assert.equal(lookAfterShot("disc", undefined, line({ x: 0, y: 8 }, 0.1, -1)).side, 1, "facing the centre straight down: initially right");
+
+// Labels name the mode's variables and are cut to 32 characters.
+assert.equal(shotLabel("xy", ["x/2"]), "y = x/2");
+assert.equal(shotLabel("xy", ["t", "2*t"]), "x = t, y = 2*t");
+assert.equal(shotLabel("disc", ["θ/2"]), "r = θ/2");
+assert.equal(shotLabel("disc", ["t", "0.5"]), "r = t, θ = 0.5");
+const long = shotLabel("xy", ["1+".repeat(40) + "x"]);
+assert.equal(Array.from(long).length, 33);
+assert.ok(long.endsWith("…"));
 
 console.log("render tests ok");

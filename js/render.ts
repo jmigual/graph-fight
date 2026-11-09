@@ -49,6 +49,7 @@ const UI_FONT = '"Atkinson Hyperlegible Next", system-ui, sans-serif';
 const MATH_FONT = '"STIX Two Text", "Cambria Math", "Times New Roman", serif';
 /** Drawn head radius (CSS px) from which the full face is drawn. */
 const FULL_FACE = 9;
+const LABEL_MAX = 32;
 
 type Colour = (token: string) => string;
 
@@ -82,8 +83,43 @@ export function lookAfterShot(field: Field, prev: Look | undefined, points: Poin
     return lookAlong(prev ?? restLook(field, a), { x: b.x - a.x, y: b.y - a.y });
 }
 
-/** Draws `view` on `canvas`, which CSS sizes to the arena's ratio (ADR 17, section 4). */
-export function draw(canvas: HTMLCanvasElement, view: View) {
+/** The canvas label of a shot, e.g. `y = 2*sin(x)` or `r = t, θ = 0.5`. */
+export function shotLabel(field: Field, exprs: string[]): string {
+    const names = field === "xy" ? (exprs.length === 1 ? ["y"] : ["x", "y"]) : exprs.length === 1 ? ["r"] : ["r", "θ"];
+    const text = exprs.map((e, i) => `${names[i]} = ${e}`).join(", ");
+    const chars = Array.from(text);
+    return chars.length > LABEL_MAX ? `${chars.slice(0, LABEL_MAX).join("")}…` : text;
+}
+
+let frame = 0;
+
+/**
+ * Draws `view` on `canvas`, which CSS sizes to the arena's ratio. With `before` (the board as it
+ * was before the shot), `view.shot` is first drawn with a pen on that board, then the final frame
+ * replaces it (ADR 17, section 5). Any later call cancels a running animation.
+ */
+export function draw(canvas: HTMLCanvasElement, view: View, before?: View) {
+    cancelAnimationFrame(frame);
+    const shot = view.shot;
+    if (!before || !shot || shot.points.length < 2) return paint(canvas, view, true);
+    const points = shot.points;
+    const length = [0];
+    for (let i = 1; i < points.length; i++) length.push(length[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+    const total = length[length.length - 1];
+    // Constant pen speed: 700 ms up to the arena's width, at most 1400 ms.
+    const ms = 700 * Math.min(2, Math.max(1, total / (2 * view.arena.xMax)));
+    const start = performance.now();
+    const step = (now: number) => {
+        const k = (now - start) / ms;
+        if (k >= 1) return paint(canvas, view, true);
+        const n = length.findIndex((l) => l > k * total);
+        paint(canvas, { ...before, shot: { ...shot, points: points.slice(0, n) } }, false);
+        frame = requestAnimationFrame(step);
+    };
+    step(start);
+}
+
+function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     const ctx = canvas.getContext("2d");
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -185,6 +221,16 @@ export function draw(canvas: HTMLCanvasElement, view: View) {
         ctx.beginPath();
         shot.points.forEach((p, i) => (i === 0 ? ctx.moveTo(...at(p)) : ctx.lineTo(...at(p))));
         ctx.stroke();
+        if (labelled) {
+            // Peer formulas reach the canvas only as text (fillText/strokeText).
+            const label = shotLabel(field, shot.exprs);
+            ctx.font = `italic 14px ${MATH_FONT}`;
+            ctx.textAlign = "left";
+            ctx.textBaseline = "alphabetic";
+            const width = ctx.measureText(label).width;
+            const [x, y] = at(shot.points[shot.points.length - 1]);
+            text(label, clamp(x + 8, 6, w - width - 6), clamp(y - 8, 18, h - 6), ink, 4);
+        }
     }
 
     arena.teams.forEach((t, ti) =>
@@ -200,6 +246,8 @@ export function draw(canvas: HTMLCanvasElement, view: View) {
         }),
     );
 }
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 type At = (p: Point) => [number, number];
 type Text = (s: string, x: number, y: number, fill: string, halo: number) => void;

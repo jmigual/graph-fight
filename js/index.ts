@@ -34,7 +34,7 @@ type Play = {
     shot: LastShot | null;
     /** Display only, never in `__state`: each player's gaze after its last shot (ADR 17). */
     looks: Map<string, Look>;
-    /** The board as last drawn. */
+    /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
     /** Our shot is sent and not yet applied. */
     pending: boolean;
@@ -284,8 +284,11 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    p.view = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
-    draw($<HTMLCanvasElement>("arena"), p.view);
+    const view: View = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
+    // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
+    const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
+    p.view = view;
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
@@ -294,7 +297,8 @@ function refresh(p: Play) {
 /** Teams whose seat this page knows is disconnected (ADR 16). */
 const absentTeams = (p: Play) => (room && !p.over ? room.absent().map((id) => p.peers.indexOf(id)).filter((t) => t >= 0) : []);
 
-// The board redraws when its size, the colour scheme or the fonts change (ADR 17).
+// The board redraws when its size, the colour scheme or the fonts change (ADR 17), which also
+// ends a running shot animation on its final frame.
 const redraw = () => play?.view && draw($<HTMLCanvasElement>("arena"), play.view);
 new ResizeObserver(redraw).observe($("arena"));
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);

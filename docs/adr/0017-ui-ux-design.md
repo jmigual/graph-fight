@@ -199,6 +199,9 @@ Faces: eye whites are plain white (not a token). Heads under 5 px use the 5 to 9
 and mouth shift 0.1 r times the gaze's x. A disconnected face keeps its team mouth; a dead one
 shows as dead even when disconnected. The direction arc and `π/2` are drawn above the obstacles
 so they stay visible. The board redraws when the set of disconnected seats changes.
+Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r = …, θ = …`; it appears
+with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
+scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
 
 ### 5. Motion
 
