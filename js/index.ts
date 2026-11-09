@@ -1,11 +1,14 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
-import { Field as WasmField, Game as Sim } from "../pkg/index.js";
+import init, { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, setText, short, showError, TITLE } from "./status";
+
+// Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
+await init();
 
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;

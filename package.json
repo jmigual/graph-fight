@@ -3,22 +3,16 @@
   "name": "graph-fight",
   "version": "0.1.0",
   "scripts": {
-    "build": "rimraf dist pkg && webpack",
-    "start": "rimraf dist pkg && webpack-dev-server --open -d eval --mode development",
+    "build:wasm": "wasm-pack build --target web --out-name index",
+    "build": "npm run build:wasm && tsc --noEmit -p . && node scripts/build.mjs",
+    "start": "npm run build:wasm && node scripts/build.mjs --serve",
     "test": "cargo test && node --experimental-strip-types --no-warnings tests/net.test.mjs && node --experimental-strip-types --no-warnings tests/library.test.mjs && node --experimental-strip-types --no-warnings tests/render.test.mjs",
     "e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
-    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
-    "copy-webpack-plugin": "^14.0.0",
-    "html-minimizer-webpack-plugin": "^6.0.0",
+    "esbuild": "^0.28.2",
     "playwright": "1.65.0",
-    "rimraf": "^6.1.4",
-    "ts-loader": "^9.6.2",
-    "typescript": "^6.0.3",
-    "webpack": "^5.112.2",
-    "webpack-cli": "^7.3.1",
-    "webpack-dev-server": "^6.1.0"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "trystero": "^0.26.0"

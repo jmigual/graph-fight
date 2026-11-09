@@ -5,7 +5,7 @@ import type { JsonValue } from "trystero";
 
 export { selfId };
 
-// Replaced by webpack's DefinePlugin; undefined when run outside a bundle (tests).
+// Replaced by esbuild's `define` (scripts/build.mjs); undefined when run outside a bundle (tests).
 declare const __BUILD_VERSION__: string;
 /** Identifies this build; peers on another build cannot play together. */
 export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : "dev";
