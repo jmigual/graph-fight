@@ -36,7 +36,13 @@ Turn authority (replaces the shooter-broadcast rule of ADR 7):
   every payload far below Trystero's 16 KB switch to its chunked path, which could reorder
   messages: formulas at most 256 characters (the Rust parser limit), ids, seeds and names at
   most 64, `start.peers` at most `MAX_PLAYERS` (8).
-- Send failures are surfaced through `onSendError` instead of being swallowed.
+- The host validates what it relays: an invalid or over-cap message throws instead of being
+  sent (peers would drop it and be stranded). `start` may be relayed once per room, since a
+  second one would split host and peers; a rematch needs a new room. `start.peers` must only
+  list peers already connected to the host, because a later joiner never gets seq 0.
+- Send failures are surfaced through `onSendError` instead of being swallowed. Trystero only
+  warns when sending to a peer that is not connected, so `shoot` checks the host link itself
+  and reports `onSendError` otherwise.
 
 Lobby (replaces the lobby part of ADR 6; Trystero stays for game rooms only). A Trystero lobby
 room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby is plain Nostr:

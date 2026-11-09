@@ -210,12 +210,14 @@ export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
             announceMine([ws]);
         };
         ws.onmessage = (e) => {
+            if (closed) return;
             const event = parseRelayEvent(String(e.data));
             if (event && book.apply(event.pubkey, event.content, Date.now())) emit();
         };
         ws.onclose = () => {
             sockets.delete(ws);
-            setTimeout(() => connect(url, opened ? RECONNECT_MS : Math.min(delay * 2, MAX_RECONNECT_MS)), delay);
+            const wait = opened ? RECONNECT_MS : delay;
+            setTimeout(() => connect(url, opened ? RECONNECT_MS : Math.min(delay * 2, MAX_RECONNECT_MS)), wait);
         };
     }
 
@@ -254,6 +256,31 @@ export function versionGate(version: string, deliver: (msg: GameMsg) => void, on
     return (msg: GameMsg) => (msg.type === "start" && msg.version !== version ? onMismatch(msg.version) : deliver(msg));
 }
 
+/**
+ * Numbers the host's outgoing messages (ADR 12). `stamp` throws, without consuming a number,
+ * for a message the peers would drop (invalid or over a cap, which would strand them), for a
+ * second `start` (peers would keep the first game; a rematch needs a new room) and for
+ * anything before `start`.
+ */
+export function outbox() {
+    let seq = -1;
+    return {
+        started: () => seq >= 0,
+        stamp(msg: GameMsg): Relayed {
+            if (!parseGameMsg(msg)) throw new Error("invalid message");
+            if (msg.type === "start") {
+                if (seq >= 0) throw new Error("start already relayed");
+                seq = 0;
+            } else if (seq < 0) {
+                throw new Error("relay before start");
+            } else {
+                seq++;
+            }
+            return { seq, msg };
+        },
+    };
+}
+
 export type GameHandlers = {
     /**
      * A broadcast from the host, in the order the host sent it. On the host this also fires
@@ -282,7 +309,9 @@ export type Game = {
     shoot(shot: Shot): void;
     /**
      * Host only: broadcast `msg` to every peer and deliver it to our own `onMessage`. The
-     * first message must be `start`.
+     * first message must be `start`, exactly once per room (a rematch needs a new room), and
+     * its `peers` must only list peers already connected to us: one that joins later never
+     * gets seq 0 and stays stuck. Throws on an invalid message instead of sending it.
      */
     relay(msg: GameMsg): void;
     leave(): void;
@@ -319,14 +348,10 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
         }
     }
 
-    let seq = -1; // -1 until the host relays `start`
+    const out = outbox();
     function relay(msg: GameMsg) {
         if (!isHost) throw new Error("only the host relays");
-        if (msg.type === "start") seq = 0;
-        else if (seq < 0) throw new Error("relay before start");
-        else seq++;
-        const relayed: Relayed = { seq, msg };
-        action.send(relayed).catch(handlers.onSendError);
+        action.send(out.stamp(msg)).catch(handlers.onSendError);
         deliverLocal(msg);
     }
 
@@ -349,14 +374,16 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
     };
     room.onPeerJoin = (id) => handlers.onPeerJoin?.(id);
     room.onPeerLeave = (id) => {
-        if (isHost && seq >= 0) relay({ type: "leave", peer: id });
+        if (left) return; // room.leave() takes a moment; don't relay or report after leaving
+        if (isHost && out.started()) relay({ type: "leave", peer: id });
         handlers.onPeerLeave?.(id);
     };
 
     return {
         shoot(shot) {
             if (isHost) handlers.onShotRequest?.(selfId, shot);
-            else action.send(shot, { target: hostId }).catch(handlers.onSendError);
+            else if (hostId in room.getPeers()) action.send(shot, { target: hostId }).catch(handlers.onSendError);
+            else handlers.onSendError(new Error("not connected to the host")); // Trystero would only warn
         },
         relay,
         leave,

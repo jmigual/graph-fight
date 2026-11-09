@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { lobbyBook, MAX_PLAYERS, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, sequencer, versionGate } from "../js/net.ts";
+import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", peers: ["h", "p"], version: "v1" };
@@ -52,6 +52,19 @@ assert.equal(routeIncoming("h", "p", "h", { seq: 1, msg: { type: "nope" } }), un
 assert.deepEqual(routeIncoming("h", "h", "p", shot), { kind: "request", shot });
 for (const m of [timeout, leave, start]) assert.equal(routeIncoming("h", "h", "p", m), undefined, m.type);
 assert.equal(routeIncoming("h", "p", "q", shot), undefined, "a shot request at a non-host");
+
+// Outbox: start once and first, invalid messages refused without consuming a number.
+const box = outbox();
+assert.throws(() => box.stamp(shot), /before start/, "nothing before start");
+assert.equal(box.started(), false);
+assert.throws(() => box.stamp({ ...start, seed: "s".repeat(65) }), /invalid/, "over-cap start refused");
+assert.equal(box.started(), false, "a refused start does not start the game");
+assert.deepEqual(box.stamp(start), { seq: 0, msg: start });
+assert.equal(box.started(), true);
+assert.throws(() => box.stamp(start), /already relayed/, "no second start");
+assert.throws(() => box.stamp({ type: "shot", turn: 0, exprs: ["x".repeat(257)] }), /invalid/);
+assert.deepEqual(box.stamp(shot), { seq: 1, msg: shot }, "refused messages consume no number");
+assert.deepEqual(box.stamp(leave), { seq: 2, msg: leave });
 
 // Sequencer: drops everything before start, delivers in order, drops repeats, flags gaps.
 function run() {
