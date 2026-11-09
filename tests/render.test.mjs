@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/render.test.mjs
 import assert from "node:assert/strict";
-import { lookAfterShot, shotLabel } from "../js/render.ts";
+import { lookAfterShot, shotLabel, shotText } from "../js/render.ts";
 
 const line = (from, dx, dy, n = 40) => Array.from({ length: n }, (_, i) => ({ x: from.x + dx * i * 0.05, y: from.y + dy * i * 0.05 }));
 
@@ -29,6 +29,7 @@ assert.equal(shotLabel("xy", ["x/2"]), "y = x/2");
 assert.equal(shotLabel("xy", ["t", "2*t"]), "x = t, y = 2*t");
 assert.equal(shotLabel("disc", ["θ/2"]), "r = θ/2");
 assert.equal(shotLabel("disc", ["t", "0.5"]), "r = t, θ = 0.5");
+assert.equal(shotText("xy", ["1+".repeat(40) + "x"]).length, 4 + 81, "the text is never cut");
 const long = shotLabel("xy", ["1+".repeat(40) + "x"]);
 assert.equal(Array.from(long).length, 33);
 assert.ok(long.endsWith("…"));

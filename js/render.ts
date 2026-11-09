@@ -83,10 +83,15 @@ export function lookAfterShot(field: Field, prev: Look | undefined, points: Poin
     return lookAlong(prev ?? restLook(field, a), { x: b.x - a.x, y: b.y - a.y });
 }
 
-/** The canvas label of a shot, e.g. `y = 2*sin(x)` or `r = t, θ = 0.5`. */
-export function shotLabel(field: Field, exprs: string[]): string {
+/** A shot's formulas with the mode's variables, e.g. `y = 2*sin(x)` or `r = t, θ = 0.5`. */
+export function shotText(field: Field, exprs: string[]): string {
     const names = field === "xy" ? (exprs.length === 1 ? ["y"] : ["x", "y"]) : exprs.length === 1 ? ["r"] : ["r", "θ"];
-    const text = exprs.map((e, i) => `${names[i]} = ${e}`).join(", ");
+    return exprs.map((e, i) => `${names[i]} = ${e}`).join(", ");
+}
+
+/** The canvas label of a shot: its text cut to 32 characters. */
+export function shotLabel(field: Field, exprs: string[]): string {
+    const text = shotText(field, exprs);
     const chars = Array.from(text);
     return chars.length > LABEL_MAX ? `${chars.slice(0, LABEL_MAX).join("")}…` : text;
 }

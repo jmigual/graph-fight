@@ -1,9 +1,9 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
-import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
+import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start, Timeout } from "./net";
 import { initEditor, sliderError } from "./editor";
-import { draw, lookAfterShot, lookKey } from "./render";
+import { draw, lookAfterShot, lookKey, shotText } from "./render";
 import type { LastShot, Look, View } from "./render";
 
 const TURN_MS = 60_000;
@@ -16,7 +16,11 @@ const ARENAS = {
 };
 /** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
 const SEAT_KEY = "graph-fight-seat";
-const MISMATCH = "Version mismatch: reload the page to get the same version as the host.";
+const TITLE = document.title;
+const MISMATCH = ["Different version.", "Reload the page, then join again."] as const;
+const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
+/** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
+const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
 const LABELS = {
     xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
     disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
@@ -33,6 +37,8 @@ type Play = {
     /** Number of applied shots and timeouts. */
     turn: number;
     shot: LastShot | null;
+    /** What the last message did, in words: the text alternative of the board (ADR 17). */
+    note: string;
     /** Display only, never in `__state`: each player's gaze after its last shot (ADR 17). */
     looks: Map<string, Look>;
     /** The board as last drawn, where the next shot's animation starts. */
@@ -59,12 +65,18 @@ let me = selfId;
 let offer: Announce | null = null;
 let connected: string[] = [];
 let play: Play | null = null;
+/** The open games the lobby last listed, and the offer of the room we are in (ADR 17, section 6). */
+let games: OpenGame[] = [];
+let roomInfo: Announce | undefined;
 /** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
 let ended = false;
 
-function renderLobby(games: OpenGame[]) {
+function renderLobby(list: OpenGame[]) {
+    games = list;
+    $("no-games").hidden = list.length > 0;
+    $("games-table").hidden = list.length === 0;
     $("games").replaceChildren(
-        ...games.map((g) => {
+        ...list.map((g) => {
             const tr = document.createElement("tr");
             const cell = (text: string) => {
                 const td = tr.appendChild(document.createElement("td"));
@@ -72,17 +84,24 @@ function renderLobby(games: OpenGame[]) {
                 return td;
             };
             cell(g.name);
-            cell(g.field);
-            cell(`${g.players}/${g.seats}`);
             if (g.compatible) {
+                const [long, short] = FIELD_NAMES[g.field];
+                const field = cell("");
+                for (const [cls, name] of [["long", long], ["short", short]]) {
+                    const span = field.appendChild(document.createElement("span"));
+                    span.className = cls;
+                    span.textContent = name;
+                }
+                cell(`${g.players} of ${g.seats}`);
+                const full = g.players >= g.seats;
                 const join = document.createElement("button");
-                join.textContent = "Join";
-                join.disabled = g.players >= g.seats;
+                join.textContent = full ? "Full" : "Join";
+                join.disabled = full;
                 join.onclick = () => enterRoom(g.id);
                 cell("").append(join);
             } else {
                 tr.className = "muted";
-                cell("different version — reload");
+                cell("Different version. Reload the page.").colSpan = 3;
             }
             return tr;
         }),
@@ -109,19 +128,22 @@ function enterRoom(id: string, seat?: Seat) {
     me = seat?.me ?? selfId;
     connected = [];
     ended = false;
-    $("error").textContent = "";
+    roomInfo = id === selfId ? offer ?? undefined : games.find((g) => g.id === id);
+    clearError();
     $("room-error").textContent = "";
+    $("room-title").textContent = roomInfo?.name || "Waiting room";
+    $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${roomInfo.seats} seats` : "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
         onShotRequest(from, shot) {
             if (play && !play.over && from === play.peers[play.sim.get_current_team_idx()] && shot.turn === play.turn) room?.relay(shot);
         },
-        onVersionMismatch: () => end(MISMATCH),
-        onDesync: () => end("Desynced: a message from the host was lost, so the game cannot continue."),
+        onVersionMismatch: () => end(...MISMATCH),
+        onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
-            $("error").textContent = `Send failed: ${err}`;
+            showError(`Shot not sent: ${err}. Fire again.`);
             if (play) refresh(play);
         },
         onSeat(token) {
@@ -136,7 +158,7 @@ function enterRoom(id: string, seat?: Seat) {
             // A seated peer in a game waits for the host to come back; a host that quits relays its
             // own leave. Without a game yet (waiting room, or a stored seat not yet replayed),
             // the host leaving ends it.
-            if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end("Host left.");
+            if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end(...HOST_LEFT);
             else roomChanged();
         },
     }, seat?.token);
@@ -154,6 +176,8 @@ function roomChanged() {
             return li;
         }),
     );
+    const open = roomInfo ? roomInfo.seats - all.length : 0;
+    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats} to join play.` : "";
     $("start").hidden = !offer;
     $<HTMLButtonElement>("start").disabled = all.length < 2;
     if (offer) lobby.announce({ ...offer, players: all.length });
@@ -166,7 +190,7 @@ $("start").onclick = () => {
         // Delivered to our own onMessage, which starts the game.
         room.relay({ type: "start", seed, field: offer.field, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
     } catch (err) {
-        $("room-error").textContent = `Could not start: ${err}`;
+        $("room-error").textContent = `Could not start: ${err}.`;
         return;
     }
     offer = null;
@@ -181,8 +205,9 @@ function toLobby() {
     play = null;
     if (offer) lobby.announce(null);
     offer = null;
-    $("error").textContent = "";
+    clearError();
     $("room-error").textContent = "";
+    document.title = TITLE;
     show("lobby");
 }
 $("leave").onclick = $("back").onclick = toLobby;
@@ -204,16 +229,16 @@ function startGame(msg: Start) {
         sessionStorage.removeItem(SEAT_KEY);
         me = selfId;
     }
-    if (!msg.peers.includes(me)) return end("Game full: the host did not give you a seat.");
+    if (!msg.peers.includes(me)) return end("Game full.", "The host started with the seats already taken.");
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
         sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
     } catch (err) {
-        return end(`Could not start the game: ${err}`);
+        return end("Could not start the game.", `${err}`);
     }
     $("game").dataset.field = msg.field;
-    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, looks: new Map(), pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -238,17 +263,19 @@ function onMessage(msg: GameMsg) {
     let newTurn = true;
     try {
         if (msg.type === "leave") {
-            if (msg.peer === hostId) return end("Host left.");
+            if (msg.peer === hostId) return end(...HOST_LEFT);
             const team = p.peers.indexOf(msg.peer);
             if (team < 0) return;
             const before = p.sim.get_current_team_idx();
             p.sim.eliminate_team(team);
             newTurn = p.sim.get_current_team_idx() !== before;
+            p.note = `Team ${team + 1} left the game.`;
         } else {
             p.turn++;
             p.pending = false;
             p.shot = null;
             const team = p.sim.get_current_team_idx();
+            const alive = aliveCounts(p.sim);
             const key = lookKey(team, p.sim.arena().teams[team].currentPlayer);
             // Only the engine call is in here: anything else failing must not skip a second turn.
             try {
@@ -262,21 +289,37 @@ function onMessage(msg: GameMsg) {
                 const look = lookAfterShot(p.field, p.looks.get(key), p.shot.points);
                 if (look) p.looks.set(key, look);
             }
+            p.note = describeTurn(p, team, msg, alive);
         }
     } catch (err) {
         // The engine itself failed, so this peer's state can no longer be trusted.
-        return end(`Engine error: ${err}`);
+        return end("Engine error.", `${err}. This game can't continue on this device.`);
     }
     changed(p, newTurn);
+}
+
+const aliveCounts = (sim: Sim) => sim.arena().teams.map((t) => t.players.filter((pl) => pl.alive).length);
+
+/** The board's text alternative for a shot or timeout: who fired what, and who lost players (ADR 17). */
+function describeTurn(p: Play, team: number, msg: Shot | Timeout, before: number[]) {
+    let text = `Team ${team + 1} `;
+    if (msg.type === "timeout") text += "ran out of time.";
+    else if (!p.shot) text += "fired a formula that failed, so the turn was skipped.";
+    else text += `fired ${shotText(p.field, msg.exprs)}${p.field === "disc" ? (msg.cw ? ", clockwise" : ", counterclockwise") : ""}.`;
+    aliveCounts(p.sim).forEach((n, t) => {
+        const lost = before[t] - n;
+        if (lost > 0) text += ` Team ${t + 1} lost ${lost === 1 ? "a player" : `${lost} players`}.`;
+    });
+    return text;
 }
 
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
 function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
-    if (winner !== undefined) return end(p.peers[winner] === me ? "You win!" : `Team ${winner + 1} (${short(p.peers[winner])}) wins.`);
-    if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw: nobody is left.");
+    if (winner !== undefined) return end(p.peers[winner] === me ? "You win." : `Team ${winner + 1} wins.`);
+    if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw.", "Nobody is left.");
     if (newTurn) {
-        $("error").textContent = "";
+        clearError();
         resetClock(p);
     }
     refresh(p);
@@ -290,9 +333,49 @@ function refresh(p: Play) {
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    const turnEl = $("turn");
-    turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
+    $("game").style.setProperty("--team", p.over ? "" : teamColour(team));
+    $("turn-swatch").textContent = p.over ? "" : String(team + 1);
+    $("turn").textContent = p.over ? "" : mine ? "Your turn" : `Team ${team + 1} is aiming`;
+    $("timer").hidden = p.over;
+    document.title = mine && !p.over ? `Your turn | ${TITLE}` : TITLE;
+    $("last-shot").textContent = p.note;
+    const ours = p.peers.indexOf(me);
+    const out = !p.over && view.arena.teams[ours]?.players.every((pl) => !pl.alive);
+    $("shot-form").hidden = out;
+    $("out-note").hidden = !out;
+    renderRoster(p, view);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
+}
+
+const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
+
+/** The roster: one row per team, with players left and what the team is doing (ADR 17, section 10). */
+function renderRoster(p: Play, view: View) {
+    $("roster").replaceChildren(
+        ...view.arena.teams.map((t, ti) => {
+            const li = document.createElement("li");
+            li.style.setProperty("--team", teamColour(ti));
+            const add = (cls: string, text: string) => {
+                const el = li.appendChild(document.createElement("span"));
+                el.className = cls;
+                el.textContent = text;
+                return el;
+            };
+            const left = t.players.filter((pl) => pl.alive).length;
+            add("swatch", String(ti + 1)).setAttribute("aria-hidden", "true");
+            add("team", `Team ${ti + 1}`);
+            add("id", short(p.peers[ti]));
+            if (p.peers[ti] === me) add("you", "you");
+            const states = left === 0 ? ["out"] : [...(view.absent.includes(ti) ? ["disconnected"] : []), ...(view.current === ti ? ["aiming"] : [])];
+            if (states.length) add("state", states.join(", "));
+            const pips = add("pips", "●".repeat(left) + "○".repeat(t.players.length - left));
+            pips.setAttribute("role", "img");
+            pips.setAttribute("aria-label", `${left} of ${t.players.length} players left`);
+            li.classList.toggle("out", left === 0);
+            li.classList.toggle("current", view.current === ti && p.peers[ti] === me);
+            return li;
+        }),
+    );
 }
 
 /** Teams whose seat this page knows is disconnected (ADR 16). */
@@ -310,7 +393,7 @@ watchRatio();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
 document.fonts.addEventListener("loadingdone", redraw);
 
-function end(message: string) {
+function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
@@ -322,9 +405,31 @@ function end(message: string) {
         // No game to show: leave the room, or the host's next game there would seat this page.
         room?.leave();
     }
-    $("end-message").textContent = message;
+    $("end-message").textContent = headline;
+    $("end-detail").textContent = detail;
     show(...(play ? ["game", "end"] : ["end"]));
+    $("end-message").focus();
 }
+
+const formulaInputs = [$<HTMLInputElement>("input-a"), $<HTMLInputElement>("input-b")];
+let errorTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Empties the error line; the formula inputs stop being invalid. */
+function clearError() {
+    clearTimeout(errorTimer);
+    $("error").textContent = "";
+    for (const input of formulaInputs) input.removeAttribute("aria-invalid");
+}
+
+/** Shows `message` in the alert line. It is emptied first and filled a moment later, because a repeated identical text is not announced. */
+function showError(message: string) {
+    clearError();
+    errorTimer = setTimeout(() => {
+        $("error").textContent = message;
+        for (const input of formulaInputs) input.setAttribute("aria-invalid", "true");
+    }, 50);
+}
+for (const input of formulaInputs) input.addEventListener("input", clearError);
 
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
 const editor = initEditor();
@@ -345,10 +450,10 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
     const a = $<HTMLInputElement>("input-a").value;
     const b = $<HTMLInputElement>("input-b").value;
     const exprs: Shot["exprs"] = parametric() ? [a, b] : [a];
-    $("error").textContent = "";
+    clearError();
     const unfilled = sliderError(exprs);
     if (unfilled) {
-        $("error").textContent = unfilled;
+        showError(unfilled);
         return;
     }
     p.pending = true;
@@ -359,14 +464,17 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         room.shoot({ type: "shot", turn: p.turn, exprs, cw: false });
     } catch (err) {
         p.pending = false;
-        $("error").textContent = String(err);
+        showError(String(err));
     }
     refresh(p);
 };
 
 setInterval(() => {
     const p = play;
-    if (p && !p.over) $("countdown").textContent = String(Math.max(0, Math.ceil((p.deadline - Date.now()) / 1000)));
+    const left = p && !p.over ? Math.max(0, p.deadline - Date.now()) : 0;
+    $("countdown").textContent = p && !p.over ? String(Math.ceil(left / 1000)) : "";
+    $("timer").classList.toggle("low", !!p && !p.over && left <= 10_000);
+    $("timer-fill").style.width = `${(100 * left) / TURN_MS}%`;
     const away = p && !p.over && room ? room.absent().map((id) => `Team ${p.peers.indexOf(id) + 1} (${short(id)})`) : [];
     $("absent").textContent = away.length ? `Disconnected: ${away.join(", ")}` : "";
     if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
@@ -381,5 +489,5 @@ const saved = sessionStorage.getItem(SEAT_KEY);
 if (saved) {
     const seat = JSON.parse(saved) as Seat;
     if (seat.version === BUILD_VERSION) enterRoom(seat.hostId, seat);
-    else end(MISMATCH);
+    else end(...MISMATCH);
 }

@@ -578,6 +578,15 @@ shows live under the preview and disables Insert while it applies. A value typed
 limits on `change` (blur or Enter), not per keystroke. Fire's slider-letter error names every letter: "a is a
 slider letter. ... or type a number." for one, "a and b are slider letters. ... or type numbers." for several.
 
+Settled in S3 (`js/index.ts`): the last-shot line also says "Team N ran out of time." for a timeout, "Team N left the game."
+for a quit, and "fired a formula that failed, so the turn was skipped" for a shot that every peer's engine rejects; on the
+disc it says "counterclockwise" as well as "clockwise". The error line is emptied and refilled 50 ms later, so a repeated
+identical error is announced again; `aria-invalid` is set with the text and removed with it. Editing either input, a new
+turn and Fire clear it. The roster's state word joins what applies ("disconnected, aiming"); "out" replaces both. The
+waiting room's open-seat line (`#room-seats`) also carries the host's "More players than seats" text. A guest takes the
+room's name and field from the lobby listing it joined from; after a reload the heading falls back to "Waiting room". The
+empty lobby shows `#no-games` instead of the table. The tab title is also restored when the game ends or on leaving.
+
 ## Consequences
 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access

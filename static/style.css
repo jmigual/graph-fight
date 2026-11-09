@@ -125,6 +125,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .error { color: var(--danger); font-weight: 700; }
 .error:empty { display: none; }
 .hint { color: var(--ink-soft); }
+.hint:empty { display: none; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 
 .field { display: grid; gap: 0.25rem; max-width: 24rem; margin-bottom: 1rem; }
@@ -179,6 +180,12 @@ th, td { padding: 0.5rem 0.5rem 0.5rem 0; vertical-align: middle; }
 td { border-bottom: 1px solid var(--grid-major); }
 th:last-child, td:last-child { padding-right: 0; text-align: right; }
 td:nth-child(3) { font-variant-numeric: tabular-nums; }
+td[colspan] { text-align: left; }
+.short { display: none; }
+@media (max-width: 479px) {
+    .long { display: none; }
+    .short { display: inline; }
+}
 
 /* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
 #games td:not(:last-child), #room-players, #turn, #absent, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
@@ -193,7 +200,9 @@ td:nth-child(3) { font-variant-numeric: tabular-nums; }
 #start:not(:disabled) ~ #start-hint, #start[hidden] ~ #start-hint { display: none; }
 
 #end { margin-bottom: 1.5rem; }
-#end-message { font: 600 1.953rem/1.2 var(--font-math); margin-bottom: 1rem; }
+#end-message { font: 600 1.953rem/1.2 var(--font-math); margin-bottom: 0.5rem; }
+#end-detail { overflow-wrap: anywhere; }
+#end-detail:empty { display: none; }
 #end:not([hidden]) ~ #game #quit { display: none; }
 
 /* Game */
@@ -211,6 +220,7 @@ td:nth-child(3) { font-variant-numeric: tabular-nums; }
 }
 #turn { flex: 1 1 auto; min-width: 0; font-weight: 700; }
 .timer { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.timer.low { color: var(--danger); font-weight: 700; }
 .status button { white-space: nowrap; }
 .swatch {
     display: inline-grid;
@@ -255,6 +265,14 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 #shot-form .actions { justify-content: space-between; }
 
 #roster, #saved-list { list-style: none; padding: 0; }
+
+#roster li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; padding: 0.375rem 0; }
+#roster .team { font-weight: 700; }
+#roster .id, #roster .you, #roster .state { color: var(--ink-soft); }
+#roster .pips { margin-left: auto; letter-spacing: 0.15em; color: var(--team); }
+#roster li.current .state { color: var(--ink); font-weight: 700; }
+#roster li.out .team { text-decoration: line-through; }
+#out-note { font-weight: 700; }
 
 /* Save row and saved formulas */
 

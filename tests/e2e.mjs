@@ -427,6 +427,50 @@ const scenarios = {
         assert.equal(await page.evaluate(() => document.activeElement.tagName), "BUTTON", "focus moves to the next item");
         return errors;
     },
+    async L() {
+        // Status bar, roster, last-shot text, tab title, error presentation and the end screen (ADR 17).
+        const { pages, errors } = await startGame(2, "xy", "L");
+        await assertSynced(pages, 0);
+        const page = await shooter(pages);
+        const other = pages.find((p) => p !== page);
+        assert.equal(await page.title(), "Your turn | Graph fight!");
+        assert.equal(await other.title(), "Graph fight!");
+        assert.equal(await text(page, "#turn"), "Your turn");
+        assert.match(await text(other, "#turn"), /^Team \d is aiming$/);
+        assert.equal(await page.locator("#roster li").count(), 2);
+        assert.equal(await page.locator('#roster li [aria-label="3 of 3 players left"]').count(), 2);
+        assert.match(await text(page, "#roster li >> nth=0"), /aiming|you/);
+        const width = await page.evaluate(() => parseFloat(document.getElementById("timer-fill").style.width));
+        assert.ok(width > 0 && width <= 100, "the timer bar is filled at the start of a turn");
+        // A repeated identical error is cleared first, so the alert is announced again.
+        await page.evaluate(() => {
+            window.__errors = [];
+            new MutationObserver(() => window.__errors.push(document.getElementById("error").textContent)).observe(document.getElementById("error"), { childList: true });
+        });
+        await page.check("#mode-explicit");
+        const shown = (n) => page.waitForFunction((k) => window.__errors.filter((e) => e !== "").length >= k, n);
+        await page.fill("#input-a", "1/x");
+        await page.click("#fire");
+        await shown(1);
+        assert.equal(await page.getAttribute("#input-a", "aria-invalid"), "true");
+        await page.click("#fire");
+        await shown(2);
+        const log = await page.evaluate(() => window.__errors);
+        assert.ok(log.every((e, i) => e === "" || i === 0 || log[i - 1] === ""), "an error is never replaced by text directly");
+        await page.fill("#input-a", "x");
+        assert.equal(await text(page, "#error"), "");
+        assert.equal(await page.getAttribute("#input-a", "aria-invalid"), null);
+        await page.click("#fire");
+        await assertSynced(pages, 1);
+        for (const p of pages) assert.match(await text(p, "#last-shot"), /^Team \d fired y = x\./);
+        assert.equal(await page.title(), "Graph fight!", "the title is restored after the turn");
+        // The end screen has a headline and an explanation, and focus moves to the headline.
+        await other.click("#quit");
+        await page.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        assert.match(await text(page, "#end-message"), /win/i);
+        assert.equal(await page.evaluate(() => document.activeElement.id), "end-message");
+        return errors;
+    },
 };
 
 let failed = 0;

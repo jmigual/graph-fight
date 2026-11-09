@@ -27,7 +27,8 @@
         <div class="lobby-grid">
           <section aria-labelledby="open-games">
             <h2 id="open-games">Open games</h2>
-            <table>
+            <p id="no-games" class="hint">No open games yet. Host one, then ask a friend to open this page.</p>
+            <table id="games-table" hidden>
               <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
               <tbody id="games"></tbody>
             </table>
@@ -50,9 +51,11 @@
       </section>
 
       <section id="room" hidden>
-        <h2>Waiting room</h2>
+        <h2 id="room-title">Waiting room</h2>
+        <p id="room-info" class="hint"></p>
         <p id="room-status"></p>
         <ul id="room-players"></ul>
+        <p id="room-seats" class="hint"></p>
         <p id="room-error" class="error" role="alert"></p>
         <div class="actions">
           <button id="start" type="button" class="primary">Start</button>
@@ -64,6 +67,7 @@
 
       <section id="end" hidden>
         <p id="end-message" tabindex="-1"></p>
+        <p id="end-detail"></p>
         <button id="back" type="button" class="primary">Back to lobby</button>
       </section>
 
@@ -73,7 +77,7 @@
           <div class="status">
             <span id="turn-swatch" class="swatch" aria-hidden="true"></span>
             <span id="turn"></span>
-            <span class="timer"><span id="countdown"></span> s</span>
+            <span id="timer" class="timer"><span id="countdown"></span> s</span>
             <button id="quit" type="button" class="secondary">Leave game</button>
           </div>
           <div class="timer-bar" aria-hidden="true"><div id="timer-fill"></div></div>
@@ -84,6 +88,7 @@
         </div>
 
         <div class="game-side">
+          <p id="out-note" hidden>Your team is out. Watch the rest or leave.</p>
           <form id="shot-form">
             <fieldset class="segmented">
               <legend class="sr-only">Formula type</legend>
