@@ -1,6 +1,7 @@
 # 7. Wire protocol and turn authority
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0012: the host relays shots and timeouts; the shooter no longer broadcasts.
 
 ## Context
 
