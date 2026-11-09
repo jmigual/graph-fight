@@ -1,7 +1,4 @@
-use rand::{
-    distributions::{uniform::Uniform, Distribution},
-    Rng,
-};
+use rand::{Rng, RngExt};
 use serde::Serialize;
 use tsify::Tsify;
 use std::{
@@ -28,15 +25,14 @@ impl Point {
         y_range: &Range<f64>,
         rng: &mut R,
     ) -> Point {
-        let dist = Uniform::from(0.0..1.0);
-        let x = dist.sample(rng) * (x_range.max() - x_range.min()) + x_range.min();
-        let y = dist.sample(rng) * (y_range.max() - y_range.min()) + y_range.min();
+        let x = rng.random_range(0.0..1.0) * (x_range.max() - x_range.min()) + x_range.min();
+        let y = rng.random_range(0.0..1.0) * (y_range.max() - y_range.min()) + y_range.min();
 
         Point { x, y }
     }
 
     pub fn random_default(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
-        Point::random(&x_range, &y_range, &mut rand::thread_rng())
+        Point::random(&x_range, &y_range, &mut rand::rng())
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {

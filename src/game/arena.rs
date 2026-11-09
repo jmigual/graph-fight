@@ -1,6 +1,6 @@
 use std::f64::consts::TAU;
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rand_distr::{Distribution, Normal};
 use serde::Serialize;
 use tsify::Tsify;
@@ -147,9 +147,9 @@ impl Arena {
                 Field::Disc => {
                     // Uniform in the annulus [R/2, R - radius], within the team's sector
                     let sector = TAU / num_teams as f64;
-                    let theta = sector * (i as f64 + rng.gen_range(-0.5..0.5));
+                    let theta = sector * (i as f64 + rng.random_range(-0.5..0.5));
                     let (r_min, r_max) = (self.y_max / 2., self.y_max - radius);
-                    let r = rng.gen_range(r_min * r_min..=r_max * r_max).sqrt();
+                    let r = rng.random_range(r_min * r_min..=r_max * r_max).sqrt();
                     Point::new(r * theta.cos(), r * theta.sin())
                 }
             };

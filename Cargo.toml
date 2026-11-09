@@ -5,7 +5,7 @@ repository = "https://github.com/jmigual/graph-fight"
 license = "MIT"
 version = "0.1.0"
 authors = ["J. Marcè i Igual <j.marce.i.igual@tue.nl>"]
-edition = "2021"
+edition = "2024"
 categories = ["wasm"]
 
 [lib]
@@ -15,14 +15,14 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
-js-sys = "0.3.69"
-rand = { version = "0.8.5", features = ["small_rng"] }
-rand_distr = "0.4.3"
+wasm-bindgen = { version = "0.2.130", features = ["serde-serialize"] }
+js-sys = "0.3.107"
+rand = "0.10.3"
+rand_distr = "0.6.0"
 num = "0.4.3"
-getrandom = { version = "0.2", features = ["js"] }
-serde = { version = "1.0", features = ["derive"] }
-float-cmp = "0.9.0"
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
+serde = { version = "1.0.229", features = ["derive"] }
+float-cmp = "0.10.0"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -37,10 +37,10 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "0.4.5", optional = true }
 serde-wasm-bindgen = "0.6.5"
-tsify = { version = "0.4.5", features = ["js"] }
+tsify = { version = "0.5.8", features = ["js"] }
 
 [dependencies.web-sys]
-version = "0.3.69"
+version = "0.3.107"
 features = [
   'CanvasRenderingContext2d',
   'Document',
@@ -52,8 +52,8 @@ features = [
 
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.42"
-serde_json = "1"
+wasm-bindgen-test = "0.3.80"
+serde_json = "1.0.154"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

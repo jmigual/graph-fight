@@ -1,3 +1,7 @@
+// tsify 0.5 deprecates `into_wasm_abi` (it leaks on a failed conversion); every type using it only
+// serializes, which cannot fail, and `Ts<T>` would change the signatures the Rust tests call.
+#![allow(deprecated)]
+
 pub mod formula;
 pub mod game;
 pub mod geometry;
