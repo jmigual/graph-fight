@@ -10,7 +10,7 @@ export const MAX_EXPR = 256;
 /** Longest saved name. */
 export const MAX_NAME = 64;
 /** Largest |value| a slider limit or value may have, so `toFixed` never yields an exponent. */
-const LIMIT = 1e6;
+export const LIMIT = 1e6;
 
 export type Mode = "explicit" | "parametric";
 /** `step` is null when empty (continuous). */

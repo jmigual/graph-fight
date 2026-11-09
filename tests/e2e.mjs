@@ -38,9 +38,9 @@ const comparable = async (page) => {
 /**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
  * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` installs
- * Playwright's fake clock on the host before it loads.
+ * Playwright's fake clock on the host before it loads; `blockStorage` makes the host's localStorage refuse writes.
  */
-async function startGame(n, field, label, { seats = n, fakeHostClock = false } = {}) {
+async function startGame(n, field, label, { seats = n, fakeHostClock = false, blockStorage = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -68,6 +68,15 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false } =
                 }
             };
         });
+        if (i === 0 && blockStorage) {
+            await page.addInitScript(() => {
+                const set = Storage.prototype.setItem;
+                Storage.prototype.setItem = function (key, value) {
+                    if (this === localStorage) throw new DOMException("blocked", "QuotaExceededError");
+                    return set.call(this, key, value);
+                };
+            });
+        }
         if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
         pages.push(page);
@@ -331,6 +340,11 @@ const scenarios = {
         assert.equal(await page.inputValue("#input-b"), "t");
         await page.check("#mode-explicit");
         assert.equal(await text(page, "#insert-var"), "x");
+        // The hidden second input is never the target, even if it was the last one focused.
+        await page.evaluate(() => (document.getElementById("input-a").value = ""));
+        await key("sin").click();
+        assert.equal(await input.inputValue(), "sin()");
+        assert.equal(await page.inputValue("#input-b"), "t");
         // A helper does not overrun the parser's 256 character limit.
         await input.fill("x".repeat(255));
         await key("sin").click();
@@ -384,6 +398,33 @@ const scenarios = {
         await item.getByRole("button", { name: "Delete Mine" }).click();
         assert.equal(await page.locator("#saved-list li", { hasText: "Mine" }).count(), 0);
         assert.equal(await page.evaluate(() => localStorage.getItem("graph-fight.formulas").includes("Mine")), false);
+        return errors;
+    },
+    async K() {
+        // Storage that refuses writes: the notice shows and the list keeps working in memory.
+        const { pages, errors } = await startGame(2, "xy", "K", { blockStorage: true });
+        const page = pages[0];
+        assert.equal(await page.isVisible("#saved-notice"), true);
+        assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1, "starters are listed from memory");
+        // `2a` would silently become `21.5`, so saving it is refused.
+        await page.fill("#input-a", "2a");
+        await page.click("#save");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        assert.equal(await page.isVisible("#save-row"), true);
+        assert.match(await text(page, "#save-error"), /\*/);
+        await page.fill("#input-a", "a+".repeat(100) + "a");
+        await page.click("#save");
+        await page.fill("#save-name", "Long");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        const item = page.locator("#saved-list li", { hasText: "Long" });
+        assert.equal(await item.count(), 1, "saving works in memory");
+        assert.equal(await item.getByRole("button", { name: "Insert Long" }).isDisabled(), false);
+        // Each `a` grows from 1 to (-2) characters wide: the result passes 256 and Insert is disabled.
+        await item.locator('[aria-label="Value of a"]').fill("-2");
+        assert.equal(await item.getByRole("button", { name: "Insert Long" }).isDisabled(), true);
+        assert.match(await item.locator(".error").innerText(), /256/);
+        await item.getByRole("button", { name: "Delete Long" }).click();
+        assert.equal(await page.evaluate(() => document.activeElement.tagName), "BUTTON", "focus moves to the next item");
         return errors;
     },
 };

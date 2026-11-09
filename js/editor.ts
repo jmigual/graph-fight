@@ -1,17 +1,16 @@
 // Formula editor helpers and the saved formulas panel (ADR 17, sections 7 and 8). DOM only; the
 // logic (slider letters, substitution, storage) lives in library.ts.
 import type { Field } from "./net";
-import { decimals, formatValue, loadItems, newItem, saveItems, sliderLetters, substitute } from "./library";
+import { decimals, formatValue, LIMIT, loadItems, MAX_NAME, newItem, saveItems, sliderLetters, substitute } from "./library";
 import type { Item, LibraryError, Mode, Slider } from "./library";
 
-/** Largest |value| a slider limit may have (the same bound library.ts validates on read). */
-const LIMIT = 1e6;
 /** The variable button's text per field and mode (the parser accepts t in every parametric mode). */
 const VARIABLE = { xy: { explicit: "x", parametric: "t" }, disc: { explicit: "θ", parametric: "t" } };
 const NOTATION = {
     xy: { explicit: "y = f(x)", parametric: "x(t), y(t)" },
     disc: { explicit: "r = f(θ)", parametric: "r(t), θ(t)" },
 };
+const OUT_OF_RANGE = `Use a number between -${LIMIT} and ${LIMIT}.`;
 const NOTICE = "Can't save in this browser; saved formulas last until you close the tab.";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,7 +29,7 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", tex
 /** The ADR's wording for a library error. */
 function describe(error: LibraryError): string {
     return error.kind === "glued"
-        ? "Put * between a number and a slider: 2*a."
+        ? `Put * between a number and a slider: 2*${error.slider}.`
         : `Too long with these values (${error.length} of ${error.max} characters).`;
 }
 
@@ -80,6 +79,8 @@ function initHelpers() {
     helpers.addEventListener("click", (e) => {
         const button = (e.target as HTMLElement).closest("button");
         if (!button) return;
+        // The second input is hidden outside parametric mode.
+        if (!$<HTMLInputElement>("mode-parametric").checked) target = inputs()[0];
         const [open, close = ""] = snippet(button.textContent ?? "");
         const start = target.selectionStart ?? target.value.length;
         const end = target.selectionEnd ?? start;
@@ -125,10 +126,18 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         range.step = s.step === null ? "any" : String(s.step);
         range.value = String(s.value);
         value.value = plain(s.value, decimals(s));
+        range.setAttribute("aria-valuetext", value.value);
         min.value = String(s.min);
         max.value = String(s.max);
         step.value = s.step === null ? "" : String(s.step);
         for (const field of [min, max, step]) field.setCustomValidity("");
+    };
+    // The range's step grid starts at its minimum, and the browser moves the thumb onto it; so does the value.
+    const snap = () => {
+        if (s.step === null) return;
+        let k = Math.round((s.value - s.min) / s.step);
+        if (s.min + k * s.step > s.max) k--;
+        s.value = Math.max(s.min, Number((s.min + k * s.step).toFixed(9)));
     };
     // Refuses an edit that leaves the limits or the step invalid, keeping the old ones.
     const refuse = (field: HTMLInputElement, msg: string) => {
@@ -149,7 +158,10 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
     };
     value.onchange = () => {
         const v = value.valueAsNumber;
-        if (!Number.isFinite(v) || Math.abs(v) > LIMIT) return accept();
+        if (!(Math.abs(v) <= LIMIT)) {
+            sync();
+            return report(OUT_OF_RANGE);
+        }
         // A value outside the limits widens them.
         s.min = Math.min(s.min, v);
         s.max = Math.max(s.max, v);
@@ -159,28 +171,35 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
     range.oninput = () => {
         s.value = Number(range.value);
         value.value = plain(s.value, decimals(s));
+        range.setAttribute("aria-valuetext", value.value);
         changed(false);
     };
     range.onchange = () => changed(true);
     min.onchange = () => {
         const v = min.valueAsNumber;
-        if (!Number.isFinite(v) || Math.abs(v) > LIMIT || v >= s.max) return refuse(min, "Lowest must be below highest.");
+        if (!(Math.abs(v) <= LIMIT)) return refuse(min, OUT_OF_RANGE);
+        if (v >= s.max) return refuse(min, "Lowest must be below highest.");
         s.min = v;
         s.value = Math.max(s.value, v);
+        snap();
         accept();
     };
     max.onchange = () => {
         const v = max.valueAsNumber;
-        if (!Number.isFinite(v) || Math.abs(v) > LIMIT || v <= s.min) return refuse(max, "Highest must be above lowest.");
+        if (!(Math.abs(v) <= LIMIT)) return refuse(max, OUT_OF_RANGE);
+        if (v <= s.min) return refuse(max, "Highest must be above lowest.");
         s.max = v;
         s.value = Math.min(s.value, v);
+        snap();
         accept();
     };
     step.onchange = () => {
         const v = step.valueAsNumber;
         if (step.value === "") s.step = null;
-        else if (v > 0 && v <= LIMIT) s.step = v;
-        else return refuse(step, "Step must be above 0.");
+        else if (!(v > 0)) return refuse(step, "Step must be above 0.");
+        else if (v > LIMIT) return refuse(step, OUT_OF_RANGE);
+        else s.step = v;
+        snap();
         accept();
     };
     sync();
@@ -216,13 +235,20 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
         li.append(make("span", "saved-name", item.name), make("span", "saved-expr math", item.exprs.join(", ")));
         const letters = Object.keys(item.sliders);
         const insert = make("button", "", "Insert");
+        insert.setAttribute("aria-label", `Insert ${item.name}`);
         const remove = make("button", "secondary", "Delete");
         remove.setAttribute("aria-label", `Delete ${item.name}`);
         remove.onclick = () => {
             if (!confirm(`Delete “${item.name}”?`)) return;
+            const rows = [...list.querySelectorAll(".saved-item")];
+            const at = rows.indexOf(li);
             items.splice(items.indexOf(item), 1);
             persist();
             render();
+            // Focus would fall to the body; move it to the next item, or the heading when none is left.
+            const left = list.querySelectorAll(".saved-item");
+            const next = left[Math.min(at, left.length - 1)]?.querySelector("button");
+            (next ?? $("saved-heading")).focus();
         };
         const actions = make("div", "actions");
         actions.append(insert, remove);
@@ -240,7 +266,8 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
             const result = substitute(item.exprs, item.sliders);
             preview.textContent = result.ok ? `→ ${result.value.join(", ")}` : "";
             tooLong = result.ok ? "" : describe(result.error);
-            note.textContent = refused || tooLong;
+            // A live region: only rewrite it when the text changes, not on every drag step.
+            if (note.textContent !== (refused || tooLong)) note.textContent = refused || tooLong;
             insert.disabled = !result.ok;
             if (commit) persist();
         };
@@ -282,7 +309,7 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
     $("save").onclick = () => {
         saveRow.hidden = false;
         saveError.textContent = "";
-        saveName.value = exprs().join(", ").slice(0, 64);
+        saveName.value = exprs().join(", ").slice(0, MAX_NAME);
         saveName.focus();
         saveName.select();
     };

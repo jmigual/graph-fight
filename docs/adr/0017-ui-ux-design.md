@@ -346,7 +346,7 @@ input prefilled with the formula text (cut to 64 characters), plus **Save formul
 **Cancel** (Escape cancels). Saving stores the current field, mode and input text(s) and does not
 validate the formula, so unfinished work can be saved; Fire validates. Slider letters are
 detected when saving. A letter right after a digit or `.` (`2a`), or right before a `.` (`a.5`,
-`a.`), blocks the save with "Put * between a number and a slider: 2*a." Without that check,
+`a.`), blocks the save with "Put * between a number and a slider: 2*a." (naming the slider that was found). Without that check,
 substitution would silently turn `2a` with `a = 1.5` into `21.5` and `a.5` with `a = 1` into `1.5`.
 
 **Slider letters** are identifier tokens that are one ASCII letter, optionally followed by digits
