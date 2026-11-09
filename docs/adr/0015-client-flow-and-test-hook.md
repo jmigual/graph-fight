@@ -23,3 +23,21 @@ read game state.
   withdraws its listing. A connected peer that did not get a seat sees "game full".
 - **End screen.** Winner, draw (nobody left), "host left", "desynced", "version mismatch".
   The board stays visible below the message. Back to lobby leaves the room.
+- **Turn clock.** Every peer counts `turn` (applied shots and timeouts). The host alone arms a
+  60 s `setTimeout` that relays `timeout {turn}`, and re-arms it after every applied message,
+  including `leave`, so a new shooter always gets a full minute. Other peers only show a
+  countdown from the same events; it is cosmetic.
+- **Shooting.** The shooter validates with `check`/`check_param` and does not send on error. After
+  sending, Fire stays disabled until the host's broadcast is applied or a send error is reported.
+  The host's `onShotRequest` accepts a request only from the current team's peer with the
+  current `turn`.
+- **Test hook.** `window.__state()` returns `{turn, current, me, arena}` (the arena from
+  `game.arena()`, `me` our team) or `null` before the game starts. It is read-only. The e2e test
+  (`npm run e2e`) serves `dist/`, drives pages through the real Nostr lobby and Trystero WebRTC,
+  and after every turn requires `{turn, current, arena}` to be identical on all pages.
+
+## Consequences
+
+- Arena sizes cannot be tuned per game without a new build; that is intended.
+- The e2e test depends on the public Nostr relays and on WebRTC between pages on one machine,
+  so it can fail when a relay is down. It is not part of `npm test`.
