@@ -1,6 +1,6 @@
 # 13. Bump webpack to parse externref wasm
 
-Status: Accepted (2026-11-09)
+Status: Superseded by 0019 (2026-11-09)
 
 ## Context
 

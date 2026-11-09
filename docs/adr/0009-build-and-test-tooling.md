@@ -1,6 +1,6 @@
 # 9. Build and test tooling
 
-Status: Accepted (2026-11-09)
+Status: Accepted (2026-11-09); bundling superseded in part by 0019
 
 ## Context
 
@@ -10,7 +10,8 @@ WebDriver and has no wasm tests to run. `trystero` is ESM-only (`exports` only, 
 
 ## Decision
 
-- Keep webpack and the wasm-pack plugin. They work, and replacing them buys nothing.
+- Keep webpack and the wasm-pack plugin. They work, and replacing them buys nothing. (Replaced
+  by esbuild in ADR 19.)
 - `tsconfig.json`: set `"module": "ESNext"` and `"moduleResolution": "bundler"` so TS resolves
   the ESM-only `trystero`.
 - `npm test` runs `cargo test` (engine, parser, determinism) and the Node tests
@@ -27,7 +28,6 @@ WebDriver and has no wasm tests to run. `trystero` is ESM-only (`exports` only, 
   `getrandom` 0.4 with the `wasm_js` feature (needed to build for wasm32, no cfg flag), `tsify`
   0.5, `wasm-bindgen` 0.2.130. A `rand` major bump changes the arena generated for a seed;
   that is acceptable because the build-version gate (ADR 12) keeps peers on one build.
-  `typescript` stays on 6.0.x: 7.x has no JavaScript API, which `ts-loader` needs.
   `tsconfig.json` adds `ESNext.Disposable` to `lib` for the generated `Symbol.dispose`.
 - No hot-seat or local mode. Several Playwright pages in one browser are the cheaper test
   path.
