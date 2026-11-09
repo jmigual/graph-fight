@@ -1,6 +1,6 @@
 # 17. UI and UX design: graph paper, formula editor, saved formulas and templates
 
-Status: Proposed (2026-11-09)
+Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4).
 
 ## Context
 
@@ -20,6 +20,15 @@ build show:
 The user asked for a UI/UX pass, helper buttons for building formulas, saved formulas, and saved
 formulas with values chosen on Desmos-like sliders (min, max, optional step) that insert the
 formula with the values filled in.
+
+On review the user approved the proposal and added:
+- Sharp canvas on HiDPI screens, "Your turn" in the tab title, and starter templates.
+- "For the players I wanted to use emoji faces. They should look to the left or right and when
+  they shoot they look a the direction that they shot. Every team should have a different face
+  and the faces should also have a color in them. You can give them a cap with a color maybe."
+- "For polar arenas it should also be possible to choose shooting clockwise or counter clock
+  wise". The engine and protocol side (a direction flag in `shot`, θ mirrored for clockwise) is a
+  separate change. This ADR covers only the control and how it is shown.
 
 Audience: friends who like maths, and students. Primary job: get from "I see where the enemy
 is" to "I typed the curve that reaches it" within 60 seconds. The game is inspired by Graphwar,
@@ -65,6 +74,11 @@ the scheme changes (`matchMedia(...).onchange`).
 | `--obstacle` | `#3A4743` | `#7D918A` | obstacles (graphite / chalk) | 8.7 / 4.0 |
 | `--mark` | `#2347B5` | `#F5D547` | focus ring, `accent-color` (pen blue / chalk yellow) | 7.1 / 9.2 |
 | `--danger` | `#B42318` | `#FF8C7A` | error text, timer under 10 s | 5.9 / 5.9 |
+| `--face` | `#FFD54A` | `#FFD54A` | emoji head fill, same in both themes | 1.3 / 9.4 |
+| `--face-line` | `#2B2118` | `#2B2118` | head and cap outline, eyes, mouth | 14.1 on paper, 11.2 on `--face` |
+
+The yellow head is only 1.3:1 on the light paper, so the `--face-line` outline (14.1:1) marks its
+edge there. On the board the head itself is 9.4:1.
 
 **Team colours** `--team-1` .. `--team-8`. They are the Okabe-Ito hues, darkened for the pad and
 lightened for the board. Teams 1 and 2 are vermilion and blue, the pair that stays distinct
@@ -75,9 +89,11 @@ under every common colour-vision deficiency, and the XY field only ever uses tho
 | Light | `#C2410C` | `#0B63B0` | `#00775A` | `#A63D8A` | `#806200` | `#8B4A1C` | `#6B46C1` | `#4F6F00` |
 | Dark | `#FF9A5C` | `#6CB6F2` | `#3FD0A0` | `#F08BD0` | `#EBCB45` | `#E0A577` | `#B9A2F5` | `#B5D35E` |
 
-All 16 values are at least 4.6:1 on their paper, and the team numeral drawn in `--paper` on top
-of them is just as legible. Colour is never the only cue. Every team-coloured mark comes with the
-team **number**: on the player discs, in the roster, and in the status line ("Team 3").
+All 16 values are at least 4.6:1 on their paper. Colour is never the only cue. A player is
+identified by three things: cap colour, the team **number** (a tag above the cap, in the roster
+and in the status line, "Team 3") and the team's **face** (section 4). Caps are outlined in
+`--face-line`, so a cap whose colour is close to the yellow head (team 5 on the board) still has a
+visible edge.
 
 ### 3. Typography
 
@@ -109,9 +125,12 @@ Layering, back to front:
    shots go (toward the centre, so mirrored for a right-hand shooter), an arrowhead on `+y`, and
    the numbers 5, 10, 15 along the `+x` axis in 0.8 rem Atkinson. On the disc the paper is polar
    and centred on the shooter: circles every 1 unit (major every 5), rays every 30° (`π/6`). The
-   `θ = 0` ray toward the disc centre is an axis with an arrowhead and the label `θ = 0`, plus a
-   short counter-clockwise arc arrow near the shooter that shows the direction θ grows. When there
-   is no current shooter (game over), the grid is drawn in the world frame from the centre.
+   `θ = 0` ray toward the disc centre is an axis with an arrowhead and the label `θ = 0`. On the
+   shooter's own screen there is also a short arc arrow near the shooter showing which way θ grows
+   for the chosen direction (section 7), and the label `π/2` on the ray 90° that way. Both flip as
+   soon as the toggle changes. Other players do not know the direction before the shot, so their
+   screens show only the `θ = 0` axis. When there is no current shooter (game over), the grid is
+   drawn in the world frame from the centre.
 3. **Obstacles** filled with `--obstacle` ("pencil shading").
 4. **Craters** are "erased". Each crater is clipped and layers 1 and 2 are repainted inside it, so
    the grid shows through the hole.
@@ -121,20 +140,55 @@ Layering, back to front:
    `--paper` halo (`strokeText` before `fillText`). The label is truncated to 32 characters plus an
    ellipsis and clamped inside the canvas. Peer formulas only reach the canvas through
    `fillText`/`strokeText`, which render text only.
-7. **Players** at their true hit radius (no enlarging, so what you see is what can be hit).
-   - Alive: a team-colour disc with a 1.5 px `--paper` outline that separates it from adjacent
-     obstacles (team colours are only ~1.5:1 against `--obstacle`), and the team number in
-     `--paper`, Atkinson 700, when the drawn radius is at least 8 px.
-   - Current shooter: also a 2 px `--ink` ring 3 px outside, and it is the origin of the grid.
-   - Disconnected (reconnection work): hollow, a 2 px team-colour stroke with no fill and a
-     dashed ring.
-   - Dead: a team-colour cross at 60 % alpha (as today).
+7. **Players are emoji-style faces** drawn with canvas paths, not Unicode emoji (glyphs cannot
+   change gaze and look different on every OS). The head is the hit circle at its true radius;
+   nothing is enlarged, so what you see is what can be hit.
+   - **Head**: `--face` disc with a `--face-line` outline (1.5 px, 1 px when small), inside a
+     1.5 px `--paper` halo that separates it from adjacent obstacles.
+   - **Cap** in the team colour, outlined in `--face-line`: a dome over the top ~40 % of the head
+     plus a brim reaching 0.55 r beyond the head on the side the face looks to.
+   - **Team number**: a tag above the cap, Atkinson 700, 11 CSS px, team colour with a 3 px
+     `--paper` halo. It has a fixed CSS size, so it stays legible when the head is tiny.
+   - **Face per team.** All teams have the same two eyes, so gaze reads the same everywhere. The
+     mouth and brows differ:
 
-Responsive sizing: the backing size stays the ADR 15 constant (800 x 400, 600 x 600). CSS sets
-`max-width: 100%; height: auto`, and on desktop `max-height: calc(100dvh - 7rem); width: auto` so
-the disc fits in the viewport. Optional: size the backing store to `clientWidth * devicePixelRatio`
-for sharp lines and labels on HiDPI screens. That changes the ADR 15 constant, so it is listed
-separately in the plan.
+     | Team | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+     |---|---|---|---|---|---|---|---|---|
+     | Face | grin (filled D) | smirk (raised on the gaze side) | calm (flat line) | surprised (O ring) | grimace (box with teeth line) | frown (down arc) | tongue out (smile, tongue in team colour) | determined (V brows, short flat mouth) |
+
+   - **Gaze.** Each player has a world-space gaze vector. Pupils shift 0.4 of the eye radius
+     along it, and the eyes and mouth shift 0.1 r toward its horizontal side. The brim sits on
+     the side of the gaze's screen x; when |x| < 0.25 (looking straight up or down) the brim keeps
+     its previous side, initially right. Rules:
+     - Default before a player has shot: toward the centre. On XY that is the shot direction (ADR
+       4 mirrors right-hand shooters). On the disc it is the frame's `θ = 0`.
+     - While we aim on the disc, our own shooter looks toward the chosen side: the frame's `θ = 0`
+       vector turned +90° for counterclockwise or -90° for clockwise (section 7). Only our screen
+       shows this.
+     - After a shot, on every screen, the shooter looks along the shot's initial heading: from the
+       first trajectory point to the first point at least 0.5 units away (or the last point if
+       none is that far). An empty shot leaves the gaze unchanged. The gaze stays until that
+       player shoots again.
+     - Gaze is UI state in `index.ts`, keyed by team and player index. It is not in `__state` and
+       not synchronised, and it resets to the default on a new game or a reload.
+   - **States.** Current shooter: a 2 px `--ink` ring 3 px outside the halo; it is also the origin
+     of the grid. Dead: X eyes, flat mouth, head at 40 % alpha, cap kept so the team stays
+     identifiable. Disconnected (reconnection work): closed eyes (two short lines), plus a small
+     "z" at full detail.
+   - **Detail by drawn radius** (CSS px). At 9 px or more the full face is drawn: eye whites,
+     pupils, mouth, team 8's brows. Between 5 and 9 px: pupils as dots, a 1 px mouth, team 8's
+     brows as one V line, no eye whites. Typical sizes are about 12 px on desktop XY, 10 px on
+     a desktop disc and 5.4 px on a 390 px phone. On phones, cap colour and the number tag carry
+     identity and the face shapes are a bonus. Pinch zoom is not disabled.
+
+**Sharp canvas (amends ADR 15).** The backing store follows the displayed size:
+`canvas.width = round(clientWidth * devicePixelRatio)` (height likewise), and
+`ctx.setTransform(dpr, 0, 0, dpr, 0, 0)`, so `render.ts` works in CSS pixels and all sizes above
+are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed from `ARENAS`, and
+ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
+engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
+disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - 7rem) * var(--ratio)))`, so
+the whole board fits the viewport without distortion.
 
 ### 5. Motion
 
@@ -149,6 +203,8 @@ separately in the plan.
 - **Title curve.** In the lobby header, an inline SVG path runs from a team-1 dot to a team-2 dot
   and draws once on load with `stroke-dashoffset`, 900 ms.
 - **Nothing else moves.** No hover transitions, no entrance animations, no pulsing current player.
+  Gaze changes instantly. The shooter's new gaze is applied together with the final frame of the
+  trajectory, so the face turns when the pen lands.
 - `prefers-reduced-motion: reduce` turns off both animations. The CSS media query covers the
   title, and `matchMedia` in `render`'s caller draws the final frame directly.
 
@@ -201,6 +257,9 @@ status bar (sticky top), board, editor, roster, saved formulas.
 | +-------------------------------------------+ | x π e ( ) ^ √ sin cos  |
 | |  graph paper centred on the shooter       | | tan abs exp ln  More   |
 | |  +x -->   obstacles   [2] [2]             | | Formula error ...      |
+| |                                           | | (disc only:)           |
+| |                                           | | (o)↺ Counterclockwise  |
+| |                                           | | ( )↻ Clockwise         |
 | +-------------------------------------------+ | [Save]          [Fire] |
 | Team 2 fired y = x/2. Team 1 lost a player.   | Teams                  |
 |                                               | [1] Team 1, you   ●●○  |
@@ -214,7 +273,10 @@ then `#countdown` ("42 s"), then **Leave game** (reconnection work). Under it a 
 in the current team's colour (width from the same 250 ms tick). From 10 s down the number turns
 `--danger` and bold. The last-shot line (`#last-shot`, `aria-live="polite"`) is the text
 alternative for the canvas: "Team 2 fired y = x/2. Team 1 lost a player." It is computed from the
-alive flags before and after the shot.
+alive flags before and after the shot. On the disc it names the direction: "Team 2 fired
+r = θ/2, clockwise."
+
+While it is our turn the tab title is "Your turn | Graph fight!". Otherwise it is "Graph fight!".
 
 The editor stays usable on other players' turns: only Fire is disabled. Aiming while you wait is
 part of the game. On a pointer-fine device the formula input gets focus when your turn starts.
@@ -256,6 +318,23 @@ before start), it stands alone.
   "a and b are slider letters. Insert the formula from its template, or type numbers." This
   replaces the parser's "Unknown name 'a'" with a fix. A single ASCII letter other than `x`, `t`,
   `e` is never valid, so this check cannot reject a valid formula. Send errors also go to `#error`.
+- **Direction (disc only).** A `fieldset` with the legend "Direction", directly above the
+  Save/Fire row and hidden on XY. It holds two visible native radios, `name="dir"`: `#dir-ccw`
+  "Counterclockwise" (checked by default) and `#dir-cw` "Clockwise". They use the mode switch's
+  segmented style. Each label starts with an inline SVG arc arrow (`aria-hidden`,
+  `currentColor`, 1.25em) turning that way; Unicode ↺/↻ were not used because their rendering
+  varies between fonts.
+  - Meaning, in the shooter's frame (ADR 5): θ = 0 points from the shooter to the disc centre.
+    Facing the centre, counterclockwise (θ grows, the current behaviour) sweeps to the shooter's
+    **left**, and clockwise (θ mirrored by the engine) sweeps to the **right**. "Left" is the
+    `θ = 0` vector turned +90°; this is also the gaze while aiming (section 4).
+  - The toggle applies to both disc modes; the engine change decides this, so confirm it there.
+    If it only applies to one mode, hide the toggle in the other.
+  - Keyboard: native radio-group arrows. Changing it redraws only our board: the θ arc arrow, the
+    `π/2` label and our face's gaze. Nothing is sent until Fire; the shot then carries the
+    engine change's direction flag.
+  - It resets to counterclockwise when a game starts and otherwise keeps its value across turns.
+    Saved formulas do not store a direction, and Insert leaves the toggle alone.
 
 ### 8. Saved formulas and templates
 
@@ -325,6 +404,32 @@ dropped (name ≤ 64, each expr ≤ 256, `field` in `xy|disc`, `mode` in `explic
 working in memory and shows "Can't save in this browser; saved formulas last until you close the
 tab." Slider limits and values are saved on `change` (not on every `input`).
 
+**Starter templates.** When the storage key is absent (first visit), the list is seeded with the
+templates below and written to storage. Deleted starters stay deleted, because the key then
+exists. Each one parses once its values are inserted, is finite at the start of its range (so it
+is not rejected as undefined at the shooter, ADR 14), and is far below 256 characters at any
+slider value. The values are the defaults the sliders start at.
+
+| Field, mode | Name | Formula(s) | Sliders (min, max, step, value) |
+|---|---|---|---|
+| XY, function | Line | `a*x` | a: -2, 2, 0.05, 0.5 |
+| XY, function | Parabola | `a*x^2 + b*x` | a: -0.5, 0.5, 0.01, -0.05; b: -3, 3, 0.1, 1 |
+| XY, function | Wave | `a*sin(b*x)` | a: 0, 5, 0.1, 2; b: 0, 3, 0.05, 1 |
+| XY, function | Hop | `a*exp(-((x-b)/c)^2)` | a: -5, 5, 0.1, 3; b: 0, 20, 0.1, 5; c: 0.2, 5, 0.1, 1 |
+| XY, parametric | Straight line | `t`, `a*t` | a: -3, 3, 0.05, 0.5 |
+| XY, parametric | Cycloid | `t - a*sin(t)`, `a*(1 - cos(t))` | a: 0, 3, 0.1, 1.5 |
+| Disc, function | Spiral | `a*θ` | a: 0, 3, 0.1, 1 |
+| Disc, function | Circle | `a*sin(θ)` | a: 0, 10, 0.1, 5 |
+| Disc, function | Rose | `a*sin(b*θ)` | a: 0, 10, 0.1, 4; b: 1, 8, 1, 2 |
+| Disc, parametric | Straight shot | `t`, `a` | a: -1.57, 1.57, 0.01, 0 |
+| Disc, parametric | Bend | `t`, `a*t` | a: -0.3, 0.3, 0.005, 0.05 |
+
+Verification has two parts. The S5 unit test substitutes every starter at its min, default and
+max values and requires no slider letters left and at most 256 characters. A Rust test in
+`tests/offline.rs` runs `check`/`check_param` on those same substituted strings, copied in as
+literals, on a game of the matching field. The WASM build cannot run under the node test runner,
+so the strings are copied rather than shared.
+
 ### 9. No curve preview before firing
 
 Decision: **no** preview of the trajectory or of the curve's shape.
@@ -350,15 +455,12 @@ text "2 of 3 players left"); and a state word:
 
 | State | Roster | Board | Status bar |
 |---|---|---|---|
-| Current, ours | "aiming", bold | ring + grid origin | "Your turn", swatch, timer |
+| Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer |
 | Current, other | "aiming" | ring + grid origin | "Team 2 is aiming" |
-| Waiting | nothing | discs | |
-| Disconnected (reconnection work) | "disconnected", `--ink-soft` | hollow dashed discs | when current: "Team 2 is disconnected. Turn ends in 42 s." |
-| Eliminated | strikethrough + "out" | crosses | ours: editor replaced by "Your team is out. Watch the rest or leave." |
+| Waiting | nothing | face looking toward the centre or along its last shot | |
+| Disconnected (reconnection work) | "disconnected", `--ink-soft` | closed eyes | when current: "Team 2 is disconnected. Turn ends in 42 s." |
+| Eliminated | strikethrough + "out" | X eyes, faded head, cap kept | ours: editor replaced by "Your team is out. Watch the rest or leave." |
 | We lost the host link (reconnection) | | board frozen | "Reconnecting to the host…" in `--ink-soft`, Fire disabled |
-
-Optional: `document.title` becomes "Your turn — Graph fight!" while it is our turn, so a player
-in another tab notices.
 
 **Reconnection hooks** (designed here; behaviour comes from the parallel reconnection ADR, assumed
 to be 0016; to confirm). Lobby: a `#rejoin` line above Open games: "Your game “name” is still
@@ -413,6 +515,8 @@ Revised after checking the first plan against the generic look:
 - A graph-paper background on the whole page was removed. The grid appears only on the board,
   where it does a job (scale and frame).
 - A "∎" after the win headline was cut (one accessory too many).
+- Faces are drawn paths with a dark emoji-style outline, not OS emoji, so they match across
+  platforms and can turn their eyes.
 - No numbered markers, all-caps labels, middle-dot meta strings or arrow-suffixed buttons. The
   template preview's "→" is maths notation for "gives", not decoration.
 
@@ -422,6 +526,8 @@ These stay as they are: `#host-name`, `#host-field` (a `select` with values `xy`
 `#host-seats`, `#games tr` with an enabled button named "Join", `#room-players li` (exactly one per
 player), `#start`, `#game`, `#end` (via `hidden`), `#fire`, `#mode-explicit`, `#mode-parametric`
 (visible native radios), `#input-a`, `#input-b`, `#error`, `#end-message`, `window.__state`.
+New: `#dir-ccw`, `#dir-cw` (disc only, visible native radios). The default is counterclockwise,
+which is the current engine behaviour, so the existing disc scenarios need no change.
 
 Changes:
 - The host form gains no second button. The e2e clicks `#host-form button`, so either keep a
@@ -432,12 +538,17 @@ Changes:
 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access
   to Google, the fallbacks apply and nothing breaks.
-- `render.ts` grows: frame-aware grid, labels and the animation prefix. It stays pure drawing
-  with no game state.
+- `render.ts` grows: frame-aware grid, faces, labels and the animation prefix. It stays pure
+  drawing with no game state. Gaze is UI state passed in by `index.ts`.
+- ADR 15's fixed canvas sizes are replaced by a backing store that follows the displayed size
+  times `devicePixelRatio`. The engine's arena constants are unchanged.
+- On a 390 px phone the faces are about 5 px in radius. Team identity there rests on cap colour
+  and the number tag; the faces stay at the true hit radius instead of being enlarged.
+- The direction toggle depends on the separate engine and protocol change (direction flag in
+  `shot`). Until that merges, the toggle stays unwired.
 - `TEAM_COLORS` in TypeScript is replaced by CSS tokens, so colours have one source.
 - Saved formulas are per browser and per field. They do not sync and are not shared with peers.
-- Only plain formula text crosses the wire, so the protocol, the parser and the version check
-  are untouched.
+- Templates send only plain formula text, so they need no change to the protocol or the parser.
 - No curve preview. Players learn from the frame-aware grid and from watching shots. A practice
   mode stays a possible later feature.
 - Player names other than the short id remain out of scope (it would be a protocol change).
