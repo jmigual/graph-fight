@@ -46,5 +46,6 @@ clock skips the player's turn. The e2e scenario G hit this in about 3% of runs.
   Re-check it on a Trystero bump.
 - This is a workaround until Trystero ignores copies of an offer it has already answered; remove it
   then.
-- The e2e scenario G bounds the reconnect at 35 s. Q checks, with the guest's clock faked, that
-  a guest whose host vanished ends with "Host unreachable." and then stops.
+- e2e: G makes Trystero's own reconnect fail for 10 s and requires the watchdog's rejoin within
+  20 to 35 s. P checks that a guest stops after its game ends, and Q that a guest whose host
+  vanished ends with "Host unreachable." and then stops; both fake the guest's clock.

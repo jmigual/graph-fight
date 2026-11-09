@@ -82,11 +82,12 @@ the game from it.
   small messages.
 - `sessionStorage` is per tab, so a duplicated tab copies the seat; the tab that rejoins last
   holds it, and the other one's requests are ignored.
-- The e2e test covers three cases on real WebRTC. A reload rejoins with a full replay. A
-  dropped link (the test closes the guest's peer connections and waits for Trystero to open a
-  new one) keeps the seat. A restored tab with a stale seat plays in the host's next game.
-  Recovering broadcasts missed while a link is down is covered only by the
-  sequencer unit tests. Keeping a page offline longer was tried, but Trystero's reannounce
-  loop then hit the Nostr relays' rate limits and stalled for minutes.
+- The e2e test covers these cases on real WebRTC. A reload rejoins with a full replay (F). A
+  dropped link keeps the seat: the test closes the guest's peer connections, and either
+  Trystero opens a new one (O) or the guest's watchdog rejoins the room, within the bound set
+  by ADR 18 (G). A timeout relayed while the link is down reaches the guest in the replay (O).
+  A restored tab with a stale seat plays in the host's next game (H). Keeping a page offline
+  in real time for longer was tried, but Trystero's reannounce loop then hit the Nostr relays'
+  rate limits and stalled for minutes.
 - Peers are still trusted (ADR 7). The token only stops a stale tab or another visitor from
   taking a seat by accident; it is not an authentication scheme.

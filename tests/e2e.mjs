@@ -275,21 +275,30 @@ const scenarios = {
         return errors;
     },
     async G() {
-        // A guest's links drop while the tab stays open. It keeps its seat, Trystero reconnects,
-        // and the guest rejoins with a replay; then both sides play on.
+        // A guest's links drop while the tab stays open, and Trystero cannot reconnect on its own, as
+        // when it answers a stale copy of an offer and waits for its next announce (ADR 18). The
+        // guest's watchdog rejoins the room after 25 s; the guest keeps its seat, gets a replay, and
+        // both sides play on. O covers a quick reconnect.
         const { pages, errors } = await startGame(2, "disc", "G");
         const guest = pages[1];
         await assertSynced(pages, 0);
         await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const dropped = Date.now();
         const links = await guest.evaluate(() => {
             window.__pcs.forEach(window.__drop);
+            // Every connection opened in the next 10 s dies at once.
+            const until = Date.now() + 10_000;
+            const Recorded = window.RTCPeerConnection;
+            window.RTCPeerConnection = class extends Recorded {
+                constructor(...args) {
+                    super(...args);
+                    if (Date.now() < until) setTimeout(() => window.__drop(this));
+                }
+            };
             return window.__pcs.length;
         });
-        // Trystero only opens a new connection to the host once it has noticed the old one died.
-        // When the drop lands right after the link came up, a slower relay can still deliver that
-        // link's offer, and Trystero answers it, ignoring the real new offer until the next steady
-        // announce, about 67 s after the drop; the guest's watchdog rejoins the room sooner (ADR 18).
         await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: RECONNECT_MS });
+        assert.ok(Date.now() - dropped >= 20_000, "the watchdog's rejoin brought the link back");
         // Back before the host's 60 s turn clock runs out; O covers a turn passed during the drop.
         await takeTurn(pages, 0, ["2"]);
         await takeTurn(pages, 1, ["t", "0"]);
@@ -555,8 +564,8 @@ const scenarios = {
         return errors;
     },
     async O() {
-        // As G, but the host's turn clock runs out while the guest's links are down: the replay
-        // brings the timeout the guest missed, and both sides play on from there.
+        // A guest's links drop and the host's turn clock runs out before Trystero reconnects: the
+        // replay brings the timeout the guest missed, and both sides play on from there.
         const { pages, errors } = await startGame(2, "disc", "O", { fakeHostClock: true });
         const guest = pages[1];
         await assertSynced(pages, 0);
@@ -573,6 +582,18 @@ const scenarios = {
         await assertSynced(pages, turn);
         await takeTurn(pages, turn, ["2"]);
         await takeTurn(pages, turn + 1, ["t", "0"]);
+        return errors;
+    },
+    async P() {
+        // After its game ends, a guest leaves the room: it does not keep rejoining a host that is gone (ADR 18).
+        const { pages, errors } = await startGame(2, "disc", "P", { fakeGuestClock: true });
+        const [host, guest] = pages;
+        await assertSynced(pages, 0);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await host.close({ runBeforeUnload: true });
+        await guest.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        await guest.waitForTimeout(2000); // real time for the host's links to close
+        await assertQuiet(guest, "00:30");
         return errors;
     },
     async Q() {
