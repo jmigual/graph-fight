@@ -2,6 +2,7 @@
 
 Status: Accepted (2026-11-09). Replaces the earlier PeerJS-broker idea, which was never
 implemented.
+Superseded in part by 0012: the lobby is plain Nostr, not a Trystero room.
 
 ## Context
 
