@@ -38,6 +38,29 @@ Turn authority (replaces the shooter-broadcast rule of ADR 7):
   most 64, `start.peers` at most `MAX_PLAYERS` (8).
 - Send failures are surfaced through `onSendError` instead of being swallowed.
 
+Lobby (replaces the lobby part of ADR 6; Trystero stays for game rooms only). A Trystero lobby
+room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby is plain Nostr:
+- Announcements are Nostr events over WebSocket to four hard-coded relays (relay.primal.net,
+  relay.snort.social, offchain.pub, nostr-pub.wellorder.net) that were checked to accept and
+  forward ephemeral events. Trystero's own default relay list is alphabetical, mostly hobby
+  relays, and changes between releases, so it is not used. nos.lol and relay.damus.io did not
+  forward the probe event.
+- The event is built and signed with Trystero's exported `createEvent(topic, content)` and the
+  filter comes from its exported `subscribe(subId, topic)`: topic `graph-fight:lobby`, an
+  ephemeral kind in 20000-29999 (NIP-01), so relays forward it to live subscribers and store
+  nothing. No new dependency is needed (`@noble/secp256k1` was considered and not required).
+  A trystero minor bump must re-check that these two exports keep this behaviour and that the
+  relays still forward.
+- A host republishes every 3 s, on every `announce` call, and when a relay socket opens (to
+  that socket only). `announce(null)` and `leave()` publish `{withdraw: true}`. A visitor sees
+  games within 3 s; there is no direct send to new visitors, because there is no mesh.
+- Entries are keyed by event pubkey (a sender can only overwrite its own), expire 10 s after
+  the last refresh by local arrival time, and the list is capped at 100 entries (new keys are
+  refused when full, existing ones still refresh). There is no lobby `onPeerLeave`, since the
+  lobby is not a room. Relay frames over 4 KB are dropped; names and ids are capped at 64.
+- Signatures are not re-verified on receipt; content is shape-checked and untrusted.
+- Dead relays are retried with a doubling delay (5 s up to 60 s); `leave()` stops reconnecting.
+
 ## Consequences
 
 - A hung shooter stalls only until the host's 60 s clock relays `timeout`; a host leaving
