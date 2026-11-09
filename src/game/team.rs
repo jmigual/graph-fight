@@ -48,9 +48,12 @@ impl Team {
     }
 
     #[cfg(test)]
-    pub fn from_players(players: Vec<Player>) -> Team {
+    pub fn from_positions(positions: &[(f64, f64)], radius: f64) -> Team {
         Team {
-            players,
+            players: positions
+                .iter()
+                .map(|&p| Player::new(p.into(), radius))
+                .collect(),
             current_player: 0,
         }
     }
@@ -87,11 +90,9 @@ impl Team {
         self.current_player
     }
 
-    /// Kills every player. The turn index is reset so the result does not depend on how far the
-    /// team had rotated.
+    /// Kills every player.
     pub fn eliminate(&mut self) {
         self.players.iter_mut().for_each(Player::kill);
-        self.current_player = 0;
     }
 
     /// Moves to the next alive player, returns `false` if no player is alive

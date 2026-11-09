@@ -194,7 +194,16 @@ impl Arena {
         &self.obstacles
     }
 
+    #[cfg(test)]
+    pub fn alive(&self) -> Vec<Vec<bool>> {
+        self.teams
+            .iter()
+            .map(|t| t.players().iter().map(|p| p.alive()).collect())
+            .collect()
+    }
+
     /// Craters left by earlier shots.
+    #[cfg(test)]
     pub fn holes(&self) -> &[Circle] {
         &self.holes
     }

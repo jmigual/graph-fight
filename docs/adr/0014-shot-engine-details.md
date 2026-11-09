@@ -15,16 +15,23 @@ ADRs 4, 5, 7 and 8 fix the shot model and the API but leave a few engine details
   the next point is within 0.05. The first point is the shooter's own position.
 - **Hit test.** A point hits a player when its distance to the player centre is at most the
   player radius. The shooter is never hit by its own shot.
-- **Parse errors.** `fire` and `fire_param` parse before touching any state and return
-  `Err(ParseError)`, converted to a string at the WASM boundary. The turn is not consumed.
+- **Errors.** `fire` and `fire_param` parse and validate before touching any state and return
+  `Err(FireError)`, converted to a string at the WASM boundary. The turn is not consumed.
+  `FireError` is a parse error, or `UndefinedAtShooter` when the curve is not finite at the
+  start of its range (`1/x`, `ln(x)`, `sin(x)/x`), since it cannot be anchored at the shooter.
+- **`check` / `check_param`** run the same path as `fire` / `fire_param` on a copy of the
+  game, so the shooter's UI can reject a bad formula before sending it. A remote shot that
+  fails is applied as `skip_turn`.
+- **Teams** must have at least one player (`GameError::EmptyTeam`); otherwise a team could never
+  take its turn.
 - **Turn rotation.** After a shot or `skip_turn` the shooting team rotates to its next living
   player, then the turn goes to the next team (cyclic by index) with a living player. If that
   team's current player is dead it rotates to a living one first. Only team index and player
   index order matter, so every peer computes the same rotation.
-- **Elimination.** `eliminate_team` kills all players of the team and resets its player index
-  to 0, so the arena is identical whether elimination comes before or after a shot by another
-  team. If the eliminated team was current, the turn passes to the next living team without
-  rotating players. An unknown index is ignored.
+- **Elimination.** `eliminate_team` kills all players of the team. Eliminations are applied
+  in the order the host relays them (ADR 12), so they need not commute with shots. If the
+  eliminated team was current, the turn passes to the next living team without rotating
+  players. An unknown index is ignored.
 - **No living shooter.** If the current team has no living player (everyone eliminated),
   `fire`, `fire_param` and `skip_turn` change nothing and the shot is empty.
 - **`winner()`** is `undefined` when no team has living players, as well as while several do.
@@ -32,5 +39,3 @@ ADRs 4, 5, 7 and 8 fix the shot model and the API but leave a few engine details
 ## Consequences
 
 - The UI must stop calling `fire` once `winner()` is defined or every team is gone.
-- Eliminating the shooting team before its own shot arrives drops that shot (ADR 7: sender is
-  no longer the current team); this is the one case where elimination does not commute.

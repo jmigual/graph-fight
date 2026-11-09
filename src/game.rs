@@ -8,14 +8,11 @@ use std::fmt;
 use rand::{rngs::SmallRng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    formula::{Formula, ParseError},
-    utils,
-};
+use crate::{formula::Formula, utils};
 
 pub use self::arena::Arena;
 pub use self::player::Player;
-pub use self::shot::Shot;
+pub use self::shot::{FireError, Shot};
 pub use self::team::Team;
 
 const MAX_ITERS: usize = 100;
@@ -40,6 +37,8 @@ fn is_positive(x: f64) -> bool {
 pub enum GameError {
     /// Fewer than two teams.
     TooFewTeams,
+    /// A team without players could never take its turn.
+    EmptyTeam,
     /// `Field::Xy` only supports exactly two teams.
     XyNeedsTwoTeams,
     /// `x_max` or `y_max` is not a finite positive number.
@@ -60,6 +59,7 @@ impl fmt::Display for GameError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             GameError::TooFewTeams => "There must be at least two teams",
+            GameError::EmptyTeam => "Every team needs at least one player",
             GameError::XyNeedsTwoTeams => "The XY field requires exactly two teams",
             GameError::NonPositiveExtent => "x_max and y_max must have a positive value",
             GameError::DiscNotSquare => "The disc field requires x_max == y_max",
@@ -77,8 +77,8 @@ impl fmt::Display for GameError {
     }
 }
 
-impl From<ParseError> for JsValue {
-    fn from(e: ParseError) -> JsValue {
+impl From<FireError> for JsValue {
+    fn from(e: FireError) -> JsValue {
         JsValue::from_str(&e.to_string())
     }
 }
@@ -135,6 +135,10 @@ impl Game {
 
         if players_per_team.len() < 2 {
             return Err(GameError::TooFewTeams);
+        }
+
+        if players_per_team.contains(&0) {
+            return Err(GameError::EmptyTeam);
         }
 
         if field == Field::Xy && players_per_team.len() != 2 {
@@ -203,21 +207,31 @@ impl Game {
     }
 
     /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc.
-    /// On a parse error nothing changes and the turn is not consumed.
-    pub fn fire(&mut self, expr: &str) -> Result<Shot, ParseError> {
+    /// On an error nothing changes and the turn is not consumed.
+    pub fn fire(&mut self, expr: &str) -> Result<Shot, FireError> {
         let var = match self.arena.field() {
             Field::Xy => "x",
             Field::Disc => "θ",
         };
         let f = Formula::parse(expr, var)?;
-        Ok(self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f)))
+        self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f))
     }
 
     /// Fires `a`, `b` from the current player: `x(t), y(t)` on the XY field, `r(t), θ(t)` on the
-    /// disc. On a parse error nothing changes and the turn is not consumed.
-    pub fn fire_param(&mut self, a: &str, b: &str) -> Result<Shot, ParseError> {
+    /// disc. On an error nothing changes and the turn is not consumed.
+    pub fn fire_param(&mut self, a: &str, b: &str) -> Result<Shot, FireError> {
         let (a, b) = (Formula::parse(a, "t")?, Formula::parse(b, "t")?);
-        Ok(self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b)))
+        self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b))
+    }
+
+    /// Fails exactly when `fire(expr)` would, without changing the game.
+    pub fn check(&self, expr: &str) -> Result<(), FireError> {
+        self.clone().fire(expr).map(|_| ())
+    }
+
+    /// Fails exactly when `fire_param(a, b)` would, without changing the game.
+    pub fn check_param(&self, a: &str, b: &str) -> Result<(), FireError> {
+        self.clone().fire_param(a, b).map(|_| ())
     }
 
     /// Passes the turn without shooting (timeout, or a remote formula that failed to parse).
@@ -287,17 +301,20 @@ impl Game {
         Err(GameError::NoValidLayout)
     }
 
-    /// Runs `trace` for the current player and ends the turn. With no living player to shoot
-    /// (everyone eliminated) the shot is empty and nothing changes.
-    fn shoot(&mut self, trace: impl FnOnce(&mut Arena, (usize, usize)) -> Shot) -> Shot {
+    /// Runs `trace` for the current player and ends the turn unless it fails. With no living
+    /// player to shoot (everyone eliminated) the shot is empty and nothing changes.
+    fn shoot(
+        &mut self,
+        trace: impl FnOnce(&mut Arena, (usize, usize)) -> Result<Shot, FireError>,
+    ) -> Result<Shot, FireError> {
         let team = &self.arena.get_teams()[self.current_team];
         if team.get_current_player().is_none() {
-            return Shot { points: Vec::new() };
+            return Ok(Shot { points: Vec::new() });
         }
         let shooter = (self.current_team, team.current_index());
-        let shot = trace(&mut self.arena, shooter);
+        let shot = trace(&mut self.arena, shooter)?;
         self.end_turn();
-        shot
+        Ok(shot)
     }
 
     /// The shooting team rotates to its next living player, then the turn passes to the next team
@@ -333,6 +350,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::formula::ParseError;
 
     #[test]
     fn test_build() {
@@ -470,10 +488,7 @@ mod tests {
 
     /// Game on a hand-made arena; `teams` lists the player positions of each team.
     fn game_with(field: Field, extent: (f64, f64), teams: &[&[(f64, f64)]]) -> Game {
-        let teams = teams
-            .iter()
-            .map(|t| Team::from_players(t.iter().map(|&p| Player::new(p.into(), 0.3)).collect()))
-            .collect();
+        let teams = teams.iter().map(|t| Team::from_positions(t, 0.3)).collect();
         Game {
             arena: Arena::from_parts(field, extent.0, extent.1, vec![], teams),
             ops: Options {
@@ -497,22 +512,17 @@ mod tests {
         )
     }
 
-    fn alive(game: &Game) -> Vec<Vec<bool>> {
-        game.arena
-            .get_teams()
-            .iter()
-            .map(|t| t.players().iter().map(|p| p.alive()).collect())
-            .collect()
-    }
-
     #[test]
     fn parse_error_leaves_state_unchanged() {
         let mut game = three_teams();
         let before = game.js_arena();
-        assert_eq!(game.fire("1+").err(), Some(ParseError::UnexpectedEnd));
+        assert_eq!(
+            game.fire("1+").err(),
+            Some(FireError::Parse(ParseError::UnexpectedEnd))
+        );
         assert_eq!(
             game.fire_param("t", "foo(t)").err(),
-            Some(ParseError::UnknownName("foo".into()))
+            Some(FireError::Parse(ParseError::UnknownName("foo".into())))
         );
         // x is not the disc variable
         assert!(game.fire("x").is_err());
@@ -526,7 +536,7 @@ mod tests {
         let shot = game.fire_param("t", "0").unwrap();
         assert!(!shot.points.is_empty());
         assert_eq!(
-            alive(&game),
+            game.arena.alive(),
             vec![vec![true], vec![false, true], vec![true]]
         );
         assert_eq!(game.get_current_team_idx(), 1);
@@ -573,23 +583,6 @@ mod tests {
     }
 
     #[test]
-    fn eliminate_team_commutes_with_fire() {
-        for gone in [1, 2] {
-            let mut late = three_teams();
-            late.fire_param("t", "0").unwrap();
-            late.eliminate_team(gone);
-
-            let mut early = three_teams();
-            early.eliminate_team(gone);
-            early.fire_param("t", "0").unwrap();
-
-            assert!(late.js_arena() == early.js_arena());
-            assert_eq!(late.get_current_team_idx(), early.get_current_team_idx());
-            assert_ne!(early.get_current_team_idx(), gone);
-        }
-    }
-
-    #[test]
     fn eliminating_the_current_team_passes_the_turn() {
         let mut game = three_teams();
         game.eliminate_team(0);
@@ -608,5 +601,61 @@ mod tests {
         assert_eq!(game.winner(), Some(0));
         game.eliminate_team(0);
         assert_eq!(game.winner(), None);
+    }
+
+    #[test]
+    fn undefined_start_is_an_error_and_changes_nothing() {
+        let mut game = three_teams();
+        let before = game.js_arena();
+        for (a, b) in [("1/t", "0"), ("t", "ln(t)")] {
+            assert_eq!(
+                game.fire_param(a, b).err(),
+                Some(FireError::UndefinedAtShooter)
+            );
+            assert_eq!(game.check_param(a, b), Err(FireError::UndefinedAtShooter));
+        }
+        for expr in ["1/theta", "ln(theta)"] {
+            assert_eq!(game.fire(expr).err(), Some(FireError::UndefinedAtShooter));
+            assert_eq!(game.check(expr), Err(FireError::UndefinedAtShooter));
+        }
+        let xy = game_with(Field::Xy, (10., 5.), &[&[(-8., 0.)], &[(8., 0.)]]);
+        for expr in ["1/x", "x^-1", "sin(x)/x"] {
+            assert_eq!(
+                xy.clone().fire(expr).err(),
+                Some(FireError::UndefinedAtShooter)
+            );
+            assert_eq!(xy.check(expr), Err(FireError::UndefinedAtShooter));
+        }
+        assert!(game.js_arena() == before);
+        assert_eq!(game.get_current_team_idx(), 0);
+    }
+
+    #[test]
+    fn check_mirrors_fire_without_changing_state() {
+        let game = three_teams();
+        let before = game.js_arena();
+        assert_eq!(
+            game.check("1+"),
+            Err(FireError::Parse(ParseError::UnexpectedEnd))
+        );
+        assert_eq!(game.check("theta"), Ok(()));
+        assert_eq!(game.check_param("t", "0"), Ok(()));
+        assert!(game.check_param("t", "").is_err());
+        assert!(game.js_arena() == before);
+        assert_eq!(game.get_current_team_idx(), 0);
+    }
+
+    #[test]
+    fn a_kill_by_fire_can_decide_the_winner() {
+        let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(-5., 0.)]]);
+        assert_eq!(game.winner(), None);
+        game.fire_param("t", "0").unwrap();
+        assert_eq!(game.winner(), Some(0));
+    }
+
+    #[test]
+    fn empty_teams_are_rejected() {
+        let game = Game::new(Field::Disc, 10.0, 10.0, 0, 0.2, 1.0, &[2, 0, 2], 0.3, 0);
+        assert_eq!(game.err(), Some(GameError::EmptyTeam));
     }
 }
