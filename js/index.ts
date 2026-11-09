@@ -105,6 +105,7 @@ function enterRoom(id: string, seat?: Seat) {
     connected = [];
     ended = false;
     $("error").textContent = "";
+    $("room-error").textContent = "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
@@ -160,7 +161,7 @@ $("start").onclick = () => {
         // Delivered to our own onMessage, which starts the game.
         room.relay({ type: "start", seed, field: offer.field, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
     } catch (err) {
-        $("error").textContent = `Could not start: ${err}`;
+        $("room-error").textContent = `Could not start: ${err}`;
         return;
     }
     offer = null;
@@ -176,10 +177,12 @@ function toLobby() {
     if (offer) lobby.announce(null);
     offer = null;
     $("error").textContent = "";
+    $("room-error").textContent = "";
     show("lobby");
 }
 $("leave").onclick = $("back").onclick = toLobby;
 $("quit").onclick = () => {
+    if (!confirm("Leave the game? Your team will be out.")) return;
     room?.quit();
     toLobby();
 };
@@ -207,6 +210,7 @@ function startGame(msg: Start) {
     const canvas = $<HTMLCanvasElement>("arena");
     canvas.width = a.canvasWidth;
     canvas.height = (a.canvasWidth * a.y) / a.x;
+    $("game").dataset.field = msg.field;
     play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: [], pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
