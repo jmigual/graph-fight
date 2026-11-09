@@ -29,7 +29,8 @@ clock skips the player's turn. The e2e scenario G hit this in about 3% of runs.
   seat never run it.
 - A guest leaves the room when its game ends, so a gone host is not rejoined forever. The host
   stays, so its last broadcast is not cut off.
-- Events from a room the page has left or replaced are dropped.
+- Events from a room the page has left or replaced are dropped. A rejoined room reports the peers
+  already connected again, so the waiting-room list ignores a peer it already has.
 
 ## Consequences
 

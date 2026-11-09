@@ -152,7 +152,8 @@ function enterRoom(id: string, seat?: Seat) {
             sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
         },
         onPeerJoin(peer) {
-            connected.push(peer);
+            // A rejoined room (ADR 18) reports peers we already had.
+            if (!connected.includes(peer)) connected.push(peer);
             roomChanged();
         },
         onPeerLeave(peer) {
