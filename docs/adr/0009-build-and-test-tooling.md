@@ -13,14 +13,22 @@ WebDriver and has no wasm tests to run. `trystero` is ESM-only (`exports` only, 
 - Keep webpack and the wasm-pack plugin. They work, and replacing them buys nothing.
 - `tsconfig.json`: set `"module": "ESNext"` and `"moduleResolution": "bundler"` so TS resolves
   the ESM-only `trystero`.
-- `npm test` runs `cargo test`, covering the engine, parser, and determinism.
-  `npm run e2e` runs `npm run build && node tests/e2e.js`: a Node `http` static server
+- `npm test` runs `cargo test` (engine, parser, determinism) and the Node tests
+  `tests/net.test.mjs`, `tests/library.test.mjs` and `tests/render.test.mjs`
+  (`node --experimental-strip-types`).
+  `npm run e2e` runs `node tests/e2e.mjs` against `dist/` (build first): a Node `http` static server
   (stdlib, with the `application/wasm` MIME type) plus Playwright Chromium. It opens several
   pages that play real P2P matches through Trystero and compares `canvas.toDataURL()` across
   pages after each turn. That works because trajectories are drawn without animation.
 - Add `playwright` as a devDependency pinned to the version that matches the installed
   Chromium (revision 1252 in `~/.cache/ms-playwright`). It does not currently resolve from
   the repo.
+- Toolchain: Rust edition 2024 (rustc 1.99); crates at their latest majors, e.g. `rand` 0.10,
+  `getrandom` 0.4 with the `wasm_js` feature (needed to build for wasm32, no cfg flag), `tsify`
+  0.5, `wasm-bindgen` 0.2.130. A `rand` major bump changes the arena generated for a seed;
+  that is acceptable because the build-version gate (ADR 12) keeps peers on one build.
+  `typescript` stays on 6.0.x: 7.x has no JavaScript API, which `ts-loader` needs.
+  `tsconfig.json` adds `ESNext.Disposable` to `lib` for the generated `Symbol.dispose`.
 - No hot-seat or local mode. Several Playwright pages in one browser are the cheaper test
   path.
 
