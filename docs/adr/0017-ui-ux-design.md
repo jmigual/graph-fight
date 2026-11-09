@@ -430,9 +430,10 @@ slider value. The values are the defaults the sliders start at.
 
 Verification has two parts. The S5 unit test substitutes every starter at its min, default and
 max values and requires no slider letters left and at most 256 characters. A Rust test in
-`tests/offline.rs` runs `check`/`check_param` on those same substituted strings, copied in as
-literals, on a game of the matching field. The WASM build cannot run under the node test runner,
-so the strings are copied rather than shared.
+`tests/starters.rs` substitutes the same values and runs `Formula::parse` with the mode's variable
+(`x`, `θ` or `t`), requiring a finite value at 0. The WASM build cannot run under the node test
+runner, so the Rust test does not call `check`/`check_param`. The starters are shared, not copied:
+both tests read `js/starters.json`, and Rust substitutes with its own small tokenizer.
 
 ### 9. No curve preview before firing
 
