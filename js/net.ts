@@ -83,40 +83,50 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12). A payload from the host must be a
- * sequenced broadcast; the host additionally takes a bare `shot` from other peers as a
- * request; everything else is dropped.
+ * Decides what to do with a game-room payload (ADR 12, 16). A payload from the host must be a
+ * sequenced broadcast or our private seat token `{seat}`; the host additionally takes a bare
+ * `shot`, `rejoin {token}` or `quit` from other peers as a request; everything else is dropped.
  */
 export function routeIncoming(
     hostId: string,
     self: string,
     from: string,
     data: unknown,
-): { kind: "relayed"; seq: number; msg: GameMsg } | { kind: "request"; shot: Shot } | undefined {
+):
+    | { kind: "relayed"; seq: number; msg: GameMsg }
+    | { kind: "seat"; token: string }
+    | { kind: "request"; shot: Shot }
+    | { kind: "rejoin"; token: string }
+    | { kind: "quit" }
+    | undefined {
     if (from === hostId) {
+        if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
     }
-    const msg = self === hostId ? parseGameMsg(data) : undefined;
+    if (self !== hostId || !isObj(data)) return undefined;
+    if (data.type === "rejoin") return isText(data.token) ? { kind: "rejoin", token: data.token } : undefined;
+    if (data.type === "quit") return { kind: "quit" };
+    const msg = parseGameMsg(data);
     return msg?.type === "shot" ? { kind: "request", shot: msg } : undefined;
 }
 
 /**
  * Applies the host's broadcasts in order. Everything is dropped until `start` (seq 0) arrives,
  * so a late joiner never sees a game it missed the beginning of. After that, a repeat is
- * dropped and a gap (a message we never got) calls `onDesync`, since our state can no
- * longer match the others'.
+ * dropped and a gap (a message we never got) calls `onGap` once, since our state can no longer
+ * match the others'; everything is then dropped until the next seq 0. A `start` at seq 0
+ * always begins a fresh run: it opens the host's replay (ADR 16).
  */
-export function sequencer(deliver: (msg: GameMsg) => void, onDesync: () => void) {
+export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
     let next: number | null = null;
     return function accept(seq: number, msg: GameMsg) {
-        if (next === null) {
-            if (seq !== 0 || msg.type !== "start") return;
-        } else if (seq < next) {
-            return;
-        } else if (seq > next) {
-            onDesync();
+        if (seq === 0 && msg.type === "start") next = 0;
+        if (next === null || seq < next) return;
+        if (seq > next) {
+            next = null;
+            onGap();
             return;
         }
         next = seq + 1;
@@ -257,15 +267,17 @@ export function versionGate(version: string, deliver: (msg: GameMsg) => void, on
 }
 
 /**
- * Numbers the host's outgoing messages (ADR 12). `stamp` throws, without consuming a number,
- * for a message the peers would drop (invalid or over a cap, which would strand them), for a
- * second `start` (peers would keep the first game; a rematch needs a new room) and for
- * anything before `start`.
+ * Numbers the host's outgoing messages (ADR 12) and keeps them in `log` for replays (ADR 16).
+ * `stamp` throws, without consuming a number, for a message the peers would drop (invalid or
+ * over a cap, which would strand them), for a second `start` (peers would keep the first game;
+ * a rematch needs a new room) and for anything before `start`.
  */
 export function outbox() {
     let seq = -1;
+    const log: Relayed[] = [];
     return {
         started: () => seq >= 0,
+        log: log as readonly Relayed[],
         stamp(msg: GameMsg): Relayed {
             if (!parseGameMsg(msg)) throw new Error("invalid message");
             if (msg.type === "start") {
@@ -276,31 +288,65 @@ export function outbox() {
             } else {
                 seq++;
             }
+            log.push({ seq, msg });
             return { seq, msg };
         },
+    };
+}
+
+/** A private seat token: 128 random bits as hex. */
+const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/**
+ * Host only (ADR 16): a private token for each seat in `peers` (`start.peers`) and the peer
+ * currently holding each seat. The host's own seat, 0, has no token (`""`), so nobody can
+ * claim it.
+ */
+export function seatBook(peers: string[]) {
+    const tokens = peers.map((_, i) => (i ? newToken() : ""));
+    const holders = [...peers];
+    return {
+        tokens: tokens as readonly string[],
+        /** Moves the seat whose token is exactly `token` to `peer`; false for an unknown token. */
+        rejoin(token: string, peer: string): boolean {
+            const i = tokens.indexOf(token);
+            if (i > 0) holders[i] = peer;
+            return i > 0;
+        },
+        /** The seat id (its entry in `peers`) that `peer` holds now, if any. */
+        seatOf(peer: string): string | undefined {
+            const i = holders.indexOf(peer);
+            return i < 0 ? undefined : peers[i];
+        },
+        /** Seat ids, other than the host's, whose holder is not `connected`. */
+        absent: (connected: (peer: string) => boolean) => peers.filter((_, i) => i > 0 && !connected(holders[i])),
     };
 }
 
 export type GameHandlers = {
     /**
      * A broadcast from the host, in the order the host sent it. On the host this also fires
-     * for its own `relay` calls, so every peer applies the same sequence.
+     * for its own `relay` calls, so every peer applies the same sequence. A `start` after the
+     * first one opens a replay of the whole game (ADR 16): discard the game and rebuild it.
      */
     onMessage(msg: GameMsg): void;
     /**
      * Host only: a shooter asks for its `shot` to be applied (also called for the host's own
-     * `shoot`). The handler checks `from` is the current shooter and `shot.turn` is the
-     * current turn, then calls `relay(shot)`; otherwise it ignores the request.
+     * `shoot`). `from` is the seat id (its `start.peers` entry) the sender holds now. The
+     * handler checks `from` is the current shooter and `shot.turn` is the current turn, then
+     * calls `relay(shot)`; otherwise it ignores the request.
      */
     onShotRequest?(from: string, shot: Shot): void;
     /** The host's `start` came from a different build; we left the room, tell the user to reload. */
     onVersionMismatch(hostVersion: string): void;
-    /** We missed a broadcast, so we left the room: the game cannot continue for us. */
+    /** We missed a broadcast and hold no seat token to ask for a replay, so we left the room. */
     onDesync(): void;
     /** A send failed; the message may not have reached everyone. */
     onSendError(err: unknown): void;
+    /** The host gave us our private seat token: keep it (never log or share it) to rejoin after a reload. */
+    onSeat?(token: string): void;
     onPeerJoin?(peer: string): void;
-    /** Connectivity only. The host learns of departures through the relayed `leave`. */
+    /** Connectivity only: a seated peer keeps its seat (ADR 16). Only a `quit` is relayed as `leave`. */
     onPeerLeave?(peer: string): void;
 };
 
@@ -314,20 +360,35 @@ export type Game = {
      * gets seq 0 and stays stuck. Throws on an invalid message instead of sending it.
      */
     relay(msg: GameMsg): void;
+    /**
+     * Give up our seat for good: the host relays `leave` for it. The host's own quit tells
+     * everyone the game is over. Does nothing before `start`, or while our link to the host
+     * is down (the seat then stays held).
+     */
+    quit(): void;
+    /**
+     * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
+     * not connected; on another peer, the host while its link is down.
+     */
+    absent(): string[];
     leave(): void;
 };
 
 /**
  * Join room `game-<hostId>`; the host joins with its own `selfId`. Peers accept messages only
- * from the host. On the host, a peer leaving after `start` is relayed as a `leave` message.
- * Peer ids are announced by the peers themselves during signalling, so a modified client can
- * claim any id; that is accepted under ADR 7's trusted-peers model.
+ * from the host. A seated peer whose link drops keeps its seat: with its seat `token` (passed
+ * here after a reload) it asks the host for a replay of the game when the host link comes
+ * back or when it sees a gap (ADR 16). Peer ids are announced by the peers themselves during
+ * signalling, so a modified client can claim any id; that is accepted under ADR 7's
+ * trusted-peers model.
  */
-export function joinGame(hostId: string, handlers: GameHandlers): Game {
+export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
     const room = joinRoom({ appId: APP_ID }, `game-${hostId}`);
     const action = room.makeAction<JsonValue>("msg");
     const isHost = hostId === selfId;
     let left = false;
+    let seats: ReturnType<typeof seatBook> | undefined;
+    const hostConnected = () => hostId in room.getPeers();
 
     function leave() {
         left = true;
@@ -352,7 +413,32 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
     function relay(msg: GameMsg) {
         if (!isHost) throw new Error("only the host relays");
         action.send(out.stamp(msg)).catch(handlers.onSendError);
+        if (msg.type === "start") {
+            const book = (seats = seatBook(msg.peers));
+            // Each token goes to its own seat only, never broadcast.
+            msg.peers.forEach((peer, i) => i > 0 && action.send({ seat: book.tokens[i] }, { target: peer }).catch(handlers.onSendError));
+        }
         deliverLocal(msg);
+    }
+
+    // Peers with a replay in flight, mapped to whether another one was asked for meanwhile.
+    // Under backpressure Trystero queues the entries and a newer broadcast can overtake them;
+    // the peer then sees a gap and asks again, which runs once this replay has drained.
+    const replays = new Map<string, boolean>();
+    function replay(peer: string) {
+        if (replays.has(peer)) return void replays.set(peer, true);
+        replays.set(peer, false);
+        // A lost entry only costs the peer another rejoin, so it does not touch the host's UI.
+        void Promise.allSettled(out.log.map((entry) => action.send(entry, { target: peer }))).then((results) => {
+            results.forEach((r) => r.status === "rejected" && console.warn("replay send failed", r.reason));
+            const again = replays.get(peer);
+            replays.delete(peer);
+            if (again) replay(peer);
+        });
+    }
+
+    function rejoin(seatToken: string) {
+        action.send({ type: "rejoin", token: seatToken }, { target: hostId }).catch(handlers.onSendError);
     }
 
     const accept = sequencer(
@@ -361,6 +447,7 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
             handlers.onVersionMismatch(hostVersion);
         }),
         () => {
+            if (token) return rejoin(token);
             leave();
             handlers.onDesync();
         },
@@ -369,23 +456,52 @@ export function joinGame(hostId: string, handlers: GameHandlers): Game {
     action.onMessage = (data, { peerId }) => {
         if (left) return;
         const routed = routeIncoming(hostId, selfId, peerId, data);
-        if (routed?.kind === "relayed") accept(routed.seq, routed.msg);
-        else if (routed?.kind === "request") handlers.onShotRequest?.(peerId, routed.shot);
+        if (routed?.kind === "relayed") {
+            accept(routed.seq, routed.msg);
+        } else if (routed?.kind === "seat") {
+            token = routed.token;
+            handlers.onSeat?.(token);
+        } else if (routed && seats) {
+            // Requests count only from the peer holding a seat now, and act for that seat.
+            if (routed.kind === "rejoin") {
+                if (seats.rejoin(routed.token, peerId)) replay(peerId);
+                return;
+            }
+            const seat = seats.seatOf(peerId);
+            if (seat && routed.kind === "request") handlers.onShotRequest?.(seat, routed.shot);
+            else if (seat && routed.kind === "quit") relay({ type: "leave", peer: seat });
+        }
     };
-    room.onPeerJoin = (id) => handlers.onPeerJoin?.(id);
+    room.onPeerJoin = (id) => {
+        if (id === hostId && token) rejoin(token);
+        // A seated peer back under the same id may have missed the last broadcasts, which it
+        // would otherwise only notice at the next one (ADR 16).
+        else if (seats?.seatOf(id)) replay(id);
+        handlers.onPeerJoin?.(id);
+    };
     room.onPeerLeave = (id) => {
-        if (left) return; // room.leave() takes a moment; don't relay or report after leaving
-        if (isHost && out.started()) relay({ type: "leave", peer: id });
+        if (left) return; // room.leave() takes a moment; don't report after leaving
         handlers.onPeerLeave?.(id);
     };
 
     return {
         shoot(shot) {
             if (isHost) handlers.onShotRequest?.(selfId, shot);
-            else if (hostId in room.getPeers()) action.send(shot, { target: hostId }).catch(handlers.onSendError);
+            else if (hostConnected()) action.send(shot, { target: hostId }).catch(handlers.onSendError);
             else handlers.onSendError(new Error("not connected to the host")); // Trystero would only warn
         },
         relay,
+        quit() {
+            if (isHost) {
+                if (out.started()) relay({ type: "leave", peer: selfId });
+            } else if (token && hostConnected()) {
+                action.send({ type: "quit" }, { target: hostId }).catch(handlers.onSendError);
+            }
+        },
+        absent() {
+            if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];
+            return hostConnected() ? [] : [hostId];
+        },
         leave,
     };
 }

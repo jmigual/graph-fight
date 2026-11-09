@@ -13,10 +13,16 @@ const ARENAS = {
     xy: { x: 20, y: 10, obstacles: 30, minSize: 0.2, maxSize: 2, canvasWidth: 800 },
     disc: { x: 10, y: 10, obstacles: 20, minSize: 0.2, maxSize: 1.5, canvasWidth: 600 },
 };
+/** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
+const SEAT_KEY = "graph-fight-seat";
+const MISMATCH = "Version mismatch: reload the page to get the same version as the host.";
 const LABELS = {
     xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
     disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
 };
+
+/** What a seated peer keeps to rejoin: the room, its private token, its build and its seat id. */
+type Seat = { hostId: string; token: string; version: string; me: string };
 
 type Play = {
     sim: Sim;
@@ -42,6 +48,8 @@ const short = (id: string) => id.slice(0, 6);
 const lobby = joinLobby(renderLobby);
 let room: Room | null = null;
 let hostId = "";
+/** Our seat id in `start.peers`: `selfId`, or after a reload the id we had when the game started. */
+let me = selfId;
 /** What we advertise while hosting a game that has not started. */
 let offer: Announce | null = null;
 let connected: string[] = [];
@@ -91,22 +99,27 @@ $<HTMLFormElement>("host-form").onsubmit = (e) => {
     enterRoom(selfId);
 };
 
-function enterRoom(id: string) {
+function enterRoom(id: string, seat?: Seat) {
     hostId = id;
+    me = seat?.me ?? selfId;
     connected = [];
     ended = false;
     $("error").textContent = "";
+    $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
         onShotRequest(from, shot) {
             if (play && !play.over && from === play.peers[play.sim.get_current_team_idx()] && shot.turn === play.turn) room?.relay(shot);
         },
-        onVersionMismatch: () => end("Version mismatch: reload the page to get the same version as the host."),
+        onVersionMismatch: () => end(MISMATCH),
         onDesync: () => end("Desynced: a message from the host was lost, so the game cannot continue."),
         onSendError(err) {
             if (play) play.pending = false;
             $("error").textContent = `Send failed: ${err}`;
             if (play) refresh(play);
+        },
+        onSeat(token) {
+            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
         },
         onPeerJoin(peer) {
             connected.push(peer);
@@ -114,10 +127,13 @@ function enterRoom(id: string) {
         },
         onPeerLeave(peer) {
             connected = connected.filter((p) => p !== peer);
-            if (peer === hostId) end("Host left.");
+            // A seated peer in a game waits for the host to come back; a host that quits relays its
+            // own leave. Without a game yet (waiting room, or a stored seat not yet replayed),
+            // the host leaving ends it.
+            if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end("Host left.");
             else roomChanged();
         },
-    });
+    }, seat?.token);
     roomChanged();
     show("room");
 }
@@ -151,7 +167,8 @@ $("start").onclick = () => {
     lobby.announce(null);
 };
 
-$("leave").onclick = $("back").onclick = () => {
+function toLobby() {
+    sessionStorage.removeItem(SEAT_KEY);
     room?.leave();
     room = null;
     if (play) clearTimeout(play.clock);
@@ -160,10 +177,26 @@ $("leave").onclick = $("back").onclick = () => {
     offer = null;
     $("error").textContent = "";
     show("lobby");
+}
+$("leave").onclick = $("back").onclick = toLobby;
+$("quit").onclick = () => {
+    room?.quit();
+    toLobby();
 };
+// A host leaving ends the game for everyone, so it says so. Registered before any room is
+// joined, so it runs before Trystero's own beforeunload handler closes the links.
+addEventListener("beforeunload", () => {
+    if (hostId === selfId) room?.quit();
+});
 
 function startGame(msg: Start) {
-    if (!msg.peers.includes(selfId)) return end("Game full: the host did not give you a seat.");
+    if (!msg.peers.includes(me)) {
+        // Our stored seat is from an earlier game in this room (the host hosted again): drop it,
+        // we may hold a fresh seat under our own id.
+        sessionStorage.removeItem(SEAT_KEY);
+        me = selfId;
+    }
+    if (!msg.peers.includes(me)) return end("Game full: the host did not give you a seat.");
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
@@ -189,6 +222,8 @@ function resetClock(p: Play) {
 }
 
 function onMessage(msg: GameMsg) {
+    if (ended) return; // a replay after the end must not restart the game
+    // A later start opens the host's replay (ADR 16): the game is rebuilt from it.
     if (msg.type === "start") return startGame(msg);
     const p = play;
     if (!p || p.over) return;
@@ -197,6 +232,7 @@ function onMessage(msg: GameMsg) {
     let newTurn = true;
     try {
         if (msg.type === "leave") {
+            if (msg.peer === hostId) return end("Host left.");
             const team = p.peers.indexOf(msg.peer);
             if (team < 0) return;
             const before = p.sim.get_current_team_idx();
@@ -224,7 +260,7 @@ function onMessage(msg: GameMsg) {
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
 function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
-    if (winner !== undefined) return end(p.peers[winner] === selfId ? "You win!" : `Team ${winner + 1} (${short(p.peers[winner])}) wins.`);
+    if (winner !== undefined) return end(p.peers[winner] === me ? "You win!" : `Team ${winner + 1} (${short(p.peers[winner])}) wins.`);
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw: nobody is left.");
     if (newTurn) {
         $("error").textContent = "";
@@ -235,7 +271,7 @@ function changed(p: Play, newTurn: boolean) {
 
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
-    const mine = p.peers[team] === selfId;
+    const mine = p.peers[team] === me;
     draw($<HTMLCanvasElement>("arena"), { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot });
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
@@ -246,10 +282,14 @@ function refresh(p: Play) {
 function end(message: string) {
     if (ended) return;
     ended = true;
+    sessionStorage.removeItem(SEAT_KEY);
     if (play) {
         play.over = true;
         clearTimeout(play.clock);
         refresh(play);
+    } else {
+        // No game to show: leave the room, or the host's next game there would seat this page.
+        room?.leave();
     }
     $("end-message").textContent = message;
     show(...(play ? ["game", "end"] : ["end"]));
@@ -287,9 +327,20 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
 };
 
 setInterval(() => {
-    if (play && !play.over) $("countdown").textContent = String(Math.max(0, Math.ceil((play.deadline - Date.now()) / 1000)));
+    const p = play;
+    if (p && !p.over) $("countdown").textContent = String(Math.max(0, Math.ceil((p.deadline - Date.now()) / 1000)));
+    const away = p && !p.over && room ? room.absent().map((id) => `Team ${p.peers.indexOf(id) + 1} (${short(id)})`) : [];
+    $("absent").textContent = away.length ? `Disconnected: ${away.join(", ")}` : "";
 }, 250);
 
 // Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours).
 (window as unknown as { __state: () => unknown }).__state = () =>
-    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(selfId), arena: play.sim.arena() };
+    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena() };
+
+// After a reload, rejoin the game we hold a seat in (ADR 16).
+const saved = sessionStorage.getItem(SEAT_KEY);
+if (saved) {
+    const seat = JSON.parse(saved) as Seat;
+    if (seat.version === BUILD_VERSION) enterRoom(seat.hostId, seat);
+    else end(MISMATCH);
+}
