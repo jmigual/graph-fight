@@ -346,7 +346,7 @@ export type GameHandlers = {
     /** The host gave us our private seat token: keep it (never log or share it) to rejoin after a reload. */
     onSeat?(token: string): void;
     onPeerJoin?(peer: string): void;
-    /** Connectivity only. The host learns of departures through the relayed `leave`. */
+    /** Connectivity only: a seated peer keeps its seat (ADR 16). Only a `quit` is relayed as `leave`. */
     onPeerLeave?(peer: string): void;
 };
 
@@ -376,11 +376,11 @@ export type Game = {
 
 /**
  * Join room `game-<hostId>`; the host joins with its own `selfId`. Peers accept messages only
- * from the host. On the host, a peer leaving after `start` is relayed as a `leave` message. A
- * seated peer with its seat `token` (passed here after a reload) asks the host for a replay of
- * the game when the host link comes back or when it sees a gap (ADR 16). Peer ids are
- * announced by the peers themselves during signalling, so a modified client can claim any id;
- * that is accepted under ADR 7's trusted-peers model.
+ * from the host. A seated peer whose link drops keeps its seat: with its seat `token` (passed
+ * here after a reload) it asks the host for a replay of the game when the host link comes
+ * back or when it sees a gap (ADR 16). Peer ids are announced by the peers themselves during
+ * signalling, so a modified client can claim any id; that is accepted under ADR 7's
+ * trusted-peers model.
  */
 export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
     const room = joinRoom({ appId: APP_ID }, `game-${hostId}`);
@@ -477,8 +477,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         handlers.onPeerJoin?.(id);
     };
     room.onPeerLeave = (id) => {
-        if (left) return; // room.leave() takes a moment; don't relay or report after leaving
-        if (isHost && out.started()) relay({ type: "leave", peer: id });
+        if (left) return; // room.leave() takes a moment; don't report after leaving
         handlers.onPeerLeave?.(id);
     };
 

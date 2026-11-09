@@ -46,6 +46,22 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false } =
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
+        // Records the page's WebRTC connections so a scenario can drop its links with `__drop`.
+        await page.addInitScript(() => {
+            const Native = RTCPeerConnection;
+            window.__pcs = [];
+            // A local close() fires no state event, so announce it the way a dead link would.
+            window.__drop = (pc) => {
+                pc.close();
+                pc.dispatchEvent(new Event("iceconnectionstatechange"));
+            };
+            window.RTCPeerConnection = class extends Native {
+                constructor(...args) {
+                    super(...args);
+                    window.__pcs.push(this);
+                }
+            };
+        });
         if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
         pages.push(page);
@@ -119,8 +135,8 @@ const scenarios = {
         await takeTurn(pages, 0, ["x"]);
         await takeTurn(pages, 1, ["t", "t"]);
         await takeTurn(pages, 2, ["-x"]);
-        // The guest leaves, so the host's team is the last one standing.
-        await pages[1].close({ runBeforeUnload: true });
+        // The guest leaves the game, so the host's team is the last one standing.
+        await pages[1].click("#quit");
         await pages[0].waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(pages[0], "#end-message"), /win/i);
         return errors;
@@ -133,7 +149,7 @@ const scenarios = {
         await takeTurn(pages, 2, ["1+θ"]);
         const leaver = pages[2];
         const team = JSON.parse(await state(leaver)).me;
-        await leaver.close({ runBeforeUnload: true });
+        await leaver.click("#quit");
         const rest = pages.slice(0, 2);
         for (const page of rest) {
             await page.waitForFunction((t) => window.__state().arena.teams[t].players.every((p) => !p.alive), team, { timeout: TURN_WAIT_MS });
@@ -192,6 +208,65 @@ const scenarios = {
         await host.clock.fastForward("00:25");
         await assertSynced(players, 1);
         await takeTurn(players, 1, ["t", "0"]);
+        return errors;
+    },
+    async F() {
+        // A guest reloads mid-game and takes its seat back with the token kept in sessionStorage.
+        const { pages, errors } = await startGame(2, "disc", "F");
+        await assertSynced(pages, 0);
+        await takeTurn(pages, 0, ["2"]);
+        const guest = pages[1];
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const { me } = JSON.parse(await state(guest));
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
+        await assertSynced(pages, 1);
+        assert.equal(JSON.parse(await state(guest)).me, me, "the reloaded page holds the same seat");
+        // The guest's team is up next, so this also checks the host accepts shots from its new peer id.
+        assert.equal(JSON.parse(await state(guest)).current, me);
+        await takeTurn(pages, 1, ["t", "0"]);
+        await takeTurn(pages, 2, ["3"]);
+        return errors;
+    },
+    async G() {
+        // A guest's links drop while the tab stays open. It keeps its seat, Trystero reconnects,
+        // and the guest rejoins with a replay; then both sides play on.
+        const { pages, errors } = await startGame(2, "disc", "G");
+        const guest = pages[1];
+        await assertSynced(pages, 0);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const links = await guest.evaluate(() => {
+            window.__pcs.forEach(window.__drop);
+            return window.__pcs.length;
+        });
+        // Trystero only opens a new connection to the host once it has noticed the old one died.
+        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
+        await takeTurn(pages, 0, ["2"]);
+        await takeTurn(pages, 1, ["t", "0"]);
+        return errors;
+    },
+    async H() {
+        // A tab restored with a seat from the host's previous game joins its next game in the same
+        // room: the stale seat is dropped and the tab plays under its own id.
+        const { pages, errors } = await startGame(2, "xy", "H");
+        const [host, old] = pages;
+        await old.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const seat = await old.evaluate(() => sessionStorage.getItem("graph-fight-seat"));
+        await old.close();
+        await host.click("#quit");
+        const restored = await (await browser.newContext()).newPage();
+        restored.on("pageerror", (e) => errors.push(`restored: ${e}`));
+        await restored.addInitScript((s) => sessionStorage.setItem("graph-fight-seat", s), seat);
+        await restored.goto(url);
+        assert.equal(await text(restored, "#room-status"), "Rejoining…");
+        await host.fill("#host-name", `e2e-H2-${Math.random().toString(36).slice(2, 8)}`);
+        await host.click("#host-form button");
+        await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
+        await host.click("#start");
+        const players = [host, restored];
+        await assertSynced(players, 0);
+        await takeTurn(players, 0, ["x"]);
+        await takeTurn(players, 1, ["-x"]);
         return errors;
     },
 };

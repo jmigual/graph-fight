@@ -30,13 +30,15 @@
 
     <section id="room" hidden>
       <h2>Waiting room</h2>
+      <p id="room-status"></p>
       <ul id="room-players"></ul>
       <button id="start" type="button">Start</button>
       <button id="leave" type="button">Leave</button>
     </section>
 
     <section id="game" hidden>
-      <p><span id="turn"></span> &mdash; <span id="countdown"></span> s</p>
+      <p><span id="turn"></span> &mdash; <span id="countdown"></span> s <button id="quit" type="button">Leave game</button></p>
+      <p id="absent"></p>
       <canvas id="arena" width="800" height="400" style="outline: black 1px solid"></canvas>
       <form id="shot-form">
         <label><input type="radio" name="mode" id="mode-explicit" checked> explicit</label>
