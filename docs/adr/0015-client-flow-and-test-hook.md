@@ -38,8 +38,8 @@ read game state.
   The host's `onShotRequest` accepts a request only from the current team's peer with the
   current `turn`.
 - **Test hook.** `window.__state()` returns `{turn, current, me, arena, shot}` (the arena from
-  `game.arena()`, `me` our team, `shot` the last applied shot `{team, exprs, points}` or `null` after a
-  timeout, so a test can check a trajectory) or `null` before the game starts. It is read-only. The e2e test
+  `game.arena()`, `me` our team, `shot` the last applied shot `{team, exprs, points}`, so a test can check a trajectory:
+  `null` at the start, after a timeout and after a formula that failed, and unchanged after a leave) or `null` before the game starts. It is read-only. The e2e test
   (`npm run e2e`) serves `dist/`, drives pages through the real Nostr lobby and Trystero WebRTC,
   and after every turn requires `{turn, current, arena, shot}` to be identical on all pages.
 

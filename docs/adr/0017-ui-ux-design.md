@@ -483,7 +483,7 @@ text "2 of 3 players left"); and a state word:
 | Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer |
 | Current, other | "aiming" | ring + grid origin | "Team 2 is aiming" |
 | Waiting | nothing | face looking toward the centre or along its last shot | |
-| Disconnected (reconnection work) | "disconnected", `--ink-soft` | closed eyes | when current: "Team 2 is disconnected. Turn ends in 42 s." |
+| Disconnected (reconnection work) | "disconnected", `--ink-soft` | closed eyes | when current: "Team 2 is disconnected. The timer will skip its turn." |
 | Eliminated | strikethrough + "out" | X eyes, faded head, cap kept | ours: editor replaced by "Your team is out. Watch the rest or leave." |
 | We lost the host link (reconnection) | | board frozen | "Reconnecting to the host…" in `--ink-soft`, Fire disabled |
 
@@ -582,18 +582,21 @@ Settled in S3 (`js/index.ts`): the last-shot line also says "Team N ran out of t
 for a quit, and "fired a formula that failed, so the turn was skipped" for a shot that every peer's engine rejects; on the
 disc it says "counterclockwise" as well as "clockwise". The error line is emptied and refilled 50 ms later, so a repeated
 identical error is announced again; `aria-invalid` is set with the text and removed with it. Editing either input, a new
-turn and Fire clear it. The roster's state word joins what applies ("disconnected, aiming"); "out" replaces both. The
+turn and Fire clear it. The roster shows one state word: "out", else "disconnected", else "aiming". The
 waiting room's open-seat line (`#room-seats`) also carries the host's "More players than seats" text. A guest takes the
 room's name and field from the lobby listing it joined from; after a reload the heading falls back to "Waiting room". The
-empty lobby shows `#no-games` instead of the table. The tab title is also restored when the game ends or on leaving.
+empty lobby shows `#no-games` instead of the table. The tab title is also restored when the game ends or on leaving, and it does not say "Your turn" while the host link is down.
+When a turn starts that is ours, `#turn-cue` (visually hidden, polite) says "Your turn" and, on a pointer-fine device, the first
+formula input gets focus. `#last-shot` and `#turn` are only written when their text changes, and the status code lives in `js/status.ts`.
+`aria-invalid` marks formula and slider errors only, and only the visible inputs.
 
 Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
-host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. Turn ends in 42 s." when the current
-team's seat is away. Both update on the 250 ms tick. The `#absent` line is gone, since the roster and the status bar carry
+host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
+team's seat is away (the countdown beside it already gives the time). Both update when the set of disconnected seats changes. The `#absent` line is gone, since the roster and the status bar carry
 it. The guest-side state is not in the e2e test: the link is down for less than one tick on a quick reconnect, so a test
 could not tell it from a miss. It was checked by hand with a 20 ms sampler. "Leave game" while the host link is down
 still leaves this page, although `quit` is then dropped and the seat stays held (ADR 16).
