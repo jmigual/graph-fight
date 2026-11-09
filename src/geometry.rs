@@ -5,7 +5,7 @@ use serde::Serialize;
 use tsify::Tsify;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[derive(Clone, Serialize, Tsify)]
+#[derive(Clone, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 pub struct Circle {
     pos: Point,
@@ -51,7 +51,7 @@ impl Circle {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Tsify)]
+#[derive(Clone, Debug, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 pub struct Rectangle {
     pos: Point,

@@ -4,7 +4,7 @@ use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
 
-#[derive(Clone, Serialize,Tsify)]
+#[derive(Clone, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 pub struct Player {
     shape: Circle,

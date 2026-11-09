@@ -7,7 +7,7 @@ use crate::geometry::*;
 
 const MAX_ITERS: u64 = 100;
 
-#[derive(Clone, Serialize,Tsify)]
+#[derive(Clone, Default, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct Team {
@@ -41,6 +41,10 @@ impl Team {
         }
 
         Ok(())
+    }
+
+    pub fn players(&self) -> &[Player] {
+        &self.players
     }
 
     /// True if the shape collides with any player of the team

@@ -1,3 +1,5 @@
+use std::f64::consts::TAU;
+
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use serde::Serialize;
@@ -9,12 +11,15 @@ use crate::geometry::{
     Circle, Rectangle,
 };
 
-use super::Team;
+use super::{Field, Team};
 
-#[derive(Clone, Serialize,Tsify)]
+#[derive(Clone, PartialEq, Serialize, Tsify)]
 #[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct Arena {
+    /// The client knows the field it asked for, so it is not serialized.
+    #[serde(skip)]
+    field: Field,
     x_max: f64,
     y_max: f64,
     area: Rectangle,
@@ -49,14 +54,32 @@ impl Arena {
 }
 
 impl Arena {
-    pub fn new(x_max: f64, y_max: f64) -> Arena {
+    pub fn new(field: Field, x_max: f64, y_max: f64) -> Arena {
         Arena {
+            field,
             x_max,
             y_max,
             area: Rectangle::new((0.0, 0.0).into(), 2. * x_max, 2. * y_max),
             obstacles: Vec::new(),
             holes: Vec::new(),
             teams: Vec::new(),
+        }
+    }
+
+    /// True if the point lies inside the playing field. On a disc the radius is `y_max`.
+    pub fn contains(&self, point: &Point) -> bool {
+        match self.field {
+            Field::Xy => self.area.inside(point),
+            Field::Disc => point.x.hypot(point.y) <= self.y_max,
+        }
+    }
+
+    /// True if an obstacle can be placed here: on a disc it must lie fully inside the field,
+    /// on the XY field only its centre must.
+    fn obstacle_fits(&self, shape: &Circle) -> bool {
+        match self.field {
+            Field::Xy => self.contains(shape.pos()),
+            Field::Disc => shape.pos().x.hypot(shape.pos().y) + shape.radius() <= self.y_max,
         }
     }
 
@@ -88,17 +111,27 @@ impl Arena {
         player_size: f64,
         rng: &mut R,
     ) -> Result<(), String> {
-        let areas = self.area.partition(players_per_team.len() as u64);
+        let num_teams = players_per_team.len();
+        let areas = self.area.partition(num_teams as u64);
 
-        for (team_size, area) in players_per_team.iter().zip(areas.iter()) {
+        for (i, (team_size, area)) in players_per_team.iter().zip(areas.iter()).enumerate() {
             let mut team = Team::new();
-            team.add_players(*team_size, player_size, &self, rng, |rng, radius| {
-                Point::random(
+            let sample = |rng: &mut R, radius: f64| match self.field {
+                Field::Xy => Point::random(
                     &area.range_h().subtract_both(radius),
                     &area.range_v().subtract_both(radius),
                     rng,
-                )
-            })?;
+                ),
+                Field::Disc => {
+                    // Uniform in the annulus [R/2, R - radius], within the team's sector
+                    let sector = TAU / num_teams as f64;
+                    let theta = sector * (i as f64 + rng.gen_range(-0.5..0.5));
+                    let (r_min, r_max) = (self.y_max / 2., self.y_max - radius);
+                    let r = rng.gen_range(r_min * r_min..=r_max * r_max).sqrt();
+                    Point::new(r * theta.cos(), r * theta.sin())
+                }
+            };
+            team.add_players(*team_size, player_size, &self, rng, sample)?;
             self.teams.push(team);
         }
 
@@ -115,6 +148,10 @@ impl Arena {
         self.obstacles
             .iter()
             .any(|o| o.collision_circle(&shape))
+    }
+
+    pub fn obstacles(&self) -> &[Circle] {
+        &self.obstacles
     }
 
     pub fn get_area(&self) -> &Rectangle {
@@ -147,8 +184,9 @@ impl Arena {
             let pos = Point::random(&range_h, &range_v, rng);
             let shape = Circle::new(pos, obstacle_size);
 
-            // A obstacle position is fine as long as it doesn't collide with a player
-            if !self.collision_with_player(&shape) {
+            // A obstacle position is fine as long as it is inside the field and doesn't collide
+            // with a player
+            if self.obstacle_fits(&shape) && !self.collision_with_player(&shape) {
                 return Ok(shape);
             }
         }
