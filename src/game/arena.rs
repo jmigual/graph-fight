@@ -30,6 +30,9 @@ pub struct Arena {
 
 const MAX_ITERS: usize = 100;
 
+/// Radius of the crater a shot leaves in an obstacle (ADR 4).
+const CRATER_RADIUS: f64 = 0.5;
+
 impl Arena {
     // #[wasm_bindgen(js_name = "area")]
     // pub fn js_area(&self) -> Rectangle {
@@ -150,6 +153,17 @@ impl Arena {
             .any(|o| o.collision_circle(&shape))
     }
 
+    /// True if the point is inside an obstacle and not inside any crater, i.e. a shot stops here.
+    pub fn blocks(&self, point: &Point) -> bool {
+        self.obstacles.iter().any(|o| o.contains(point))
+            && !self.holes.iter().any(|h| h.contains(point))
+    }
+
+    /// Leaves a crater at `pos`, which later shots pass through.
+    pub fn add_crater(&mut self, pos: Point) {
+        self.holes.push(Circle::new(pos, CRATER_RADIUS));
+    }
+
     pub fn obstacles(&self) -> &[Circle] {
         &self.obstacles
     }
@@ -169,6 +183,7 @@ impl Arena {
     /// Clears the entire arena, leaving it blank
     pub fn clear(&mut self) {
         self.obstacles.clear();
+        self.holes.clear();
         self.teams.clear();
     }
 
@@ -192,5 +207,29 @@ impl Arena {
         }
 
         Err("No valid position found for obstacle".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crater_lets_shots_through() {
+        let mut arena = Arena::new(Field::Xy, 10., 10.);
+        arena.obstacles.push(Circle::new((0., 0.).into(), 2.));
+        let inside: Point = (0.5, 0.).into();
+        let elsewhere: Point = (1.5, 0.).into();
+
+        assert!(arena.blocks(&inside));
+        assert!(!arena.blocks(&(5., 0.).into()));
+
+        arena.add_crater(inside.clone());
+        assert!(!arena.blocks(&inside));
+        assert!(arena.blocks(&elsewhere));
+        assert_eq!(arena.holes.len(), 1);
+
+        arena.clear();
+        assert!(arena.holes.is_empty());
     }
 }

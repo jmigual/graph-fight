@@ -26,6 +26,11 @@ impl Circle {
         &self.pos
     }
 
+    /// True if the point lies inside the circle or on its border.
+    pub fn contains(&self, point: &Point) -> bool {
+        self.pos.distance_to(point) <= self.radius
+    }
+
     pub fn collision_circle(&self, other: &Circle) -> bool {
         self.pos.distance_to(&other.pos) <= self.radius + other.radius
     }
