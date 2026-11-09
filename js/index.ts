@@ -3,7 +3,7 @@ import { Field as WasmField, Game as Sim } from "../pkg/index.js";
 import type { Point } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
-import { initEditor } from "./editor";
+import { initEditor, sliderError } from "./editor";
 import { draw } from "./render";
 
 const TURN_MS = 60_000;
@@ -319,6 +319,11 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
     const b = $<HTMLInputElement>("input-b").value;
     const exprs: Shot["exprs"] = parametric() ? [a, b] : [a];
     $("error").textContent = "";
+    const unfilled = sliderError(exprs);
+    if (unfilled) {
+        $("error").textContent = unfilled;
+        return;
+    }
     p.pending = true;
     try {
         // The shooter checks locally, so a bad formula never costs the turn (ADR 14).

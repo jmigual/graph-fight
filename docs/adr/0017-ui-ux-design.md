@@ -551,6 +551,16 @@ shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown.
 built: ADR 16 rejoins on reload without asking. `Leave game` asks `confirm("Leave the game? Your team
 will be out.")`, so the e2e test accepts dialogs. "Could not start" goes to `#room-error`.
 
+Settled in S4/S6 (`js/editor.ts`): a helper that would push its input past `maxlength` inserts nothing. The
+Save row is `#save-row` with `#save-name`, `#save-confirm` ("Save formula"), `#save-cancel` and `#save-error`; the
+storage notice is `#saved-notice`. A saved formula goes to the front of the list, so the list reads newest first
+within its mode group (a mode heading per group); starters keep the table's order. A template's sliders sit in a
+`<details>` "Sliders", open for a template just saved. The preview line, **Insert** and **Delete** are always
+visible, so Insert works at the default values without opening it. The "Too long with these values" message
+shows live under the preview and disables Insert while it applies. A value typed in the number field widens the
+limits on `change` (blur or Enter), not per keystroke. Fire's slider-letter error names every letter: "a is a
+slider letter. ... or type a number." for one, "a and b are slider letters. ... or type numbers." for several.
+
 ## Consequences
 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access
