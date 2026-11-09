@@ -35,13 +35,18 @@ const comparable = async (page) => {
     return rest;
 };
 
-/** Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts. */
-async function startGame(n, field, label) {
+/**
+ * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
+ * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` installs
+ * Playwright's fake clock on the host before it loads.
+ */
+async function startGame(n, field, label, { seats = n, fakeHostClock = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
+        if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
         pages.push(page);
     }
@@ -49,14 +54,15 @@ async function startGame(n, field, label) {
     const [host, ...guests] = pages;
     await host.fill("#host-name", name);
     await host.selectOption("#host-field", field);
-    if (field === "disc") await host.fill("#host-seats", String(n));
+    if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.click("#host-form button");
-    for (const guest of guests) {
-        await guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join" }).click({ timeout: SETUP_MS });
-    }
+    // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
+    const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
+    await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
+    await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n, { timeout: SETUP_MS });
     await host.click("#start");
-    for (const page of pages) await page.waitForSelector("#game:not([hidden])", { timeout: SETUP_MS });
+    for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
     return { pages, errors };
 }
 
@@ -147,6 +153,40 @@ const scenarios = {
         await pages[0].close({ runBeforeUnload: true });
         await pages[1].waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(pages[1], "#end-message"), /host left/i);
+        return errors;
+    },
+    async D() {
+        // The host's clock is faked, so the 60 s turn timeout fires without waiting.
+        const { pages, errors } = await startGame(2, "xy", "D", { fakeHostClock: true });
+        await assertSynced(pages, 0);
+        const before = await comparable(pages[0]);
+        await pages[0].clock.fastForward("01:01");
+        await assertSynced(pages, 1);
+        const after = await comparable(pages[0]);
+        assert.notEqual(after.current, before.current, "the timeout passes the turn");
+        const alive = (c) => c.arena.teams.map((t) => t.players.map((pl) => pl.alive));
+        assert.deepEqual([alive(after), after.arena.holes], [alive(before), before.arena.holes], "a timeout fires no shot");
+        // The clock was re-armed for the next turn.
+        await pages[0].clock.fastForward("01:01");
+        await assertSynced(pages, 2);
+        assert.equal((await comparable(pages[0])).current, before.current);
+        await takeTurn(pages, 2, ["x"]);
+        return errors;
+    },
+    async E() {
+        // Three pages, two seats: the host starts with the first guest to connect.
+        const { pages, errors } = await startGame(3, "disc", "E", { seats: 2 });
+        const [host, ...guests] = pages;
+        const full = [];
+        const seated = [];
+        for (const g of guests) (await g.isVisible("#end")) ? full.push(g) : seated.push(g);
+        assert.equal(full.length, 1, "exactly one guest has no seat");
+        assert.match(await text(full[0], "#end-message"), /full/i);
+        const players = [host, ...seated];
+        await assertSynced(players, 0);
+        // The seatless guest leaving changes nothing for the others.
+        await full[0].close({ runBeforeUnload: true });
+        await takeTurn(players, 0, ["t", "0"]);
         return errors;
     },
 };
