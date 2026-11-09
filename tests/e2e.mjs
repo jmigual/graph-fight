@@ -79,6 +79,8 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, bl
         }
         if (i === 0 && fakeHostClock) await page.clock.install();
         await page.goto(url);
+        // The empty-list text shows exactly when the list is empty.
+        if (i === 0) assert.ok(await page.evaluate(() => (document.querySelectorAll("#games tr").length === 0) === !document.getElementById("no-games").hidden));
         pages.push(page);
     }
     const name = `e2e-${label}-${Math.random().toString(36).slice(2, 8)}`;
@@ -92,9 +94,11 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, bl
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n, { timeout: SETUP_MS });
+    for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
+    const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
-    return { pages, errors };
+    return { pages, errors, seatsLine };
 }
 
 /** Waits until exactly one page can fire and returns it. */
@@ -199,6 +203,7 @@ const scenarios = {
         const before = await comparable(pages[0]);
         await pages[0].clock.fastForward("01:01");
         await assertSynced(pages, 1);
+        for (const page of pages) assert.match(await text(page, "#last-shot"), /^Team \d ran out of time\./);
         const after = await comparable(pages[0]);
         assert.notEqual(after.current, before.current, "the timeout passes the turn");
         const alive = (c) => c.arena.teams.map((t) => t.players.map((pl) => pl.alive));
@@ -212,7 +217,8 @@ const scenarios = {
     },
     async E() {
         // Three pages, two seats: the host starts with the first guest to connect.
-        const { pages, errors } = await startGame(3, "disc", "E", { seats: 2, fakeHostClock: true });
+        const { pages, errors, seatsLine } = await startGame(3, "disc", "E", { seats: 2, fakeHostClock: true });
+        assert.equal(seatsLine, "More players than seats: the first 2 to join play.");
         const [host, ...guests] = pages;
         const full = [];
         const seated = [];
@@ -433,6 +439,9 @@ const scenarios = {
         await assertSynced(pages, 0);
         const page = await shooter(pages);
         const other = pages.find((p) => p !== page);
+        assert.equal(await page.evaluate(() => document.activeElement.id), "input-a", "the formula has focus when our turn starts");
+        await page.waitForFunction(() => document.getElementById("turn-cue").textContent === "Your turn");
+        assert.equal(await text(other, "#turn-cue"), "");
         assert.equal(await page.title(), "Your turn | Graph fight!");
         assert.equal(await other.title(), "Graph fight!");
         assert.equal(await text(page, "#turn"), "Your turn");
@@ -440,23 +449,28 @@ const scenarios = {
         assert.equal(await page.isHidden("#direction"), true, "the direction is for the disc only");
         assert.equal(await page.locator("#roster li").count(), 2);
         assert.equal(await page.locator('#roster li [aria-label="3 of 3 players left"]').count(), 2);
-        assert.match(await text(page, "#roster li >> nth=0"), /aiming|you/);
+        const { me } = JSON.parse(await state(page));
+        assert.match(await text(page, `#roster li >> nth=${me}`), /\baiming\b/);
+        assert.doesNotMatch(await text(page, `#roster li >> nth=${1 - me}`), /aiming/);
         await page.waitForFunction(() => parseFloat(document.getElementById("timer-fill").style.width) > 0, null, { timeout: 5000 });
         // A repeated identical error is cleared first, so the alert is announced again.
         await page.evaluate(() => {
             window.__errors = [];
-            new MutationObserver(() => window.__errors.push(document.getElementById("error").textContent)).observe(document.getElementById("error"), { childList: true });
+            new MutationObserver(() => window.__errors.push([document.getElementById("error").textContent, performance.now()])).observe(document.getElementById("error"), { childList: true });
         });
         await page.check("#mode-explicit");
-        const shown = (n) => page.waitForFunction((k) => window.__errors.filter((e) => e !== "").length >= k, n);
+        const shown = (n) => page.waitForFunction((k) => window.__errors.filter(([e]) => e !== "").length >= k, n);
         await page.fill("#input-a", "1/x");
         await page.click("#fire");
         await shown(1);
         assert.equal(await page.getAttribute("#input-a", "aria-invalid"), "true");
+        assert.equal(await page.getAttribute("#input-b", "aria-invalid"), null, "the hidden input is not marked");
         await page.click("#fire");
         await shown(2);
         const log = await page.evaluate(() => window.__errors);
-        assert.ok(log.every((e, i) => e === "" || i === 0 || log[i - 1] === ""), "an error is never replaced by text directly");
+        // Each repeat is emptied first and filled at least one frame later, so a screen reader announces it again.
+        assert.ok(log.length >= 3, "the second error went through an empty line");
+        assert.ok(log.every(([e, t], i) => e === "" || i === 0 || (log[i - 1][0] === "" && t - log[i - 1][1] >= 30)), "an error is never replaced by text directly");
         await page.fill("#input-a", "x");
         assert.equal(await text(page, "#error"), "");
         assert.equal(await page.getAttribute("#input-a", "aria-invalid"), null);
@@ -473,7 +487,8 @@ const scenarios = {
     },
     async M() {
         // Direction (disc only): clockwise mirrors the shot across the shooter's axis to the centre.
-        const { pages, errors } = await startGame(2, "disc", "M");
+        const { pages, errors, seatsLine } = await startGame(2, "disc", "M", { seats: 3 });
+        assert.equal(seatsLine, "1 seat open");
         await assertSynced(pages, 0);
         // `r = t, θ = 0.5` is a straight ray 0.5 rad from the axis: to the left (counter-clockwise) or right.
         const aim = async (cw) => {
@@ -499,6 +514,21 @@ const scenarios = {
         assert.equal(await pages[0].isHidden("#direction"), false);
         assert.ok(Math.abs(ccw - 0.5) < 0.05, `counter-clockwise turns left (${ccw})`);
         assert.ok(Math.abs(cw + 0.5) < 0.05, `clockwise turns right (${cw})`);
+        return errors;
+    },
+    async N() {
+        // A guest's tab dies. The host keeps its seat, and shows it as disconnected (ADR 16, 17).
+        const { pages, errors } = await startGame(2, "xy", "N");
+        const [host, guest] = pages;
+        await assertSynced(pages, 0);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        // The guest's team must be the current one when it disappears.
+        if (await host.isEnabled("#fire")) await takeTurn(pages, 0, ["x"]);
+        await guest.close();
+        await host.waitForFunction(() => document.getElementById("roster").textContent.includes("disconnected"), null, { timeout: SETUP_MS });
+        assert.match(await text(host, "#roster li >> nth=1"), /disconnected/);
+        assert.doesNotMatch(await text(host, "#roster li >> nth=0"), /disconnected/);
+        assert.match(await text(host, "#turn"), /^Team 2 is disconnected/);
         return errors;
     },
 };
