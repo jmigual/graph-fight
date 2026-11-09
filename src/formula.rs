@@ -1,6 +1,9 @@
 //! Hand-written formula parser (ADR 3): parse once, evaluate many times.
 
-use std::f64::consts::{E, PI};
+use std::{
+    f64::consts::{E, PI},
+    fmt,
+};
 
 /// Maximum nesting of unary minus, parentheses and `^` exponents.
 const MAX_DEPTH: usize = 64;
@@ -26,6 +29,20 @@ pub enum ParseError {
     TooDeep,
     /// More than [`MAX_LEN`] characters.
     TooLong,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::UnexpectedChar(c) => write!(f, "Unexpected character '{c}'"),
+            ParseError::UnexpectedEnd => f.write_str("The formula ends unexpectedly"),
+            ParseError::UnexpectedToken(c) => write!(f, "Unexpected '{c}'"),
+            ParseError::InvalidNumber(n) => write!(f, "Invalid number '{n}'"),
+            ParseError::UnknownName(n) => write!(f, "Unknown name '{n}'"),
+            ParseError::TooDeep => f.write_str("The formula is nested too deeply"),
+            ParseError::TooLong => write!(f, "The formula is longer than {MAX_LEN} characters"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -8,7 +8,10 @@ use std::fmt;
 use rand::{rngs::SmallRng, SeedableRng};
 use wasm_bindgen::prelude::*;
 
-use crate::utils;
+use crate::{
+    formula::{Formula, ParseError},
+    utils,
+};
 
 pub use self::arena::Arena;
 pub use self::player::Player;
@@ -71,6 +74,12 @@ impl fmt::Display for GameError {
             }
             GameError::NoValidLayout => "Could not find a valid initial configuration",
         })
+    }
+}
+
+impl From<ParseError> for JsValue {
+    fn from(e: ParseError) -> JsValue {
+        JsValue::from_str(&e.to_string())
     }
 }
 
@@ -188,7 +197,59 @@ impl Game {
     }
 
     pub fn get_current_formula(&self) -> String {
-        self.get_current_player().formula().into()
+        self.get_current_player()
+            .map(|p| p.formula().into())
+            .unwrap_or_default()
+    }
+
+    /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc.
+    /// On a parse error nothing changes and the turn is not consumed.
+    pub fn fire(&mut self, expr: &str) -> Result<Shot, ParseError> {
+        let var = match self.arena.field() {
+            Field::Xy => "x",
+            Field::Disc => "θ",
+        };
+        let f = Formula::parse(expr, var)?;
+        Ok(self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f)))
+    }
+
+    /// Fires `a`, `b` from the current player: `x(t), y(t)` on the XY field, `r(t), θ(t)` on the
+    /// disc. On a parse error nothing changes and the turn is not consumed.
+    pub fn fire_param(&mut self, a: &str, b: &str) -> Result<Shot, ParseError> {
+        let (a, b) = (Formula::parse(a, "t")?, Formula::parse(b, "t")?);
+        Ok(self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b)))
+    }
+
+    /// Passes the turn without shooting (timeout, or a remote formula that failed to parse).
+    pub fn skip_turn(&mut self) {
+        self.end_turn();
+    }
+
+    /// Removes a team from the game, e.g. because its peer left. Does nothing for an unknown
+    /// index. If it was the current team the turn passes on; no turn is otherwise consumed.
+    pub fn eliminate_team(&mut self, idx: usize) {
+        let Some(team) = self.arena.get_teams_mut().get_mut(idx) else {
+            return;
+        };
+        team.eliminate();
+        if idx == self.current_team {
+            self.next_team();
+        }
+    }
+
+    /// The only team with living players, or `undefined` while several (or none) remain.
+    pub fn winner(&self) -> Option<usize> {
+        let mut alive = self
+            .arena
+            .get_teams()
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.is_alive())
+            .map(|(i, _)| i);
+        match (alive.next(), alive.next()) {
+            (Some(i), None) => Some(i),
+            _ => None,
+        }
     }
 }
 
@@ -226,39 +287,46 @@ impl Game {
         Err(GameError::NoValidLayout)
     }
 
-    pub fn shoot(&mut self, formula: &str) -> Result<(), JsValue> {
-        // Check if formula is valid
+    /// Runs `trace` for the current player and ends the turn. With no living player to shoot
+    /// (everyone eliminated) the shot is empty and nothing changes.
+    fn shoot(&mut self, trace: impl FnOnce(&mut Arena, (usize, usize)) -> Shot) -> Shot {
+        let team = &self.arena.get_teams()[self.current_team];
+        if team.get_current_player().is_none() {
+            return Shot { points: Vec::new() };
+        }
+        let shooter = (self.current_team, team.current_index());
+        let shot = trace(&mut self.arena, shooter);
+        self.end_turn();
+        shot
+    }
 
-        let player = self.get_current_player_mut();
-        player.set_formula(formula.into());
-
-        Ok(())
+    /// The shooting team rotates to its next living player, then the turn passes to the next team
+    /// with living players (ADR 4).
+    fn end_turn(&mut self) {
+        self.arena.get_teams_mut()[self.current_team].next_player();
+        self.next_team();
     }
 
     pub fn next_team(&mut self) {
-        let teams = self.arena.get_teams();
+        let teams = self.arena.get_teams_mut();
         assert!(teams.len() > 0);
 
         for i in 1..teams.len() {
             let idx = (self.current_team + i) % teams.len();
 
             if teams[idx].is_alive() {
+                // Its current player may have died since its last turn
+                if teams[idx].get_current_player().is_none() {
+                    teams[idx].next_player();
+                }
                 self.current_team = idx;
                 return;
             }
         }
     }
 
-    fn get_current_player_mut(&mut self) -> &mut Player {
-        self.arena.get_teams_mut()[self.current_team]
-            .get_current_player_mut()
-            .unwrap()
-    }
-
-    fn get_current_player(&self) -> &Player {
-        self.arena.get_teams()[self.current_team]
-            .get_current_player()
-            .unwrap()
+    fn get_current_player(&self) -> Option<&Player> {
+        self.arena.get_teams()[self.current_team].get_current_player()
     }
 }
 
@@ -398,5 +466,147 @@ mod tests {
                 a == b
             );
         }
+    }
+
+    /// Game on a hand-made arena; `teams` lists the player positions of each team.
+    fn game_with(field: Field, extent: (f64, f64), teams: &[&[(f64, f64)]]) -> Game {
+        let teams = teams
+            .iter()
+            .map(|t| Team::from_players(t.iter().map(|&p| Player::new(p.into(), 0.3)).collect()))
+            .collect();
+        Game {
+            arena: Arena::from_parts(field, extent.0, extent.1, vec![], teams),
+            ops: Options {
+                num_obstacles: 0,
+                min_obstacle_size: 0.2,
+                max_obstacle_size: 1.,
+                players_per_team: vec![],
+                player_radius: 0.3,
+                seed: 0,
+            },
+            current_team: 0,
+        }
+    }
+
+    /// Three teams on a disc; team 0 at (8, 0) shoots toward team 1's first player.
+    fn three_teams() -> Game {
+        game_with(
+            Field::Disc,
+            (10., 10.),
+            &[&[(8., 0.)], &[(-5., 0.), (-4., 6.)], &[(-4., -6.)]],
+        )
+    }
+
+    fn alive(game: &Game) -> Vec<Vec<bool>> {
+        game.arena
+            .get_teams()
+            .iter()
+            .map(|t| t.players().iter().map(|p| p.alive()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn parse_error_leaves_state_unchanged() {
+        let mut game = three_teams();
+        let before = game.js_arena();
+        assert_eq!(game.fire("1+").err(), Some(ParseError::UnexpectedEnd));
+        assert_eq!(
+            game.fire_param("t", "foo(t)").err(),
+            Some(ParseError::UnknownName("foo".into()))
+        );
+        // x is not the disc variable
+        assert!(game.fire("x").is_err());
+        assert!(game.js_arena() == before);
+        assert_eq!(game.get_current_team_idx(), 0);
+    }
+
+    #[test]
+    fn fire_kills_and_passes_the_turn() {
+        let mut game = three_teams();
+        let shot = game.fire_param("t", "0").unwrap();
+        assert!(!shot.points.is_empty());
+        assert_eq!(
+            alive(&game),
+            vec![vec![true], vec![false, true], vec![true]]
+        );
+        assert_eq!(game.get_current_team_idx(), 1);
+        assert_eq!(game.arena.get_teams()[1].current_index(), 1);
+    }
+
+    #[test]
+    fn turns_skip_dead_teams_and_players() {
+        let mut game = game_with(
+            Field::Disc,
+            (10., 10.),
+            &[
+                &[(8., 0.), (7., 1.)],
+                &[(-8., 0.)],
+                &[(0., 8.), (0., 7.), (0., 6.)],
+            ],
+        );
+        game.arena.get_teams_mut()[1].eliminate();
+        game.arena.get_teams_mut()[2]
+            .get_current_player_mut()
+            .unwrap()
+            .kill();
+
+        // Team 1 is dead and team 2's first player is dead
+        let mut seen = Vec::new();
+        for _ in 0..6 {
+            game.skip_turn();
+            let team = game.get_current_team_idx();
+            let player = game.arena.get_teams()[team].get_current_player().unwrap();
+            assert!(player.alive());
+            seen.push((team, game.arena.get_teams()[team].current_index()));
+        }
+        assert_eq!(seen, [(2, 1), (0, 1), (2, 2), (0, 0), (2, 1), (0, 1)]);
+    }
+
+    #[test]
+    fn nothing_alive_does_not_panic() {
+        let mut game = three_teams();
+        (0..3).for_each(|i| game.eliminate_team(i));
+        assert!(game.fire("theta").unwrap().points.is_empty());
+        game.skip_turn();
+        assert_eq!(game.get_current_formula(), "");
+        assert_eq!(game.winner(), None);
+    }
+
+    #[test]
+    fn eliminate_team_commutes_with_fire() {
+        for gone in [1, 2] {
+            let mut late = three_teams();
+            late.fire_param("t", "0").unwrap();
+            late.eliminate_team(gone);
+
+            let mut early = three_teams();
+            early.eliminate_team(gone);
+            early.fire_param("t", "0").unwrap();
+
+            assert!(late.js_arena() == early.js_arena());
+            assert_eq!(late.get_current_team_idx(), early.get_current_team_idx());
+            assert_ne!(early.get_current_team_idx(), gone);
+        }
+    }
+
+    #[test]
+    fn eliminating_the_current_team_passes_the_turn() {
+        let mut game = three_teams();
+        game.eliminate_team(0);
+        assert_eq!(game.get_current_team_idx(), 1);
+        game.eliminate_team(7);
+        assert_eq!(game.get_current_team_idx(), 1);
+    }
+
+    #[test]
+    fn winner_is_the_last_team_standing() {
+        let mut game = three_teams();
+        assert_eq!(game.winner(), None);
+        game.eliminate_team(1);
+        assert_eq!(game.winner(), None);
+        game.eliminate_team(2);
+        assert_eq!(game.winner(), Some(0));
+        game.eliminate_team(0);
+        assert_eq!(game.winner(), None);
     }
 }

@@ -71,20 +71,27 @@ impl Team {
             .any(|p| p.shape().collision_circle(&shape))
     }
 
+    /// The player whose turn it is, or `None` if that player is dead (or the team is empty).
     pub fn get_current_player(&self) -> Option<&Player> {
-        if self.players[self.current_player].alive() {
-            Some(&self.players[self.current_player])
-        } else {
-            None
-        }
+        self.players.get(self.current_player).filter(|p| p.alive())
     }
 
     pub fn get_current_player_mut(&mut self) -> Option<&mut Player> {
-        if self.players[self.current_player].alive() {
-            Some(&mut self.players[self.current_player])
-        } else {
-            None
-        }
+        self.players
+            .get_mut(self.current_player)
+            .filter(|p| p.alive())
+    }
+
+    /// Index of the player whose turn it is.
+    pub fn current_index(&self) -> usize {
+        self.current_player
+    }
+
+    /// Kills every player. The turn index is reset so the result does not depend on how far the
+    /// team had rotated.
+    pub fn eliminate(&mut self) {
+        self.players.iter_mut().for_each(Player::kill);
+        self.current_player = 0;
     }
 
     /// Moves to the next alive player, returns `false` if no player is alive
