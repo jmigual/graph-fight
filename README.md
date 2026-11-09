@@ -2,30 +2,38 @@
 
 A worms-like game where players use formulas to attack each other. Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html)
 
-## Table of contents
+Each shot is a formula path:
 
-- [Graph Fight](#graph-fight)
-  - [Table of contents](#table-of-contents)
-  - [Compilation](#compilation)
+- XY field (2 players): `y = f(x)` or parametric `x(t)`, `y(t)`.
+- Polar disc field (2-8 players): `r = f(θ)` or parametric `r(t)`, `θ(t)`.
 
-## Compilation
+There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
+Nostr relays lets them find each other.
 
-To build the project, you need to have the following tools installed:
-- [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/): `cargo install wasm-pack`
-- [npm](https://www.npmjs.com/get-npm)
+## Prerequisites
 
-Then, you can build and launch the project by running the following commands:
+- [Rust](https://www.rust-lang.org/tools/install) with the `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
+- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
+- [Node.js](https://nodejs.org/) 22
+
+## Usage
+
 ```bash
-npm install
-npm run start
+npm ci
+npm start          # dev server
+npm run build      # production build into dist/
+npm test           # Rust and net tests
+npm run e2e        # browser P2P test (Playwright); needs public relays
 ```
 
-If you want to build the final project, run:
-```bash
-npm install
-npm run build
-```
+## Deployment
 
-The project will be located in the `dist/` folder.
+`.github/workflows/pages.yml` tests, builds and deploys `dist/` to GitHub Pages on every push to
+`master`. The site is served at https://graph-fight.marceigual.eu. One-time setup:
 
+- DNS: CNAME `graph-fight` pointing to `jmigual.github.io`.
+- Repo Settings, Pages: source "GitHub Actions" and custom domain `graph-fight.marceigual.eu`.
+
+## Design
+
+Architecture decisions are recorded in [docs/adr/](docs/adr/).
