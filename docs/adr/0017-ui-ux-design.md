@@ -591,6 +591,13 @@ Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game 
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
+Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
+host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. Turn ends in 42 s." when the current
+team's seat is away. Both update on the 250 ms tick. The `#absent` line is gone, since the roster and the status bar carry
+it. The guest-side state is not in the e2e test: the link is down for less than one tick on a quick reconnect, so a test
+could not tell it from a miss. It was checked by hand with a 20 ms sampler. "Leave game" while the host link is down
+still leaves this page, although `quit` is then dropped and the seat stays held (ADR 16).
+
 ## Consequences
 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access

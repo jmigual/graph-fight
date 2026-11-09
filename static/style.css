@@ -188,7 +188,7 @@ td[colspan] { text-align: left; }
 }
 
 /* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
-#games td:not(:last-child), #room-players, #turn, #absent, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
+#games td:not(:last-child), #room-players, #turn, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
 .muted { color: var(--ink-soft); }
 
 /* Waiting room and end screen */
@@ -236,8 +236,7 @@ td[colspan] { text-align: left; }
 
 .timer-bar { height: 4px; background: var(--grid); }
 #timer-fill { height: 100%; width: 0; background: var(--team, var(--ink-soft)); }
-#absent { color: var(--ink-soft); margin: 0.5rem 0 0; }
-#absent:empty { display: none; }
+#turn.quiet { color: var(--ink-soft); }
 
 #arena {
     --ratio: 2;

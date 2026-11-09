@@ -338,7 +338,7 @@ function refresh(p: Play) {
     p.view = view;
     $("game").style.setProperty("--team", p.over ? "" : teamColour(team));
     $("turn-swatch").textContent = p.over ? "" : String(team + 1);
-    $("turn").textContent = p.over ? "" : mine ? "Your turn" : `Team ${team + 1} is aiming`;
+    renderStatus(p);
     $("timer").hidden = p.over;
     document.title = mine && !p.over ? `Your turn | ${TITLE}` : TITLE;
     $("last-shot").textContent = p.note;
@@ -347,7 +347,28 @@ function refresh(p: Play) {
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
     renderRoster(p, view);
-    $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
+    $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
+}
+
+/** We are a guest and our link to the host is down (ADR 16): the board is frozen until the replay arrives. */
+const hostLinkDown = () => hostId !== selfId && !!room?.absent().includes(hostId);
+
+/** The status bar's words: the host link, a disconnected shooter, or whose turn it is (ADR 17, section 10). */
+function renderStatus(p: Play) {
+    const team = p.sim.get_current_team_idx();
+    const down = !p.over && hostLinkDown();
+    const away = !p.over && p.peers[team] !== me && !!room?.absent().includes(p.peers[team]);
+    const seconds = Math.ceil(Math.max(0, p.deadline - Date.now()) / 1000);
+    $("turn").textContent = p.over
+        ? ""
+        : down
+          ? "Reconnecting to the host…"
+          : away
+            ? `Team ${team + 1} is disconnected. Turn ends in ${seconds} s.`
+            : p.peers[team] === me
+              ? "Your turn"
+              : `Team ${team + 1} is aiming`;
+    $("turn").classList.toggle("quiet", down);
 }
 
 const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
@@ -480,9 +501,8 @@ setInterval(() => {
     $("countdown").textContent = p && !p.over ? String(Math.ceil(left / 1000)) : "";
     $("timer").classList.toggle("low", !!p && !p.over && left <= 10_000);
     $("timer-fill").style.width = `${(100 * left) / TURN_MS}%`;
-    const away = p && !p.over && room ? room.absent().map((id) => `Team ${p.peers.indexOf(id) + 1} (${short(id)})`) : [];
-    $("absent").textContent = away.length ? `Disconnected: ${away.join(", ")}` : "";
     if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
+    else if (p?.view) renderStatus(p);
 }, 250);
 
 // Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours).

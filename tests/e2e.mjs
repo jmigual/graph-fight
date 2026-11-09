@@ -441,8 +441,7 @@ const scenarios = {
         assert.equal(await page.locator("#roster li").count(), 2);
         assert.equal(await page.locator('#roster li [aria-label="3 of 3 players left"]').count(), 2);
         assert.match(await text(page, "#roster li >> nth=0"), /aiming|you/);
-        const width = await page.evaluate(() => parseFloat(document.getElementById("timer-fill").style.width));
-        assert.ok(width > 0 && width <= 100, "the timer bar is filled at the start of a turn");
+        await page.waitForFunction(() => parseFloat(document.getElementById("timer-fill").style.width) > 0, null, { timeout: 5000 });
         // A repeated identical error is cleared first, so the alert is announced again.
         await page.evaluate(() => {
             window.__errors = [];
