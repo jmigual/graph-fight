@@ -1,5 +1,10 @@
 //! Shot sampling and collisions (ADR 4 and 5).
 
+// tsify 0.5 deprecates `into_wasm_abi` (it panics on a failed conversion, and unwinding
+// leaks). These types only serialize, so the conversion cannot fail; `Ts<T>` would change the
+// signatures the Rust tests call.
+#![expect(deprecated)]
+
 use std::{f64::consts::TAU, fmt};
 
 use serde::Serialize;

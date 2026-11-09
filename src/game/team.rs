@@ -1,3 +1,8 @@
+// tsify 0.5 deprecates `into_wasm_abi` (it panics on a failed conversion, and unwinding
+// leaks). These types only serialize, so the conversion cannot fail; `Ts<T>` would change the
+// signatures the Rust tests call.
+#![expect(deprecated)]
+
 use rand::Rng;
 use tsify::Tsify;
 use serde::Serialize;
