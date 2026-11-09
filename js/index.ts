@@ -1,17 +1,17 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import { Field as WasmField, Game as Sim } from "../pkg/index.js";
-import type { Point } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { draw } from "./render";
+import type { LastShot, View } from "./render";
 
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
 const PLAYER_RADIUS = 0.3;
 // Arena constants are compiled into the bundle, so they never travel (ADR 8, 15).
 const ARENAS = {
-    xy: { x: 20, y: 10, obstacles: 30, minSize: 0.2, maxSize: 2, canvasWidth: 800 },
-    disc: { x: 10, y: 10, obstacles: 20, minSize: 0.2, maxSize: 1.5, canvasWidth: 600 },
+    xy: { x: 20, y: 10, obstacles: 30, minSize: 0.2, maxSize: 2 },
+    disc: { x: 10, y: 10, obstacles: 20, minSize: 0.2, maxSize: 1.5 },
 };
 /** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
 const SEAT_KEY = "graph-fight-seat";
@@ -31,7 +31,9 @@ type Play = {
     peers: string[];
     /** Number of applied shots and timeouts. */
     turn: number;
-    shot: Point[];
+    shot: LastShot | null;
+    /** The board as last drawn. */
+    view?: View;
     /** Our shot is sent and not yet applied. */
     pending: boolean;
     over: boolean;
@@ -207,11 +209,8 @@ function startGame(msg: Start) {
     } catch (err) {
         return end(`Could not start the game: ${err}`);
     }
-    const canvas = $<HTMLCanvasElement>("arena");
-    canvas.width = a.canvasWidth;
-    canvas.height = (a.canvasWidth * a.y) / a.x;
     $("game").dataset.field = msg.field;
-    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: [], pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -245,10 +244,14 @@ function onMessage(msg: GameMsg) {
         } else {
             p.turn++;
             p.pending = false;
-            p.shot = [];
+            p.shot = null;
             try {
                 if (msg.type === "timeout") p.sim.skip_turn();
-                else p.shot = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points;
+                else {
+                    const team = p.sim.get_current_team_idx();
+                    const points = (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points;
+                    p.shot = { team, exprs: msg.exprs, points };
+                }
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
                 p.sim.skip_turn();
@@ -276,11 +279,18 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    draw($<HTMLCanvasElement>("arena"), { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot });
+    p.view = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, shot: p.shot };
+    draw($<HTMLCanvasElement>("arena"), p.view);
     const turnEl = $("turn");
     turnEl.textContent = p.over ? "" : `Team ${team + 1} (${short(p.peers[team])})${mine ? ", your turn" : ""}`;
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine;
 }
+
+// The board redraws when its size, the colour scheme or the fonts change (ADR 17).
+const redraw = () => play?.view && draw($<HTMLCanvasElement>("arena"), play.view);
+new ResizeObserver(redraw).observe($("arena"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+document.fonts.addEventListener("loadingdone", redraw);
 
 function end(message: string) {
     if (ended) return;

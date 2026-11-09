@@ -190,6 +190,12 @@ engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` fo
 disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - 7rem) * var(--ratio)))`, so
 the whole board fits the viewport without distortion.
 
+Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
+The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to
+the `θ = 0` label. Grid rays are all `--grid`. The board redraws on `document.fonts`
+`loadingdone`, since the game's fonts may load only once the game section is shown. A missing
+token falls back to its light value.
+
 ### 5. Motion
 
 - **Trajectory draw.** When a shot is applied, the engine has already moved to the new state
