@@ -47,6 +47,23 @@ impl Team {
         &self.players
     }
 
+    #[cfg(test)]
+    pub fn from_players(players: Vec<Player>) -> Team {
+        Team {
+            players,
+            current_player: 0,
+        }
+    }
+
+    /// Kills every living player containing `point`, except the one at index `spare`.
+    pub fn kill_at(&mut self, point: &Point, spare: Option<usize>) {
+        for (i, p) in self.players.iter_mut().enumerate() {
+            if p.alive() && Some(i) != spare && p.shape().contains(point) {
+                p.kill();
+            }
+        }
+    }
+
     /// True if the shape collides with any player of the team
     pub fn collision_with_player(&self, shape: &Circle) -> bool {
         self.players

@@ -69,6 +69,25 @@ impl Arena {
         }
     }
 
+    pub fn field(&self) -> Field {
+        self.field
+    }
+
+    #[cfg(test)]
+    pub fn from_parts(
+        field: Field,
+        x_max: f64,
+        y_max: f64,
+        obstacles: Vec<Circle>,
+        teams: Vec<Team>,
+    ) -> Arena {
+        Arena {
+            obstacles,
+            teams,
+            ..Arena::new(field, x_max, y_max)
+        }
+    }
+
     /// True if the point lies inside the playing field. On a disc the radius is `y_max`.
     pub fn contains(&self, point: &Point) -> bool {
         match self.field {
@@ -164,8 +183,20 @@ impl Arena {
         self.holes.push(Circle::new(pos, CRATER_RADIUS));
     }
 
+    /// Kills the living players containing `point`, sparing the shooter `(team, player)`.
+    pub fn kill_players_at(&mut self, point: &Point, shooter: (usize, usize)) {
+        for (i, team) in self.teams.iter_mut().enumerate() {
+            team.kill_at(point, (i == shooter.0).then_some(shooter.1));
+        }
+    }
+
     pub fn obstacles(&self) -> &[Circle] {
         &self.obstacles
+    }
+
+    /// Craters left by earlier shots.
+    pub fn holes(&self) -> &[Circle] {
+        &self.holes
     }
 
     pub fn get_area(&self) -> &Rectangle {

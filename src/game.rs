@@ -1,5 +1,6 @@
 mod arena;
 mod player;
+mod shot;
 mod team;
 
 use std::fmt;
@@ -11,6 +12,7 @@ use crate::utils;
 
 pub use self::arena::Arena;
 pub use self::player::Player;
+pub use self::shot::Shot;
 pub use self::team::Team;
 
 const MAX_ITERS: usize = 100;

@@ -37,6 +37,10 @@ impl Player {
         self.alive
     }
 
+    pub fn kill(&mut self) {
+        self.alive = false;
+    }
+
     pub fn formula_js(&self) -> String {
         self.formula.clone()
     }
