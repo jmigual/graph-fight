@@ -1,6 +1,7 @@
 # 8. Rust/TypeScript API surface
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0014: `fire` returns `FireError` (including `UndefinedAtShooter`); the shooter validates with `check`/`check_param`.
 
 ## Context
 
