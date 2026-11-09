@@ -35,10 +35,13 @@ const MAX_EXPR = 256;
 /** Longest id, seed or name accepted off the wire. */
 const MAX_TEXT = 64;
 /**
- * How long a seated peer's host link may stay down before it rejoins the game room (ADR 18):
- * past the 23.3 s Trystero 0.26.0 keeps a pending answer, well before its 60 s re-announce.
+ * How long a seated peer's host link may stay down before it first rejoins the game room (ADR 18):
+ * past the 23.3 s Trystero 0.26.0 keeps a pending answer, well before its 60 s re-announce. The
+ * wait doubles after each rejoin that does not bring the host back.
  */
 const REJOIN_MS = 25_000;
+/** How long the host link may stay down before a seated peer gives the game up (ADR 18). */
+const HOST_LOST_MS = 180_000;
 
 export type Field = "xy" | "disc";
 
@@ -347,6 +350,11 @@ export type GameHandlers = {
     onVersionMismatch(hostVersion: string): void;
     /** We missed a broadcast and hold no seat token to ask for a replay, so we left the room. */
     onDesync(): void;
+    /**
+     * We hold a seat and our link to the host has been down for `HOST_LOST_MS` (ADR 18). The host
+     * keeps the game in memory only, so it cannot come back to it; we left the room.
+     */
+    onHostLost?(): void;
     /** A send failed; the message may not have reached everyone. */
     onSendError(err: unknown): void;
     /** The host gave us our private seat token: keep it (never log or share it) to rejoin after a reload. */
@@ -384,9 +392,10 @@ export type Game = {
  * Join room `game-<hostId>`; the host joins with its own `selfId`. Peers accept messages only
  * from the host. A seated peer whose link drops keeps its seat: with its seat `token` (passed
  * here after a reload) it asks the host for a replay of the game when the host link comes
- * back or when it sees a gap (ADR 16), and rejoins the room when that link stays down for
- * `REJOIN_MS` (ADR 18). Peer ids are announced by the peers themselves during signalling, so a
- * modified client can claim any id; that is accepted under ADR 7's trusted-peers model.
+ * back or when it sees a gap (ADR 16). While that link stays down it rejoins the room after
+ * `REJOIN_MS`, then after twice as long each time, and gives up after `HOST_LOST_MS` (ADR 18).
+ * Peer ids are announced by the peers themselves during signalling, so a modified client can
+ * claim any id; that is accepted under ADR 7's trusted-peers model.
  */
 export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
     const isHost = hostId === selfId;
@@ -413,16 +422,30 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     const hostConnected = () => hostId in room.getPeers();
 
     // A seated peer whose host link stays down rejoins the room, which starts a fresh signalling
-    // exchange (ADR 18). A rejoin that does not connect either is retried after the same delay.
+    // exchange, with a doubling wait so a gone host costs the relays little, and gives the game
+    // up once the link has been down for HOST_LOST_MS (ADR 18).
     let watchdog: ReturnType<typeof setTimeout> | undefined;
+    let downSince = 0;
+    let wait = REJOIN_MS;
     function watch() {
         clearTimeout(watchdog);
-        if (!isHost && token && !left) watchdog = setTimeout(reopen, REJOIN_MS);
+        if (isHost || !token || left) return;
+        downSince = Date.now();
+        wait = REJOIN_MS;
+        schedule();
+    }
+    function schedule() {
+        watchdog = setTimeout(reopen, Math.min(wait, downSince + HOST_LOST_MS - Date.now()));
     }
     function reopen() {
+        if (Date.now() - downSince >= HOST_LOST_MS) {
+            leave();
+            return handlers.onHostLost?.();
+        }
         void room.leave();
         [room, action] = open();
-        watch();
+        wait *= 2;
+        schedule();
     }
     // After a reload the host link is not up yet.
     watch();

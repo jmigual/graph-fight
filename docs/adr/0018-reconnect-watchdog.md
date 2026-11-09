@@ -25,8 +25,12 @@ clock skips the player's turn. The e2e scenario G hit this in about 3% of runs.
   for a link that goes quiet before closing, so the watchdog never fires then.
 - One timer per game. It starts when the host link drops, and after a reload, while the link is not
   up yet. It stops when the host link comes back and when the page leaves the room. A rejoin that
-  does not connect either is retried after another 25 s, never sooner. The host and peers without a
-  seat never run it.
+  does not bring the host back is retried after twice the previous wait: 25, 50, 100 s. The host
+  and peers without a seat never run it.
+- Once the host link has been down for 3 minutes in a row, the peer leaves the room and the game
+  ends with "Host unreachable.". The host keeps its log in memory only, so a host that vanished
+  without quitting (tab killed, machine asleep) cannot resume the game; ADR 16 already ends the
+  game when the host leaves. Three minutes covers the first three rejoins.
 - A guest leaves the room when its game ends, so a gone host is not rejoined forever. The host
   stays, so its last broadcast is not cut off.
 - Events from a room the page has left or replaced are dropped. A rejoined room reports the peers
@@ -36,10 +40,11 @@ clock skips the player's turn. The e2e scenario G hit this in about 3% of runs.
 
 - After the race, a dropped peer is back in about 25 s instead of about 67 s, before the turn clock
   skips its turn.
-- A peer whose host is gone for good rejoins every 25 s until it leaves. Trystero backs off relays
-  that rate-limit it.
+- A peer whose host is gone for good rejoins three times, then ends the game. Relay rate limits
+  are shared by every room in the page, so the doubling wait keeps the extra traffic small.
 - The 25 s is tied to Trystero 0.26.0 internals (`answeringTtlMs`, the 60 s steady announce).
   Re-check it on a Trystero bump.
 - This is a workaround until Trystero ignores copies of an offer it has already answered; remove it
   then.
-- The e2e scenario G bounds the reconnect at 35 s.
+- The e2e scenario G bounds the reconnect at 35 s. Q checks, with the guest's clock faked, that
+  a guest whose host vanished ends with "Host unreachable." and then stops.

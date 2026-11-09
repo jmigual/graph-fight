@@ -143,6 +143,7 @@ function enterRoom(id: string, seat?: Seat) {
         },
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
+        onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
             showError(`Shot not sent: ${err}. Fire again.`, false);

@@ -39,15 +39,24 @@ const comparable = async (page) => {
 
 /**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
- * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` installs
- * Playwright's fake clock on the host before it loads; `blockStorage` makes the host's localStorage refuse writes.
+ * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` and
+ * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
+ * `blockStorage` makes the host's localStorage refuse writes.
  */
-async function startGame(n, field, label, { seats = n, fakeHostClock = false, blockStorage = false } = {}) {
+async function startGame(n, field, label, { seats = n, fakeHostClock = false, fakeGuestClock = false, blockStorage = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
+        // Counts game-room subscriptions (Nostr REQs other than the lobby's): joining a room sends them.
+        page.subscriptions = 0;
+        page.on("websocket", (ws) =>
+            ws.on("framesent", (f) => {
+                const frame = String(f.payload);
+                if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
+            }),
+        );
         // Leave game asks for confirmation (ADR 17): record the message, then accept unless told to dismiss.
         page.dialogs = [];
         page.on("dialog", (d) => {
@@ -79,7 +88,7 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, bl
                 };
             });
         }
-        if (i === 0 && fakeHostClock) await page.clock.install();
+        if ((i === 0 && fakeHostClock) || (i === 1 && fakeGuestClock)) await page.clock.install();
         await page.goto(url);
         pages.push(page);
     }
@@ -133,6 +142,14 @@ async function takeTurn(pages, turn, exprs) {
     if (exprs.length === 2) await page.fill("#input-b", exprs[1]);
     await page.click("#fire");
     await assertSynced(pages, turn + 1);
+}
+
+/** Fast-forwards `page`'s fake clock by `time`: it must not join a game room or open a connection meanwhile. */
+async function assertQuiet(page, time) {
+    const before = [page.subscriptions, await page.evaluate(() => window.__pcs.length)];
+    await page.clock.fastForward(time);
+    await page.waitForTimeout(2000); // real time for a rejoin to reach the relays
+    assert.deepEqual([page.subscriptions, await page.evaluate(() => window.__pcs.length)], before, "no rejoin");
 }
 
 /** A formula undefined at the shooter is rejected locally and does not use the turn. */
@@ -556,6 +573,30 @@ const scenarios = {
         await assertSynced(pages, turn);
         await takeTurn(pages, turn, ["2"]);
         await takeTurn(pages, turn + 1, ["t", "0"]);
+        return errors;
+    },
+    async Q() {
+        // A host tab that dies without its quit leaves the guest rejoining, less and less often.
+        // After 3 minutes the guest gives the game up and stops (ADR 18).
+        const { pages, errors } = await startGame(2, "disc", "Q", { fakeGuestClock: true });
+        const [host, guest] = pages;
+        await assertSynced(pages, 0);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await host.close();
+        await guest.waitForFunction(() => document.getElementById("turn").textContent.startsWith("Reconnecting"), null, { timeout: TURN_WAIT_MS });
+        const before = guest.subscriptions;
+        await guest.clock.fastForward("00:30");
+        await guest.waitForTimeout(1000); // real time for the rejoin to reach the relays
+        assert.ok(guest.subscriptions > before, "the guest rejoined the room");
+        assert.equal(await guest.isVisible("#end"), false, "the guest still waits for the host");
+        // Each fast-forward fires a due timer at most once, so step through the backoff.
+        for (let i = 0; i < 6; i++) {
+            await guest.clock.fastForward("00:30");
+            await guest.waitForTimeout(500);
+        }
+        await guest.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        assert.equal(await text(guest, "#end-message"), "Host unreachable.");
+        await assertQuiet(guest, "05:00");
         return errors;
     },
 };
