@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, sequencer, versionGate } from "../js/net.ts";
+import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", peers: ["h", "p"], version: "v1" };
@@ -53,6 +53,19 @@ assert.deepEqual(routeIncoming("h", "h", "p", shot), { kind: "request", shot });
 for (const m of [timeout, leave, start]) assert.equal(routeIncoming("h", "h", "p", m), undefined, m.type);
 assert.equal(routeIncoming("h", "p", "q", shot), undefined, "a shot request at a non-host");
 
+// Seat tokens come only from the host; rejoin and quit are requests only the host takes.
+const token = "t".repeat(32);
+assert.deepEqual(routeIncoming("h", "p", "h", { seat: token }), { kind: "seat", token });
+assert.equal(routeIncoming("h", "p", "q", { seat: token }), undefined, "a seat token from a non-host");
+assert.equal(routeIncoming("h", "p", "h", { seat: "t".repeat(65) }), undefined, "oversized token");
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "rejoin", token }), { kind: "rejoin", token });
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "quit" }), { kind: "quit" });
+assert.equal(routeIncoming("h", "p", "q", { type: "rejoin", token }), undefined, "a rejoin at a non-host");
+assert.equal(routeIncoming("h", "p", "q", { type: "quit" }), undefined, "a quit at a non-host");
+for (const bad of [{ type: "rejoin" }, { type: "rejoin", token: 7 }, { type: "rejoin", token: "t".repeat(65) }]) {
+    assert.equal(routeIncoming("h", "h", "p", bad), undefined, JSON.stringify(bad));
+}
+
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
 assert.throws(() => box.stamp(shot), /before start/, "nothing before start");
@@ -65,8 +78,10 @@ assert.throws(() => box.stamp(start), /already relayed/, "no second start");
 assert.throws(() => box.stamp({ type: "shot", turn: 0, exprs: ["x".repeat(257)] }), /invalid/);
 assert.deepEqual(box.stamp(shot), { seq: 1, msg: shot }, "refused messages consume no number");
 assert.deepEqual(box.stamp(leave), { seq: 2, msg: leave });
+assert.deepEqual(box.log, [{ seq: 0, msg: start }, { seq: 1, msg: shot }, { seq: 2, msg: leave }], "the log holds every stamped message, in order");
 
-// Sequencer: drops everything before start, delivers in order, drops repeats, flags gaps.
+// Sequencer: drops everything before start, delivers in order, drops repeats, flags gaps and
+// accepts a fresh run from seq 0 (a replay).
 function run() {
     const log = { got: [], desync: 0 };
     return { log, accept: sequencer((m) => log.got.push(m.type), () => log.desync++) };
@@ -79,16 +94,40 @@ assert.deepEqual(t.log, { got: [], desync: 0 }, "late joiner: nothing before sta
 t.accept(0, start);
 t.accept(1, shot);
 t.accept(1, shot);
-t.accept(0, start);
 t.accept(2, leave);
 assert.deepEqual(t.log, { got: ["start", "shot", "leave"], desync: 0 }, "in order, repeats dropped");
 t.accept(4, shot);
 assert.deepEqual(t.log, { got: ["start", "shot", "leave"], desync: 1 }, "gap flags desync");
+t.accept(5, shot);
+t.accept(3, timeout);
+assert.deepEqual(t.log, { got: ["start", "shot", "leave"], desync: 1 }, "after a gap, everything waits for the replay");
+for (const [seq, m] of [[0, start], [1, shot], [2, leave], [3, timeout], [4, shot]]) t.accept(seq, m);
+t.accept(5, shot);
+assert.deepEqual(t.log.got.slice(3), ["start", "shot", "leave", "timeout", "shot", "shot"], "the replay restarts from seq 0, then live messages follow");
+assert.equal(t.log.desync, 1);
 
 t = run();
 t.accept(0, start);
 t.accept(2, leave);
 assert.deepEqual(t.log, { got: ["start"], desync: 1 }, "missed message right after start");
+
+// Seat book: one 128-bit token per seat; a known token moves its seat to the new peer.
+const seats = seatBook(["h", "p", "q"]);
+assert.equal(seats.tokens[0], "", "the host gets no token");
+assert.equal(new Set(seats.tokens).size, 3);
+for (const tk of seats.tokens.slice(1)) assert.match(tk, /^[0-9a-f]{32}$/);
+assert.equal(seats.rejoin("", "x"), false, "an empty token cannot claim the host's seat");
+assert.equal(seats.seatOf("p"), "p");
+assert.equal(seats.seatOf("x"), undefined);
+assert.equal(seats.rejoin("nope", "x"), false, "unknown token");
+assert.equal(seats.rejoin(seats.tokens[1].toUpperCase(), "x"), false, "tokens compare exactly");
+assert.equal(seats.seatOf("x"), undefined, "an unknown token binds nothing");
+assert.deepEqual(seats.absent((id) => id !== "q"), ["q"]);
+assert.equal(seats.rejoin(seats.tokens[1], "p2"), true);
+assert.equal(seats.seatOf("p2"), "p", "the new peer holds the seat");
+assert.equal(seats.seatOf("p"), undefined, "the old peer id no longer does");
+assert.deepEqual(seats.absent((id) => id === "h" || id === "p"), ["p", "q"], "absence follows the holder, not the seat id");
+assert.deepEqual(seats.absent(() => false), ["p", "q"], "the host's own seat is never absent");
 
 // Version gate: a start from another build is not delivered; other messages pass.
 const seen = [];
