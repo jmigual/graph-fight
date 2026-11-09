@@ -474,6 +474,9 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     };
     room.onPeerJoin = (id) => {
         if (id === hostId && token) rejoin(token);
+        // A seated peer back under the same id may have missed the last broadcasts, which it
+        // would otherwise only notice at the next one (ADR 16).
+        else if (seats?.seatOf(id)) replay(id);
         handlers.onPeerJoin?.(id);
     };
     room.onPeerLeave = (id) => {

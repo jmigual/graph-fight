@@ -127,8 +127,10 @@ function enterRoom(id: string, seat?: Seat) {
         },
         onPeerLeave(peer) {
             connected = connected.filter((p) => p !== peer);
-            // A seated peer waits for the host to come back; a host that quits relays its own leave.
-            if (peer === hostId && !sessionStorage.getItem(SEAT_KEY)) end("Host left.");
+            // A seated peer in a game waits for the host to come back; a host that quits relays its
+            // own leave. Without a game yet (waiting room, or a stored seat not yet replayed),
+            // the host leaving ends it.
+            if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end("Host left.");
             else roomChanged();
         },
     }, seat?.token);

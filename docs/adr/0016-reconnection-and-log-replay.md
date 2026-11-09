@@ -33,6 +33,12 @@ the game from it.
   the current one has drained, so a slow link cannot pile up replays. A failed replay send is
   only logged with `console.warn`, since the peer will ask again; it never touches the host's
   UI. An unknown token is ignored. While waiting for the replay, the page shows "Rejoining…".
+- **Host-side replay.** The host also replays, unasked, to a seated peer that rejoins the room
+  under the same peer id (a dropped link coming back). Otherwise a broadcast lost at the end
+  of the stream would only show up as a gap at the next broadcast, up to one turn clock later,
+  and meanwhile the peer's shot would be rejected for its stale turn number. With the peer's
+  own rejoin, this can send two replays, which is harmless. The limit that remains: a broadcast
+  lost on a link that never drops (a send failure) is still noticed only at the next broadcast.
 - **Stale seat.** The host's room is `game-<selfId>` for the page's lifetime, so a tab
   restored with a seat from the host's previous game can join its next one. Its token is
   unknown there and is ignored. If its stored seat id is not in the new `start.peers`, it drops
@@ -53,8 +59,10 @@ the game from it.
   it relays `leave` for itself, and every peer ends with "Host left". The
   `beforeunload` handler is registered before any room is joined, so it runs before Trystero's
   own handler closes the links. A host page that dies without `beforeunload` leaves the peers
-  waiting, showing the host as disconnected, until they leave. A peer still in the waiting
-  room, holding no seat, ends with "Host left" when the host link drops, as before.
+  waiting, showing the host as disconnected, until they leave. A page with no game yet (the
+  waiting room, or a stored seat whose replay has not arrived) ends with "Host left" when the
+  host link drops. That includes a stale seat in the host's next waiting room; the price is
+  that a link blip during the short rejoin wait also ends the game for that page.
 - **Presence.** `Game.absent()` reports only what the page itself knows. On the host, it lists
   seats whose holder is not connected. On a peer, it lists the host while the host link is down.
   The UI shows these as "Disconnected". Peers do not see other peers' absence, because after a

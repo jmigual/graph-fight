@@ -246,8 +246,9 @@ const scenarios = {
         return errors;
     },
     async H() {
-        // A tab restored with a seat from the host's previous game joins its next game in the same
-        // room: the stale seat is dropped and the tab plays under its own id.
+        // A tab restored with a seat from the host's previous game lands in the host's next waiting
+        // room (same room id). If the host leaves it, the tab ends with "Host left"; if the host
+        // starts, the stale seat is dropped and the tab plays under its own id.
         const { pages, errors } = await startGame(2, "xy", "H");
         const [host, old] = pages;
         await old.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
@@ -256,12 +257,22 @@ const scenarios = {
         await host.click("#quit");
         const restored = await (await browser.newContext()).newPage();
         restored.on("pageerror", (e) => errors.push(`restored: ${e}`));
+        // Runs on every load, so each reload restores the stale seat again.
         await restored.addInitScript((s) => sessionStorage.setItem("graph-fight-seat", s), seat);
         await restored.goto(url);
         assert.equal(await text(restored, "#room-status"), "Rejoining…");
-        await host.fill("#host-name", `e2e-H2-${Math.random().toString(36).slice(2, 8)}`);
-        await host.click("#host-form button");
-        await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
+        const hostAgain = async () => {
+            await host.fill("#host-name", `e2e-H-${Math.random().toString(36).slice(2, 8)}`);
+            await host.click("#host-form button");
+            await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
+        };
+        await hostAgain();
+        await host.click("#leave");
+        await restored.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        assert.match(await text(restored, "#end-message"), /host left/i);
+        // Reload before the host comes back, so the host never sees the page's previous peer id.
+        await restored.reload();
+        await hostAgain();
         await host.click("#start");
         const players = [host, restored];
         await assertSynced(players, 0);
