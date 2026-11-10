@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { isBot, lobbyBook, MAX_PLAYERS, outbox, parseBot, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
+import { isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, outbox, parseBot, parseGameMsg, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -155,6 +155,29 @@ for (const bad of ["bot:", "bot:hard:0", "bot:hard:8", "bot:expert:1", "bot:Hard
     assert.equal(parseBot(bad), undefined, bad);
     assert.equal(parseGameMsg({ ...start, peers: ["h", bad] }), undefined, bad);
 }
+
+// Local players (ADR 22): `local:<n>`, n from 1 to 7, in `start.peers`; any other `local:` entry drops the start.
+assert.equal(parseLocal("local:1"), 1);
+assert.equal(parseLocal("local:7"), 7);
+assert.equal(parseLocal("p"), undefined);
+assert.equal(parseLocal("bot:hard:1"), undefined);
+assert.equal(isLocal("p"), false);
+assert.equal(isLocal("local:x"), true);
+assert.deepEqual([isHostRun("bot:hard:1"), isHostRun("local:2"), isHostRun("p")], [true, true, false]);
+const mixed = { ...start, peers: ["h", "p", "local:1", "local:2", "bot:easy:1"] };
+assert.deepEqual(parseGameMsg(mixed), mixed);
+for (const bad of ["local:", "local:0", "local:8", "local:12", "local:1 ", "Local:1", "local:one", "local:1:1"]) {
+    assert.equal(parseLocal(bad), undefined, bad);
+    if (bad.startsWith("local:")) assert.equal(parseGameMsg({ ...start, peers: ["h", bad] }), undefined, bad);
+}
+
+// Local seats, like bot seats: no token, no holder, never absent; a peer calling itself a local player gets nothing.
+const withLocals = seatBook(["h", "p", "local:1", "bot:hard:1"]);
+assert.deepEqual(withLocals.tokens.map((t) => t !== ""), [false, true, false, false], "only the human guest gets a token");
+assert.equal(withLocals.seatOf("local:1"), undefined, "a peer announcing a local id holds no seat");
+assert.equal(withLocals.rejoin("", "local:1"), false);
+assert.equal(withLocals.seatOf("local:1"), undefined, "the empty token claims no local seat");
+assert.deepEqual(withLocals.absent(() => false), ["p"], "local players are never absent");
 
 // Version gate: a start from another build is not delivered; other messages pass.
 const seen = [];
