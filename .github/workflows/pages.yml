@@ -35,15 +35,15 @@ jobs:
           GRAPH_FIGHT_LOBBY: live
       - name: Check the build announces on the live lobby topic
         run: |
-          grep -q '"graph-fight:lobby"' dist/index.js
-          ! grep -q '"graph-fight:lobby:dev"' dist/index.js
+          grep -qF '"graph-fight:lobby"' dist/index.js
+          if grep -qF '"graph-fight:lobby:dev"' dist/index.js; then exit 1; fi
       - name: Check the build is the version at the top of CHANGELOG.md
         run: |
-          version=$(sed -n 's/^## \([0-9]*\.[0-9]*\.[0-9]*\) — .*/\1/p' CHANGELOG.md | head -n 1)
+          version=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; import { parseChangelog } from "./scripts/changelog.mjs"; console.log(parseChangelog(readFileSync("CHANGELOG.md", "utf8"))[0].version)')
           test -n "$version"
-          grep -q "\"$version\"" dist/index.js
-          grep -q "<h2 id=\"v$version\">" dist/changelog.html
-          ! grep -q -- '-dev+' dist/index.js
+          grep -qF "\"$version+" dist/index.js
+          grep -qF "<h2 id=\"v$version\">" dist/changelog.html
+          if grep -qF -- '-dev+' dist/index.js; then exit 1; fi
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

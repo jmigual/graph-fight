@@ -6,9 +6,12 @@ import type { JsonValue } from "trystero";
 export { selfId };
 
 // Replaced by esbuild's `define` (scripts/build.mjs); undefined when run outside a bundle (tests).
+declare const __BUILD_ID__: string;
 declare const __BUILD_VERSION__: string;
 declare const __LOBBY_TOPIC__: string;
-/** Identifies this build; peers on another build cannot play together. */
+/** Identifies this build exactly (ADR 28); peers on another build cannot play together. */
+export const BUILD_ID = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
+/** What the footer shows: the release version, or the whole id of a dev build. Never compared. */
 export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : "dev";
 
 const APP_ID = "graph-fight";
@@ -205,7 +208,7 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
 }
 
 /** An invite link's fragment (ADR 24): the host's id, the room password and our build. */
-export const inviteFragment = (hostId: string, key: string) => `#${new URLSearchParams({ join: hostId, key, v: BUILD_VERSION })}`;
+export const inviteFragment = (hostId: string, key: string) => `#${new URLSearchParams({ join: hostId, key, v: BUILD_ID })}`;
 
 /**
  * Reads an invite link's fragment (ADR 24). The link is untrusted input: undefined unless it names
@@ -277,7 +280,7 @@ export type Lobby = {
  * receives the full list of open games whenever it changes.
  */
 export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
-    const book = lobbyBook(selfId, BUILD_VERSION);
+    const book = lobbyBook(selfId, BUILD_ID);
     const sockets = new Set<WebSocket>();
     let mine: Announce | null = null;
     let closed = false;
@@ -313,7 +316,7 @@ export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
     // A lost announcement is replaced by the next one, so failures are only logged.
     const logFailure = (err: unknown) => console.warn("lobby publish failed", err);
     function announceMine(to?: Iterable<WebSocket>) {
-        if (mine) publish({ ...mine, id: selfId, version: BUILD_VERSION }, to).catch(logFailure);
+        if (mine) publish({ ...mine, id: selfId, version: BUILD_ID }, to).catch(logFailure);
     }
 
     LOBBY_RELAYS.forEach((url) => connect(url));
@@ -657,7 +660,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
     }
 
     const accept = sequencer(
-        versionGate(BUILD_VERSION, handlers.onMessage, (hostVersion) => {
+        versionGate(BUILD_ID, handlers.onMessage, (hostVersion) => {
             leave();
             handlers.onVersionMismatch(hostVersion);
         }),

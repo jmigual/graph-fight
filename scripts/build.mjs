@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
 import { changelogHtml, parseChangelog } from "./changelog.mjs";
 import { lobbyTopic } from "./lobby-topic.mjs";
-import { buildVersion } from "./version.mjs";
+import { buildId, buildVersion } from "./version.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = resolve(root, "dist");
@@ -32,6 +32,7 @@ function sourceHash() {
 }
 
 const changelog = parseChangelog(readFileSync(resolve(root, "CHANGELOG.md"), "utf8"));
+const hash = sourceHash();
 const serve = process.argv.includes("--serve");
 
 rmSync(dist, { recursive: true, force: true });
@@ -47,7 +48,11 @@ const options = {
   bundle: true,
   format: "esm",
   target: "es2022",
-  define: { __BUILD_VERSION__: JSON.stringify(buildVersion(changelog, sourceHash())), __LOBBY_TOPIC__: JSON.stringify(lobbyTopic()) },
+  define: {
+    __BUILD_ID__: JSON.stringify(buildId(changelog, hash)),
+    __BUILD_VERSION__: JSON.stringify(buildVersion(changelog, hash)),
+    __LOBBY_TOPIC__: JSON.stringify(lobbyTopic()),
+  },
   minify: !serve,
   sourcemap: serve,
   logLevel: "info",

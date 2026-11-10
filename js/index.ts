@@ -3,7 +3,7 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
+import { BUILD_ID, BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
@@ -266,7 +266,7 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
             if (play) refresh(play);
         },
         onSeat(token) {
-            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me, key: roomKey } satisfies Seat));
+            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_ID, me, key: roomKey } satisfies Seat));
         },
         onPeerJoin(peer) {
             // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
@@ -383,7 +383,7 @@ $("start").onclick = () => {
     try {
         // Delivered to our own onMessage, which starts the game.
         const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length - locals.length), ...locals, ...bots];
-        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_VERSION });
+        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_ID });
     } catch (err) {
         $("room-error").textContent = `Could not start: ${err}.`;
         return;
@@ -718,7 +718,7 @@ function openInvite() {
     const invite = parseInvite(location.hash);
     if (!invite) return false;
     history.replaceState(null, "", location.pathname + location.search);
-    if (invite.version === BUILD_VERSION) enterRoom(invite.hostId, undefined, invite.key);
+    if (invite.version === BUILD_ID) enterRoom(invite.hostId, undefined, invite.key);
     else end(...INVITE_MISMATCH);
     return true;
 }
@@ -743,6 +743,6 @@ addEventListener("hashchange", () => {
 const saved = sessionStorage.getItem(SEAT_KEY);
 if (!openInvite() && saved) {
     const seat = JSON.parse(saved) as Seat;
-    if (seat.version === BUILD_VERSION) enterRoom(seat.hostId, seat);
+    if (seat.version === BUILD_ID) enterRoom(seat.hostId, seat);
     else end(...MISMATCH);
 }

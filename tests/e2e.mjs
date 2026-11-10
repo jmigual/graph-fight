@@ -192,11 +192,13 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
 }
 
 /**
- * Every page's `#build` footer link shows the announced build version, `x.y.z` or `x.y.z-dev+<hash>`
- * (ADR 28), and names it with the changelog it opens (ADR 17).
+ * Every page's `#build` footer link shows the build the host announced and names the changelog it opens
+ * (ADR 17, 28). The announced id is `x.y.z+<hash>` (release) or `x.y.z-dev+<hash>` (dev, what e2e runs
+ * against); the footer shows the plain version for a release and the whole id for a dev build.
  */
-async function assertBuild(pages, version) {
-    assert.match(version ?? "", /^\d+\.\d+\.\d+(-dev\+\w+)?$/, "the host announced a version");
+async function assertBuild(pages, id) {
+    assert.match(id ?? "", /^\d+\.\d+\.\d+(-dev)?\+\w+$/, "the host announced a build id");
+    const version = id.includes("-dev") ? id : id.split("+")[0];
     for (const page of pages) {
         assert.equal(await text(page, "#build"), `v ${version}`);
         const link = page.getByRole("link", { name: `Version ${version}, view changelog` });
