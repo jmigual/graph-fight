@@ -34,7 +34,9 @@ the inputs, the error line and the direction, and the helper buttons and hint mo
 sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
 `#turn` is up to 1.25 rem, and on our turn the formula inputs get a 2 px `--mark` border (section 10).
 The end screen hides the editor, the saved formulas, the timer bar and the out note; the board, the
-last-shot line and the roster stay (section 6).
+last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide as the screen
+under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
+bar (sections 4 and 6).
 
 ## Context
 
@@ -223,10 +225,11 @@ are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed f
 ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
 engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
 disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)))`, so
-the whole board fits the viewport without distortion. `--ratio` and `--chrome` (7rem) are `:root`
-tokens, and so is `--game-w`, the game's width at which the height-bound board exactly fills its
-column: `(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most
-that wide, so on a wide window the board takes the rest of the width beside the side column.
+the whole board fits the viewport without distortion. `--ratio` and `--chrome` are `:root` tokens;
+`--chrome` is 7rem for the status bar, the margins and the last-shot line, plus the Help bar above
+the screens (ADR 26: 0.5rem and a control's height), `calc(7.5rem + var(--control-h))`. `--game-w`
+is a `:root` token too, the game's width at which the height-bound board exactly fills its column:
+`(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most that wide, so on a wide window the board takes the rest of the width beside the side column.
 
 Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
 The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to
@@ -313,7 +316,10 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 Gutter 16 px on phones and 24 px from 600 px up. Each screen is a centred block, and text inside it
 is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, the game
 and end screens `--game-w` (section 4), and the changelog page (ADR 28) 44rem, a reading
-measure. The footer is centred. One breakpoint at 960 px.
+measure. The footer is centred. The Help bar above the screens (ADR 26) has the same width as the
+screen shown, plus the gutters it pads with, so Help ends at the screen's right edge: `--page` in
+the lobby, 40rem in the waiting room, `--game-w` in a game or the test arena. Help's list items keep
+the 65ch measure of every paragraph. One breakpoint at 960 px.
 No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas) get
 `overflow-wrap: anywhere`.
 

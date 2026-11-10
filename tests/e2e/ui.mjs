@@ -121,9 +121,15 @@ export const scenarios = {
                 return { left: r.left, right: clientWidth - r.right, width: r.width, sideways: scrollWidth > clientWidth };
             }, sel);
         const assertCentred = ({ left, right }, what) => assert.ok(Math.abs(left - right) <= 4, `${what} is centred (${left}, ${right})`);
+        // The Help button ends where the screen under it ends (ADR 17, section 6; ADR 26).
+        const assertHelpAligned = async (page, sel, what) => {
+            const [help, screen] = [await box(page, "#help-open"), await box(page, sel)];
+            assert.ok(Math.abs(help.right - screen.right) <= 1, `Help lines up with ${what} (${help.right}, ${screen.right})`);
+        };
         const lobby = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
         await lobby.goto(url);
         assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
+        await assertHelpAligned(lobby, "#lobby", "the lobby");
         const changelog = await lobby.context().newPage();
         await changelog.goto(`${url}changelog.html`);
         const page = await box(changelog, "main");
@@ -169,6 +175,7 @@ export const scenarios = {
         assert.equal(reached, "fire", "Tab from the formula reaches Fire before the helper buttons");
         await host.setViewportSize({ width: 1920, height: 1080 });
         assertCentred(await box(host, "#game"), "the game at 1920 px");
+        await assertHelpAligned(host, "#game", "the game");
         const board = await box(host, "#arena");
         assert.ok(board.width > 1000, `the board grows with the window (${board.width} px)`);
         await host.setViewportSize({ width: 360, height: 800 });

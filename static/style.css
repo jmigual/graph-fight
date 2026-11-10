@@ -29,7 +29,7 @@
     --control-h: 36px;
     --page: 72rem;           /* lobby measure */
     --side: 24rem;           /* game side column */
-    --chrome: 7rem;          /* vertical space above and below the board */
+    --chrome: calc(7.5rem + var(--control-h)); /* vertical space above and below the board, with the Help bar */
     --ratio: 2;              /* board aspect: 2 on XY, 1 on the disc */
     /* The game's width at which the board, sized by the viewport's height, exactly fills its column. */
     --game-w: calc((100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem);
@@ -81,7 +81,10 @@ body {
     font: 400 1rem/1.5 var(--font-ui);
 }
 
-.site-bar { display: flex; justify-content: flex-end; padding: 0.5rem var(--gutter) 0; }
+/* The Help bar lines up with the screen under it: its padding is main's gutter. */
+.site-bar { display: flex; justify-content: flex-end; max-width: calc(var(--page) + 2 * var(--gutter)); margin-inline: auto; padding: 0.5rem var(--gutter) 0; }
+:root:has(#room:not([hidden])) .site-bar { max-width: calc(40rem + 2 * var(--gutter)); }
+:root:has(#game:not([hidden])) .site-bar { max-width: calc(var(--game-w) + 2 * var(--gutter)); }
 
 main { padding: 1rem var(--gutter) 3rem; }
 
@@ -440,6 +443,7 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 #help h3 { font: 700 1.25rem/1.2 var(--font-ui); margin: 2rem 0 0.5rem; scroll-margin-top: 4rem; }
 #help h4 { font: 700 1rem/1.5 var(--font-ui); margin: 1.25rem 0 0.25rem; scroll-margin-top: 4rem; }
 #help code { font: 400 1.0625rem var(--font-math); }
+#help li { max-width: 65ch; }
 
 @media (max-width: 599px) {
     #help { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; }
