@@ -22,7 +22,9 @@ on the player.
   and there is no per-shot flag. Every combination of field and frame is valid, so `Frame` adds
   no `GameError`. On the wire `start` carries `frame: "map" | "player"` and the lobby listing
   carries it too, so joiners see it before joining; both are required and validated like
-  `field` (amends ADR 12's message list). The rest of this section is the map-centred frame.
+  `field` (amends ADR 12's message list). Only a build older than this ADR omits it: such a
+  listing still shows as another version, and such a `start` reaches the version check, which
+  turns it away (ADR 12). The rest of this section is the map-centred frame.
 - **Map frame.** The origin is the map centre, `x` to the right, `y` up; on the disc `θ = 0` is
   the map's `+x` axis and `θ` grows counter-clockwise. This is the same for every player.
 - **Anchoring.** Every mode yields a curve `P(s)` in map coordinates and the world point is

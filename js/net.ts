@@ -71,15 +71,21 @@ const isFrame = (v: unknown): v is Frame => v === "map" || v === "player";
 const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 
-/** Returns the game message if `v` has the right shape and sizes, otherwise undefined. */
+/**
+ * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
+ * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
+ * turn it away as another version instead of it being dropped.
+ */
 export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
-        case "start":
-            if (isText(v.seed) && isField(v.field) && isFrame(v.frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
-                return { type: "start", seed: v.seed, field: v.field, frame: v.frame, peers: v.peers, version: v.version };
+        case "start": {
+            const frame = v.frame === undefined ? "map" : v.frame;
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
+                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version };
             }
             return undefined;
+        }
         case "shot":
             if (isCount(v.turn) && Array.isArray(v.exprs) && (v.exprs.length === 1 || v.exprs.length === 2) && v.exprs.every((e) => isText(e, MAX_EXPR)) && typeof v.cw === "boolean") {
                 return { type: "shot", turn: v.turn, exprs: v.exprs as Shot["exprs"], cw: v.cw };
@@ -146,12 +152,18 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
     };
 }
 
-/** Returns the listing if `v` has the right shape and sizes, otherwise undefined. */
-export function parseListing(v: unknown): Listing | undefined {
-    if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isFrame(v.frame) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
+/**
+ * Returns the listing if `v` has the right shape and sizes, otherwise undefined. A listing from
+ * another build than `version` may lack `frame` (builds before ADR 20); it reads as `map` and is
+ * only ever shown as incompatible (ADR 12).
+ */
+export function parseListing(v: unknown, version: string): Listing | undefined {
+    if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
         return undefined;
     }
-    return { id: v.id, version: v.version, name: v.name, field: v.field, frame: v.frame, players: v.players, seats: v.seats };
+    const frame = v.frame === undefined && v.version !== version ? "map" : v.frame;
+    if (!isFrame(frame)) return undefined;
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats };
 }
 
 /**
@@ -165,7 +177,7 @@ export function lobbyBook(self: string, version: string, expireMs = EXPIRE_MS) {
 
     function apply(key: string, content: unknown, now: number): boolean {
         if (isObj(content) && content.withdraw === true) return entries.delete(key);
-        const listing = parseListing(content);
+        const listing = parseListing(content, version);
         if (!listing || listing.id === self) return false;
         const game = { ...listing, compatible: listing.version === version };
         const prev = entries.get(key);

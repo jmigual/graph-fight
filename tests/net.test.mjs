@@ -32,7 +32,6 @@ for (const bad of [
     { type: "leave", peer: "p".repeat(65) },
     { ...start, field: "hex" },
     { ...start, frame: "world" },
-    { ...start, frame: undefined },
     { ...start, peers: [] },
     { ...start, peers: [1] },
     { ...start, peers: Array(MAX_PLAYERS + 1).fill("p") },
@@ -141,13 +140,16 @@ const gated = versionGate("v1", (m) => seen.push(m.type), (v) => seen.push(`mism
 gated(start);
 gated({ ...start, version: "v0" });
 gated(shot);
-assert.deepEqual(seen, ["start", "mismatch:v0", "shot"]);
+// A start from a build before ADR 20 has no frame: it still reaches the gate, which turns it away.
+const { frame: _, ...oldStart } = { ...start, version: "v0" };
+gated(parseGameMsg(oldStart));
+assert.deepEqual(seen, ["start", "mismatch:v0", "shot", "mismatch:v0"]);
 
 // Lobby listings: shape and size caps.
 const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2 };
-assert.deepEqual(parseListing(listing), listing);
-assert.deepEqual(parseListing({ ...listing, frame: "player" }), { ...listing, frame: "player" });
-assert.ok(parseListing({ ...listing, name: "n".repeat(64), players: MAX_PLAYERS, seats: MAX_PLAYERS }), "at the caps");
+assert.deepEqual(parseListing(listing, "v1"), listing);
+assert.deepEqual(parseListing({ ...listing, frame: "player" }, "v1"), { ...listing, frame: "player" });
+assert.ok(parseListing({ ...listing, name: "n".repeat(64), players: MAX_PLAYERS, seats: MAX_PLAYERS }, "v1"), "at the caps");
 for (const bad of [
     null, {}, { ...listing, id: 1 }, { ...listing, field: "q" }, { ...listing, frame: "q" }, { ...listing, frame: undefined }, { ...listing, players: "1" }, { ...listing, seats: -1 },
     { ...listing, name: "n".repeat(65) },
@@ -156,7 +158,8 @@ for (const bad of [
     { ...listing, version: "v".repeat(65) },
     { ...listing, players: MAX_PLAYERS + 1 },
     { ...listing, seats: MAX_PLAYERS + 1 },
-]) assert.equal(parseListing(bad), undefined, JSON.stringify(bad));
+]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
+assert.equal(parseListing({ ...listing, version: "v0", frame: "q" }, "v1"), undefined, "a frame that is there must be valid");
 
 // Lobby book: refresh, own game, malformed, expiry, withdraw, size bound.
 const book = lobbyBook("me", "v1", 10_000);
@@ -165,6 +168,12 @@ assert.equal(book.apply("k1", listing, 3000), false, "refresh without change");
 assert.equal(book.apply("k1", { ...listing, players: 2 }, 4000), true, "changed");
 assert.equal(book.apply("k2", { ...listing, id: "g", version: "v0" }, 4000), true);
 assert.deepEqual(book.list().map((g) => [g.id, g.compatible]), [["h", true], ["g", false]], "version filter");
+// A build before ADR 20 announces no frame: it is listed as another version, not dropped.
+const { frame: __, ...oldListing } = listing;
+assert.equal(book.apply("k4", { ...oldListing, id: "old", version: "v0" }, 4000), true);
+assert.deepEqual(book.list().find((g) => g.id === "old")?.compatible, false);
+assert.equal(book.apply("k5", { ...oldListing, id: "bad" }, 4000), false, "our own version must send a frame");
+book.apply("k4", { withdraw: true }, 4000);
 assert.equal(book.apply("k3", { ...listing, id: "me" }, 4000), false, "own game ignored");
 assert.equal(book.apply("k3", { nope: 1 }, 4000), false, "malformed ignored");
 assert.equal(book.expire(13_999), false);
