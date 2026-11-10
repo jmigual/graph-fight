@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml", ".webm": "video/webm" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
 /** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */
@@ -1537,6 +1537,39 @@ const scenarios = {
         assert.equal(await page.evaluate(() => window.__links), 0, "no WebRTC link");
         assert.equal(await page.evaluate(() => window.__state()), null, "no game");
         return errors;
+    },
+    async AL() {
+        // The About section sits below the open games and the host form, links the repository (also from the
+        // footer), carries a demo video that loads lazily and plays only on screen without reduced motion,
+        // and is gone in a game (ADR 29).
+        const REPO = "https://github.com/jmigual/graph-fight";
+        const errors = [];
+        const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+        page.on("pageerror", (e) => errors.push(`page: ${e}`));
+        await page.goto(url);
+        const about = page.locator("#about");
+        assert.equal(await about.isVisible(), true, "visible on the lobby screen");
+        const [top, games, form] = await Promise.all(["#about", "#open-games", "#host-submit"].map((sel) => page.locator(sel).boundingBox()));
+        assert.ok(top.y >= form.y + form.height && top.y > games.y, "below the open games and the host form");
+        assert.equal(await about.getByRole("link", { name: /GitHub/ }).getAttribute("href"), REPO);
+        assert.equal(await page.locator("footer").getByRole("link", { name: /^GitHub/ }).getAttribute("href"), REPO);
+        const video = page.locator("#about video");
+        assert.match((await video.getAttribute("poster")) ?? "", /\S/, "a poster");
+        assert.equal(await video.getAttribute("preload"), "none");
+        for (const attr of ["muted", "loop", "playsinline", "controls"]) assert.notEqual(await video.getAttribute(attr), null, attr);
+        assert.ok(await video.getAttribute("aria-describedby"), "described by the text around it");
+        await video.scrollIntoViewIfNeeded();
+        await page.waitForFunction(() => !document.querySelector("#about video").paused, null, { timeout: TURN_WAIT_MS });
+        // With reduced motion, scrolling to the video does not start it.
+        const calm = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" })).newPage();
+        await calm.goto(url);
+        await calm.locator("#about video").scrollIntoViewIfNeeded();
+        await calm.waitForTimeout(1500);
+        assert.equal(await calm.evaluate(() => document.querySelector("#about video").paused), true, "reduced motion: no autoplay");
+        // A game hides it with the lobby (solo against a bot, no network needed).
+        const game = await startGame(1, "xy", "AL", { bots: ["easy"], offline: true });
+        assert.equal(await game.pages[0].isVisible("#about"), false, "hidden in a game");
+        return [...errors, ...game.errors];
     },
 };
 
