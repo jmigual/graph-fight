@@ -370,10 +370,10 @@ the last-shot line. Right: formula editor, roster, saved formulas. On phone it i
 status bar (sticky top), board, editor, roster, saved formulas. On desktop the left column is
 sticky, so the board stays in view while the side column scrolls (to a template, for example),
 except in the test arena (ADR 25), where the setup panel under the board must scroll. On a phone
-the test arena shows the board, then the editor, then the setup panel: `.game-main` is
-`display: contents` there and `#test-panel` has `order: 1`, so Fire stays near the board. Only the
-boxes move; the DOM keeps the setup panel before the editor, so on a phone focus reaches the setup
-before the editor (moving the DOM would break the desktop column).
+the test arena shows the board, then the editor, then the setup panel, so Fire stays near the
+board. `#test-panel` comes after `.game-side` in the DOM, so focus follows that order too; on desktop
+the test arena's grid has the rows `auto 1fr` with no row gap, the side column spans both, and the
+setup panel takes the first column's second row, under the board as before.
 
 ```
 +-----------------------------------------------+------------------------+

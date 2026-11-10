@@ -164,6 +164,14 @@ export const scenarios = {
         await lobby.setViewportSize({ width: 360, height: 800 });
         const [fire, setup] = await lobby.evaluate(() => ["fire", "test-panel"].map((id) => document.getElementById(id).getBoundingClientRect().top));
         assert.ok(fire < setup, `the editor comes before the setup panel on a phone (${fire}, ${setup})`);
+        // Focus follows the same order: from Back to lobby, Tab reaches the editor before the setup.
+        await lobby.focus("#test-exit");
+        let next = "";
+        for (let i = 0; i < 40 && !["mode-explicit", "input-a", "test-field"].includes(next); i++) {
+            await lobby.keyboard.press("Tab");
+            next = await lobby.evaluate(() => document.activeElement.id);
+        }
+        assert.notEqual(next, "test-field", `Tab reaches the editor before the setup panel (${next})`);
         const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
         const [host] = pages;
         // In a game the board stays on screen while the page scrolls down the side column.

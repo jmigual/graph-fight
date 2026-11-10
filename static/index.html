@@ -169,53 +169,6 @@
           </div>
           <canvas id="arena" width="800" height="400" role="img" aria-label="Board"></canvas>
           <p id="last-shot" aria-live="polite"></p>
-          <section id="test-panel" class="test-only" aria-labelledby="test-heading">
-            <p class="hint">Click or tap the board to place a player or an obstacle, drag a player to move it, and choose the player to fire from. Players are never out and obstacles keep no craters, so a shot can be repeated.</p>
-            <div class="test-setup">
-              <label class="field"><span>Field</span>
-                <select id="test-field">
-                  <option value="xy">XY plane</option>
-                  <option value="disc">Polar disc</option>
-                </select>
-              </label>
-              <label class="field"><span>Coordinates</span>
-                <select id="test-frame">
-                  <option value="map">Map-centred (like Graphwar)</option>
-                  <option value="player">Player-centred</option>
-                </select>
-              </label>
-            </div>
-            <fieldset class="segmented">
-              <legend>Place</legend>
-              <label><input type="radio" name="place" id="place-player" value="player" checked> Player</label>
-              <label><input type="radio" name="place" id="place-obstacle" value="obstacle"> Obstacle</label>
-            </fieldset>
-            <label class="field"><span>Team <span id="test-swatch" class="swatch" aria-hidden="true">1</span></span>
-              <select id="test-team"></select></label>
-            <label class="field"><span>Obstacle radius <output id="obstacle-size-value">1.0</output></span>
-              <input id="obstacle-size" type="range" min="0.2" max="2" step="0.1" value="1"></label>
-            <form id="test-coords">
-              <fieldset>
-                <legend>Position</legend>
-                <label class="field"><span class="math">x</span><input id="test-x" type="number" step="any" required></label>
-                <label class="field"><span class="math">y</span><input id="test-y" type="number" step="any" required></label>
-                <div class="actions">
-                  <button type="submit" class="secondary">Place at x, y</button>
-                  <button id="test-move" type="button" class="secondary">Move selected to x, y</button>
-                </div>
-              </fieldset>
-            </form>
-            <p id="test-error" class="error" role="alert"></p>
-            <div class="actions">
-              <button id="random-obstacles" type="button" class="secondary">Random obstacles</button>
-              <button id="clear-obstacles" type="button" class="secondary">Clear obstacles</button>
-              <button id="clear-paths" type="button" class="secondary">Clear paths</button>
-            </div>
-            <h3 id="test-items-heading" tabindex="-1">On the board</h3>
-            <ul id="test-items"></ul>
-            <p id="test-empty" class="hint">Nothing yet.</p>
-            <button id="remove-selected" type="button" class="secondary">Remove selected</button>
-          </section>
         </div>
 
         <div class="game-side">
@@ -303,6 +256,54 @@
             <p id="saved-empty" class="hint">Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x).</p>
           </section>
         </div>
+
+        <section id="test-panel" class="test-only" aria-labelledby="test-heading">
+          <p class="hint">Click or tap the board to place a player or an obstacle, drag a player to move it, and choose the player to fire from. Players are never out and obstacles keep no craters, so a shot can be repeated.</p>
+          <div class="test-setup">
+            <label class="field"><span>Field</span>
+              <select id="test-field">
+                <option value="xy">XY plane</option>
+                <option value="disc">Polar disc</option>
+              </select>
+            </label>
+            <label class="field"><span>Coordinates</span>
+              <select id="test-frame">
+                <option value="map">Map-centred (like Graphwar)</option>
+                <option value="player">Player-centred</option>
+              </select>
+            </label>
+          </div>
+          <fieldset class="segmented">
+            <legend>Place</legend>
+            <label><input type="radio" name="place" id="place-player" value="player" checked> Player</label>
+            <label><input type="radio" name="place" id="place-obstacle" value="obstacle"> Obstacle</label>
+          </fieldset>
+          <label class="field"><span>Team <span id="test-swatch" class="swatch" aria-hidden="true">1</span></span>
+            <select id="test-team"></select></label>
+          <label class="field"><span>Obstacle radius <output id="obstacle-size-value">1.0</output></span>
+            <input id="obstacle-size" type="range" min="0.2" max="2" step="0.1" value="1"></label>
+          <form id="test-coords">
+            <fieldset>
+              <legend>Position</legend>
+              <label class="field"><span class="math">x</span><input id="test-x" type="number" step="any" required></label>
+              <label class="field"><span class="math">y</span><input id="test-y" type="number" step="any" required></label>
+              <div class="actions">
+                <button type="submit" class="secondary">Place at x, y</button>
+                <button id="test-move" type="button" class="secondary">Move selected to x, y</button>
+              </div>
+            </fieldset>
+          </form>
+          <p id="test-error" class="error" role="alert"></p>
+          <div class="actions">
+            <button id="random-obstacles" type="button" class="secondary">Random obstacles</button>
+            <button id="clear-obstacles" type="button" class="secondary">Clear obstacles</button>
+            <button id="clear-paths" type="button" class="secondary">Clear paths</button>
+          </div>
+          <h3 id="test-items-heading" tabindex="-1">On the board</h3>
+          <ul id="test-items"></ul>
+          <p id="test-empty" class="hint">Nothing yet.</p>
+          <button id="remove-selected" type="button" class="secondary">Remove selected</button>
+        </section>
       </section>
     </main>
     <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a> <span aria-hidden="true">·</span> <a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="GitHub, opens in a new tab">GitHub</a></footer>

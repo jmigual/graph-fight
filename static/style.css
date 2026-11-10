@@ -396,9 +396,6 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 
 @media (max-width: 959px) {
     .status-area { position: sticky; top: 0; z-index: 1; }
-    /* In the test arena the editor follows the board, and the setup panel comes after it (ADR 25). */
-    #game[data-mode=test] .game-main { display: contents; }
-    #game[data-mode=test] #test-panel { order: 1; }
 }
 
 /* Desktop: two columns. */
@@ -408,6 +405,10 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
     #game { grid-template-columns: minmax(0, 1fr) var(--side); gap: 2rem; }
     /* The board stays in view while the side column scrolls; the test arena's setup panel under it must scroll. */
     #game:not([data-mode=test]) .game-main { position: sticky; top: 0; align-self: start; }
+    /* The test arena's setup panel (after the editor in the DOM) goes under the board. */
+    #game[data-mode=test] { grid-template-rows: auto 1fr; row-gap: 0; }
+    #game[data-mode=test] .game-side { grid-column: 2; grid-row: 1 / span 2; }
+    #test-panel { grid-column: 1; align-self: start; }
 }
 
 @media (prefers-reduced-motion: reduce) {
