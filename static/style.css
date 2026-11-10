@@ -94,6 +94,7 @@ footer { text-align: center; padding: 0 var(--gutter) 1rem; color: var(--ink-sof
 footer a { color: inherit; }
 
 a { color: var(--mark); }
+.changelog { max-width: 44rem; margin-inline: auto; }
 .changelog h1 { margin-bottom: 1.5rem; }
 .changelog time { font: 400 1rem/1.5 var(--font-ui); color: var(--ink-soft); }
 

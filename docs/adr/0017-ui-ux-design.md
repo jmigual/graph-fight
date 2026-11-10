@@ -311,8 +311,9 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 ### 6. Layout per screen
 
 Gutter 16 px on phones and 24 px from 600 px up. Each screen is a centred block, and text inside it
-is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, and the game
-and end screens `--game-w` (section 4). The footer is centred. One breakpoint at 960 px.
+is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, the game
+and end screens `--game-w` (section 4), and the changelog page (ADR 28) 44rem, a reading
+measure. The footer is centred. One breakpoint at 960 px.
 No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas) get
 `overflow-wrap: anywhere`.
 

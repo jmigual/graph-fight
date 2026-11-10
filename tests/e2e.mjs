@@ -1664,6 +1664,11 @@ const scenarios = {
         const lobby = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
         await lobby.goto(url);
         assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
+        const changelog = await lobby.context().newPage();
+        await changelog.goto(`${url}changelog.html`);
+        const page = await box(changelog, "main");
+        assertCentred(page, "the changelog at 1920 px");
+        assert.ok(page.width < 1000, `the changelog keeps a reading measure (${page.width} px)`);
         await lobby.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(lobby, "#lobby")).sideways, false, "the lobby does not scroll sideways at 360 px");
         // The game's board stays in view while the side column scrolls, but not the test arena's: its
