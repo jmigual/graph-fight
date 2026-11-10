@@ -258,6 +258,7 @@ assert.equal(stretched, pbkdf2Sync("open sesame", "graph-fight:game-h0st", 200_0
 assert.equal(await stretchPassword("open sesame", "h0st"), stretched, "the same on every peer");
 assert.notEqual(await stretchPassword("open sesame", "other"), stretched, "salted with the host's room");
 assert.notEqual(await stretchPassword("open sesame!", "h0st"), stretched);
+assert.equal(await stretchPassword("caf\u00e9", "h0st"), await stretchPassword("cafe\u0301", "h0st"), "a composed and a decomposed é give the same key");
 for (const bad of ["", "#", "#join=h", "#key=k&v=v", "#join=h&key=k", "#join=&key=k&v=v", "#join=h&key=&v=v", `#join=${"h".repeat(65)}&key=k&v=v`, `#join=h&key=${"k".repeat(65)}&v=v`, `#join=h&key=k&v=${"v".repeat(65)}`]) {
     assert.equal(parseInvite(bad), undefined, bad);
 }

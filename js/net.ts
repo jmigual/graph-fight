@@ -387,7 +387,8 @@ const STRETCH_ROUNDS = 200_000;
  */
 export async function stretchPassword(password: string, hostId: string): Promise<string> {
     const text = new TextEncoder();
-    const base = await crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]);
+    // NFC, so an é typed as one code point or as e and a combining accent gives the same key.
+    const base = await crypto.subtle.importKey("raw", text.encode(password.normalize("NFC")), "PBKDF2", false, ["deriveBits"]);
     const salt = text.encode(`${APP_ID}:${roomId(hostId)}`);
     return toHex(new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: STRETCH_ROUNDS }, base, 256)));
 }

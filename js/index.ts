@@ -197,6 +197,7 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     unlisted = hostVisibility.value === "link";
     shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
     offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
+    forget("host-password");
     enterRoom(selfId, undefined, password);
 };
 
@@ -206,16 +207,21 @@ const reveal = (button: HTMLButtonElement, shown: boolean) => {
     button.setAttribute("aria-pressed", String(shown));
 };
 document.querySelectorAll<HTMLButtonElement>("button.reveal").forEach((button) => (button.onclick = () => reveal(button, button.getAttribute("aria-pressed") !== "true")));
+/** Empties a password field and masks it again, so a typed password does not stay on the page once used. */
+function forget(id: string) {
+    $<HTMLInputElement>(id).value = "";
+    reveal(document.querySelector<HTMLButtonElement>(`button.reveal[aria-controls="${id}"]`)!, false);
+}
 
 const passwordDialog = $<HTMLDialogElement>("password-dialog");
 /** The game whose password the dialog asks for. */
 let asking = "";
 function askPassword(id: string) {
     asking = id;
-    $<HTMLInputElement>("join-password").value = "";
-    reveal(passwordDialog.querySelector("button.reveal")!, false);
     passwordDialog.showModal();
 }
+// However the dialog closes (Join, Cancel, Escape, leaving the lobby), the typed password goes.
+passwordDialog.addEventListener("close", () => forget("join-password"));
 $<HTMLFormElement>("password-form").onsubmit = async (e) => {
     e.preventDefault();
     const id = asking;

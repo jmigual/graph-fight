@@ -18,7 +18,9 @@ game, since a reload brings a new peer id.
   shows a "Password" field (required, at most 64 characters); CSS hides it otherwise, like Seats.
   Both password fields, here and in the join dialog, are masked (`type="password"`) and have a
   **Show** toggle button next to them (`aria-label="Show password"`, `aria-pressed`) that reveals the
-  text. The dialog's field is masked again each time it opens.
+  text. Once used, a field is emptied and masked again: the host's after it hosts, the dialog's
+  whenever the dialog closes. Neither field offers to be saved (`autocomplete="off"`), since the
+  password is a key for one game.
 - **Room password.** A password or private-link game joins its room `game-<hostId>` with
   `joinRoom({appId, password})`, on the host and on every guest. A guest with another password never
   connects: Trystero cannot decrypt the other side's offers. There is no extra check message.
@@ -26,7 +28,8 @@ game, since a reload brings a new peer id.
   `password:appId:roomId`. The encrypted offers sit on public Nostr relays and the listing names the
   room, so anyone can collect an offer and test guesses offline at SHA-256 speed, and a short human
   password falls quickly. A typed password is therefore stretched before `joinRoom`, on the host when
-  it hosts and on a guest when it joins: `stretchPassword` runs WebCrypto PBKDF2-SHA256 with the salt
+  it hosts and on a guest when it joins: `stretchPassword` normalises the password to NFC (an é typed
+  either way gives the same key), then runs WebCrypto PBKDF2-SHA256 with the salt
   `graph-fight:game-<hostId>` and 200 000 iterations into 256 bits, and the hex of those bits is the
   room password. That took 83 ms in desktop Chromium (WebCrypto runs natively, so DevTools CPU
   throttling does not slow it); phones with a few times slower SHA-256 should take about 150 to
@@ -79,7 +82,8 @@ game, since a reload brings a new peer id.
   the seat token and the kick, accepted only from the host. The guest then shows the same invite link
   and Copy button. A boolean in `start` was considered and rejected: `start` arrives when the waiting
   room closes, and nobody can join a game after that (ADR 15, "game full"), so the link would only show
-  once it is useless.
+  once it is useless. The toggle is a convenience, not access control: every guest holds the room key
+  anyway, and can share it or the link by hand.
 - **Unchanged.** The live and dev lobby topics (ADR 12), the game-room name, the relayed protocol and
   the engine.
 

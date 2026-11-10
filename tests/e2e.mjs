@@ -1098,6 +1098,9 @@ const scenarios = {
                 assert.deepEqual([await wrong.getAttribute("#join-password", "type"), await show.getAttribute("aria-pressed")], ["text", "true"]);
                 await wrong.fill("#join-password", `${password}!`);
                 await wrong.press("#join-password", "Enter");
+                // The closed dialog keeps no password, and is masked again.
+                await wrong.waitForFunction(() => !document.getElementById("password-dialog").open);
+                assert.deepEqual([await wrong.inputValue("#join-password"), await wrong.getAttribute("#join-password", "type")], ["", "password"]);
                 await wrong.waitForTimeout(3000); // real time for the signalling to meet and fail
                 await assertGivesUp(wrong);
                 assert.match(await text(wrong, "#end-message"), /wrong password/i);
@@ -1106,6 +1109,7 @@ const scenarios = {
             },
         });
         const guest = pages[1];
+        assert.equal(await pages[0].inputValue("#host-password"), "", "the host's form keeps no password");
         await assertSynced(pages, 0);
         await takeTurn(pages, 0, ["t", "0"]);
         // The seat keeps the stretched room password, never the typed one (ADR 24).
