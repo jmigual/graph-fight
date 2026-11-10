@@ -391,6 +391,8 @@ $("start").onclick = () => {
 function toLobby() {
     // A join dialog left open would sit in the hidden lobby and could still join a room.
     passwordDialog.close();
+    // An invite link pasted in the test arena goes through here: the room must not open in test mode (ADR 25).
+    testArena.close();
     sessionStorage.removeItem(SEAT_KEY);
     room?.leave();
     room = null;

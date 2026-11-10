@@ -24,7 +24,8 @@ const same = (a: Pick | null, b: Pick | null) => JSON.stringify(a) === JSON.stri
  * Wires the lobby's Test arena button and the arena's controls. The arena reuses the game section:
  * `#game[data-mode=test]` hides the match's parts. `editor` is the game's (`initEditor`), `show`
  * switches sections, `arenas` and `radius` are the game's constants. Returns the redraw that the
- * page runs when the board's size, theme or fonts change.
+ * page runs when the board's size, theme or fonts change, and `close`, which the page runs whenever
+ * it goes back to the lobby, so a room or game never opens on the arena's screen.
  */
 export function initArena(editor: { refresh(field: Field, parametric: boolean): void }, show: (...names: string[]) => void, arenas: Record<Field, Extents>, radius: number) {
     const canvas = $<HTMLCanvasElement>("arena");
@@ -272,14 +273,20 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         reset();
         show("game");
     };
-    $("test-exit").onclick = () => {
+    /** Leaves test mode: the game section is the game's again. Nothing happens outside the arena. */
+    function close() {
+        if (!active) return;
         active = false;
+        press = null;
         delete $("game").dataset.mode;
         sim?.free();
         sim = view = undefined;
         clearError();
         setLive($("last-shot"), "");
         setLive($("test-error"), "");
+    }
+    $("test-exit").onclick = () => {
+        close();
         show("lobby");
         $("test-open").focus();
     };
@@ -360,5 +367,5 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         render(true);
     });
 
-    return { redraw: () => active && view && draw(canvas, view) };
+    return { redraw: () => active && view && draw(canvas, view), close };
 }

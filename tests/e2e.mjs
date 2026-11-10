@@ -1498,6 +1498,12 @@ const scenarios = {
         assert.ok((await page.locator("#test-items li").count()) > 2, "random obstacles are added");
         await page.click("#test-exit");
         await page.waitForSelector("#lobby:not([hidden])");
+        // An invite link pasted in the arena leaves test mode first (here it is for another build, so
+        // it ends at once without joining anything).
+        await page.click("#test-open");
+        await page.evaluate(() => (location.hash = "#join=someone&key=secret&v=another-build"));
+        await page.waitForSelector("#end:not([hidden])");
+        assert.equal(await page.evaluate(() => document.getElementById("game").dataset.mode), undefined, "the arena closed");
         // Nothing was announced or joined meanwhile.
         await page.waitForTimeout(2000);
         assert.ok(lobby > 0, "the page subscribed to the lobby, so its frames were seen");
