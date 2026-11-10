@@ -205,8 +205,11 @@ function roomChanged() {
             remove.textContent = "Remove";
             remove.setAttribute("aria-label", `Remove Bot ${parseBot(id)?.n}`);
             remove.onclick = () => {
+                const at = bots.indexOf(id);
                 bots = bots.filter((b) => b !== id);
                 roomChanged();
+                // The list was rebuilt: keep the keyboard on the next bot's Remove, or on Add bot.
+                ($("room-players").querySelectorAll("button")[at] ?? $("add-bot")).focus();
             };
             return li;
         }),

@@ -109,6 +109,10 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     if (bots.length) {
         const total = field === "xy" ? 2 : seats;
         assert.equal(await host.isDisabled("#add-bot"), bots.length >= total - 1, "bots fill at most all seats but the host's");
+        // Removing the last bot leaves the focus on Add bot; it then comes back under the same id.
+        await host.getByRole("button", { name: `Remove Bot ${bots.length}` }).click();
+        assert.equal(await host.evaluate(() => document.activeElement.id), "add-bot");
+        await host.click("#add-bot");
         assert.equal(await host.getByRole("button", { name: `Remove Bot ${bots.length}` }).count(), 1);
     }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
