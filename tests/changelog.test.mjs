@@ -2,7 +2,7 @@
 // CHANGELOG.md has a fixed format that the build turns into dist/changelog.html (ADR 28).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { changelogHtml, parseChangelog } from "../scripts/changelog.mjs";
+import { ChangelogError, changelogHtml, parseChangelog } from "../scripts/changelog.mjs";
 
 const sample = `# Changelog
 
@@ -29,7 +29,17 @@ for (const [why, text] of [
     ["ascending order", "## 0.1.0 — 2026-11-10\n- y\n## 0.2.0 — 2026-11-10\n- z\n"],
     ["a repeated version", "## 0.1.0 — 2026-11-10\n- y\n## 0.1.0 — 2026-11-10\n- z\n"],
     ["a title below the top", "## 0.1.0 — 2026-11-10\n- y\n# Changelog\n"],
-]) assert.throws(() => parseChangelog(text), Error, why);
+    ["a whitespace-only note", "## 0.1.0 — 2026-11-10\n-  \n"],
+    ["a leading zero in a version", "## 0.01.0 — 2026-11-10\n- y\n"],
+    ["month 13", "## 0.1.0 — 2026-13-10\n- y\n"],
+    ["month 00", "## 0.1.0 — 2026-00-10\n- y\n"],
+    ["February 30", "## 0.1.0 — 2026-02-30\n- y\n"],
+    ["February 29 in a common year", "## 0.1.0 — 2026-02-29\n- y\n"],
+]) assert.throws(() => parseChangelog(text), ChangelogError, why);
+assert.equal(parseChangelog("## 0.1.0 — 2028-02-29\n- leap day\n")[0].date, "2028-02-29");
+
+// A Windows checkout (CRLF) and an editor's BOM read like the plain file.
+assert.deepEqual(parseChangelog(`\uFEFF${sample.replace(/\n/g, "\r\n")}`), parseChangelog(sample));
 
 // 0.10.0 is newer than 0.9.0 (numeric, not text, order).
 assert.equal(parseChangelog("## 0.10.0 — 2026-11-10\n- a\n## 0.9.0 — 2026-11-09\n- b\n").length, 2);
