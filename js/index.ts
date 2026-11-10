@@ -1,5 +1,5 @@
 // Playable client: wires the lobby, the waiting room and the game (ADR 7, 12, 14, 15).
-import init from "../pkg/index.js";
+import "./wasm";
 import { BUILD_ID, BUILD_VERSION, parseInvite } from "./net";
 import { $ } from "./dom";
 import { clearEnded, end, ended, play } from "./game";
@@ -8,9 +8,6 @@ import type { Seat } from "./room";
 import { showError } from "./status";
 import "./help";
 import "./about";
-
-// Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
-await init();
 
 /** An invite from another build: the fragment is already gone, so the link has to be opened again. */
 const INVITE_MISMATCH = ["Different version.", "Reload the page, then open the invite link again."] as const;

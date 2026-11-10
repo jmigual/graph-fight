@@ -15,7 +15,7 @@ import { scenarios as build } from "./e2e/build.mjs";
 
 const scenarios = { ...core, ...net, ...bots, ...local, ...editor, ...ui, ...arena, ...build };
 
-const ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "Help", "W", "X", "Y", "Z", "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AJ", "AK", "AI", "AL", "AM"];
+const ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "Help", "W", "X", "Y", "Z", "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AJ", "AK", "AI", "AL", "AM", "AN"];
 assert.deepEqual(Object.keys(scenarios).sort(), [...ORDER].sort(), "ORDER lists every scenario");
 const names = process.argv.length > 2 ? process.argv.slice(2) : ORDER;
 const unknown = names.filter((name) => !Object.hasOwn(scenarios, name));

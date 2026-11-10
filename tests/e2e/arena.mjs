@@ -164,4 +164,31 @@ export const scenarios = {
         assert.equal(await page.evaluate(() => window.__state()), null, "no game");
         return errors;
     },
+    async AN() {
+        // Nothing is live before the wasm has loaded (ADR 30): with index_bg.wasm held back, Test arena does
+        // nothing and the footer has no version; once it arrives the arena opens with an engine behind it.
+        const errors = [];
+        const page = await (await browser.newContext()).newPage();
+        page.on("pageerror", (e) => errors.push(`${e}`));
+        let release;
+        const held = new Promise((ok) => (release = ok));
+        await page.route("**/index_bg.wasm", async (route) => {
+            await held;
+            await route.continue();
+        });
+        await page.goto(url, { waitUntil: "commit" });
+        await page.click("#test-open");
+        await page.waitForTimeout(1000);
+        assert.equal(await page.isVisible("#game"), false, "Test arena does nothing while the wasm loads");
+        assert.equal(await text(page, "#build"), "", "the footer has no version yet");
+        release();
+        await page.waitForFunction(() => document.getElementById("build").textContent !== "");
+        assert.match(await text(page, "#build"), /^v \d/, "the footer shows the version once it has loaded");
+        await page.click("#test-open");
+        assert.equal(await page.isVisible("#game"), true, "the arena opens after the wasm has loaded");
+        // A press on the board places a player on the engine's copy of the arena.
+        await page.click("#arena");
+        await page.waitForTimeout(500);
+        return errors;
+    },
 };
