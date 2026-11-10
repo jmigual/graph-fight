@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0 — 2026-11-10
+- A test arena, opened from the lobby, tries formulas offline: place players and obstacles anywhere, fire from any player and see what the shot hits, as often as you like.
+
 ## 0.4.0 — 2026-11-10
 - The host can add local players who take turns on the host's screen.
 - The host can remove a guest in the waiting room or kick a player during a game.
