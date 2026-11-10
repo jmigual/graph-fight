@@ -2,7 +2,8 @@
 
 Status: Accepted (2026-11-10). Amends 0008 (`Game` gains `sandbox`, `fire_from`,
 `fire_param_from` and `with_random_obstacles`) and 0017 (lobby button, the game screen's test
-mode, hit and selection rings, selectors).
+mode, hit and selection rings, selectors). Refines 0020: a player-frame shooter at the disc centre
+faces `+x` (see Consequences).
 
 ## Context
 
@@ -39,7 +40,8 @@ turn (ADR 4, 14), so neither fits a sandbox.
     return `TrialShot {points, hits, obstacles}`: the points as in `Shot`, the players alive before
     and dead after as `[team, player]` (friendly fire counts, the shooter is never hit), and the
     obstacles holding the last point when the shot stopped in one (ADR 14 records that point).
-    `FireError::UnknownPlayer` is a shooter index that does not exist.
+    `FireError::UnknownPlayer` is a shooter index that does not exist. A player can stand at the
+    disc centre, where `trace` has a rule of its own (Consequences, last item).
   - `with_random_obstacles(num, min, max, seed)` returns a copy whose obstacles are replaced by the
     generator of `new` (`Arena::add_obstacles`, clear of the players), retried like `init`.
   - Nothing in a game calls these, and `Game::new`, `fire`, the turn rotation and the wire are
@@ -63,17 +65,19 @@ turn (ADR 4, 14), so neither fits a sandbox.
   `Game.sandbox`, so the engine is the only judge of a valid spot. A refusal changes nothing and
   `#test-error` (`role="alert"`) says "Can't place a player there. A player must be fully inside
   the field." with the engine's reason. A press within 10 CSS px of an edge is on that player or
-  obstacle, so small faces can be tapped; players win over obstacles. A press follows one pointer
-  (its id); once it moves 4 px (10 px for a finger) it is a drag or a swipe and never places or
+  obstacle, so small faces can be tapped; players win over obstacles. A press is the main button
+  (or a touch) of one pointer, followed by its id, and ends if the pointer is cancelled or loses
+  its capture; once it moves 4 px (10 px for a finger) it is a drag or a swipe and never places or
   selects. Dragging a player moves it through valid spots only and selects it; letting go on an
   invalid spot says why. In test mode the board has `touch-action: none`, so a drag moves a player
   instead of the page. "Random obstacles" replaces all obstacles with the field's game count and
   sizes; "Clear obstacles" removes them.
 - **Position.** Number fields `x` and `y` in a "Position" group place what Place chooses ("Place at
   x, y", or Enter) and move the selection ("Move selected to x, y"), through the same engine check
-  and `#test-error`. They are the keyboard's way to place and move, and the way to exact spots. They
-  show the selection's position after a click, a list choice or a drag, unless they are being
-  edited.
+  and `#test-error`. Both are required numbers, checked by the form before the engine sees them.
+  They are the keyboard's way to place and move, and the way to exact spots. They are filled with
+  the selection's position after a click, a list choice or a drag, and at no other time, so a
+  typed value survives a shot or a redraw.
 - **Selecting and removing.** A click on a player makes it the shooter (black ring, grid origin in
   the player frame, the `x` or `θ₀` marks of our turn) and selects it; a click on an obstacle selects
   it and keeps the shooter. A drag selects but does not change the shooter. A player placed while
