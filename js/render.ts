@@ -12,9 +12,9 @@ export type LastShot = { team: number; exprs: string[]; points: Point[] };
 export type View = {
     field: Field;
     arena: Arena;
-    /** Team whose current player shoots; the grid is drawn in its frame. `null` when the game is over. */
+    /** Team whose current player shoots; the XY grid is drawn in its frame. `null` when the game is over. */
     current: number | null;
-    /** The current shooter is ours: on the disc we show which way θ grows and our face looks there. */
+    /** The current shooter is ours: on the disc we show its θ₀ and which way θ sweeps, and our face looks there. */
     mine: boolean;
     /** The chosen disc direction (ADR 14); counter-clockwise when absent. */
     cw?: boolean;
@@ -55,7 +55,7 @@ type Colour = (token: string) => string;
 
 export const lookKey = (team: number, player: number) => `${team}:${player}`;
 
-/** Unit vector of the frame's +x (XY) or θ = 0 (disc) for a shooter at `pos`: toward the centre. */
+/** Unit vector toward the centre for a player at `pos`: the XY frame's +x, and the resting gaze. */
 function ahead(field: Field, pos: Point): Point {
     if (field === "xy") return { x: pos.x > 0 ? -1 : 1, y: 0 };
     const d = Math.hypot(pos.x, pos.y);
@@ -158,7 +158,9 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     const team = view.current === null ? null : arena.teams[view.current];
     const shooter = team?.players[team.currentPlayer];
     const origin = shooter?.shape.pos ?? { x: 0, y: 0 };
-    const forward = ahead(field, origin);
+    // The XY paper is in the shooter's frame; the disc paper is the map's polar frame (ADR 20).
+    const frame = field === "disc" ? { x: 0, y: 0 } : origin;
+    const forward = field === "disc" ? { x: 1, y: 0 } : ahead(field, origin);
     const turn = view.cw ? -1 : 1;
     const aiming = field === "disc" && view.mine && !!shooter;
 
@@ -167,8 +169,8 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         circle(w / 2, h / 2, arena.yMax * scale);
         ctx.clip();
     }
-    paper(ctx, colour, view, at, scale, origin, forward, w, h);
-    axes(ctx, colour, text, rem, view, at, scale, origin, forward, w, h);
+    paper(ctx, colour, view, at, scale, frame, forward, w, h);
+    axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
     ctx.fillStyle = colour("obstacle");
     for (const o of arena.obstacles) {
         circle(...at(o.pos), o.radius * scale);
@@ -184,8 +186,8 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
             ctx.arc(x, y, c.radius * scale, 0, 2 * Math.PI);
         }
         ctx.clip();
-        paper(ctx, colour, view, at, scale, origin, forward, w, h);
-        axes(ctx, colour, text, rem, view, at, scale, origin, forward, w, h);
+        paper(ctx, colour, view, at, scale, frame, forward, w, h);
+        axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
         ctx.restore();
     }
     ctx.restore();
@@ -200,22 +202,32 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     }
 
     if (aiming && shooter) {
-        // Which way θ grows, and the π/2 ray that way: only the shooter knows the direction.
+        // Our θ₀ (the map angle where θ starts) and which way θ sweeps from it (ADR 20): only the
+        // shooter knows the direction. Canvas angles are world angles negated.
+        const [cx, cy] = at({ x: 0, y: 0 });
         const [x, y] = at(origin);
-        const base = Math.atan2(-forward.y, forward.x);
-        const r = Math.max(20, shooter.shape.radius * scale * 1.55 + 10);
-        const end = base - turn * 1.2;
+        const theta0 = (Math.atan2(origin.y, origin.x) + 2 * Math.PI) % (2 * Math.PI);
+        const dist = Math.hypot(x - cx, y - cy);
+        const gap = shooter.shape.radius * scale + 8;
+        const a = 1.5 * scale;
         ctx.strokeStyle = ctx.fillStyle = colour("ink-soft");
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(x, y, r, base - turn * 0.3, end, turn > 0);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + ((x - cx) * (dist - gap)) / dist, cy + ((y - cy) * (dist - gap)) / dist);
+        ctx.moveTo(cx + a, cy);
+        ctx.arc(cx, cy, a, 0, -theta0, true);
+        // The sweep: an arc about the centre just inside our face, from θ₀ the chosen way.
+        const r = dist - gap;
+        const end = -theta0 - (turn * 48) / r;
+        ctx.moveTo(cx + r * Math.cos(theta0), cy - r * Math.sin(theta0));
+        ctx.arc(cx, cy, r, -theta0, end, turn > 0);
         ctx.stroke();
-        arrowhead(ctx, x + r * Math.cos(end), y + r * Math.sin(end), end - (turn * Math.PI) / 2);
-        const quarter = base - (turn * Math.PI) / 2;
+        arrowhead(ctx, cx + r * Math.cos(end), cy + r * Math.sin(end), end - (turn * Math.PI) / 2);
         ctx.font = `italic 14px ${MATH_FONT}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        text("π/2", x + (r + 18) * Math.cos(quarter), y + (r + 18) * Math.sin(quarter), colour("ink-soft"), 3);
+        text(`θ₀ ≈ ${theta0.toFixed(2)}`, cx + (a + 36) * Math.cos(-theta0 / 2), cy + (a + 36) * Math.sin(-theta0 / 2), colour("ink-soft"), 3);
     }
 
     const shot = view.shot;
@@ -244,8 +256,8 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
             const ours = player === shooter;
             let look = view.looks.get(lookKey(ti, pi)) ?? restLook(field, player.shape.pos);
             if (ours && aiming) {
-                // The θ = 0 vector turned +90° (counter-clockwise) or -90° (clockwise).
-                look = lookAlong(look, { x: -turn * forward.y, y: turn * forward.x });
+                // Along our orbit about the centre: θ's sweep, counter-clockwise or clockwise.
+                look = lookAlong(look, { x: -turn * origin.y, y: turn * origin.x });
             }
             const state = !player.alive ? "dead" : view.absent.includes(ti) ? "away" : "here";
             const [x, y] = at(player.shape.pos);
@@ -265,7 +277,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 type At = (p: Point) => [number, number];
 type Text = (s: string, x: number, y: number, fill: string, halo: number) => void;
 
-/** Layers 1 and 2 without the axes: paper and the grid in the shooter's frame. */
+/** Layers 1 and 2 without the axes: paper and the grid in the frame at `origin` (shooter on XY, centre on the disc). */
 function paper(ctx: CanvasRenderingContext2D, colour: Colour, view: View, at: At, scale: number, origin: Point, forward: Point, w: number, h: number) {
     const { arena } = view;
     ctx.fillStyle = colour("paper");
@@ -305,7 +317,7 @@ function paper(ctx: CanvasRenderingContext2D, colour: Colour, view: View, at: At
     }
 }
 
-/** The axes through the shooter: +x and +y on XY, the θ = 0 ray on the disc, numbered 5, 10, 15. */
+/** The axes through `origin`: +x and +y on XY, the θ = 0 ray on the disc, numbered 5, 10, 15; the disc also labels π/2, π, 3π/2. */
 function axes(ctx: CanvasRenderingContext2D, colour: Colour, text: Text, rem: number, view: View, at: At, scale: number, origin: Point, forward: Point, w: number, h: number) {
     const [ox, oy] = at(origin);
     const ink = colour("ink-soft");
@@ -345,6 +357,10 @@ function axes(ctx: CanvasRenderingContext2D, colour: Colour, text: Text, rem: nu
         ctx.font = `italic 14px ${MATH_FONT}`;
         const d = reach - 28;
         text("θ = 0", ox + fx * d + nx * 12, oy + fy * d + ny * 12, ink, 3);
+        ["π/2", "π", "3π/2"].forEach((s, i) => {
+            const a = ((i + 1) * Math.PI) / 2;
+            text(s, ox + d * Math.cos(a), oy - d * Math.sin(a), ink, 3);
+        });
     }
 }
 
