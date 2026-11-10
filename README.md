@@ -53,7 +53,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
     <td align="center"><img src="docs/img/game-xy.png" alt="XY game"><br>XY field: the last shot, the roster and the formula editor with its helper buttons.</td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/img/game-disc.png" alt="Polar disc game"><br>Polar disc field with 4 players (dark theme); the last shot was fired clockwise.</td>
+    <td align="center"><img src="docs/img/game-disc.png" alt="Polar disc game"><br>Polar disc field with 4 players; the last shot was fired clockwise.</td>
     <td align="center"><img src="docs/img/formulas.png" alt="Saved formulas"><br>Saved formulas: a template with its sliders open.</td>
   </tr>
   <tr>
