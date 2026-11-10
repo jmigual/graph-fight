@@ -1,7 +1,7 @@
 // The game screen's words: status bar, roster, last-shot text and the error line (ADR 17, sections 6, 10, 11).
 // DOM only; it holds no game state, so index.ts passes in what it knows.
 import type { Arena } from "../pkg/index.js";
-import { parseBot, parseLocal } from "./net";
+import { isHostRun, parseBot, parseLocal } from "./net";
 import type { Field, Shot, Timeout } from "./net";
 import { shotText } from "./render";
 
@@ -102,8 +102,14 @@ export function describeTurn(field: Field, team: number, msg: Shot | Timeout, fi
     return text;
 }
 
-/** The roster: one row per team, with players left and what the team is doing (ADR 17, section 10). `mine`: the current team plays on this page. */
-export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean) {
+/**
+ * The roster: one row per team, with players left and what the team is doing (ADR 17, section 10).
+ * `mine`: the current team plays on this page. With `kick` (the host, in a game), each guest's team
+ * that is still in gets a Kick button (ADR 23).
+ */
+export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean, kick?: (team: number) => void) {
+    // The list is rebuilt on every change: keep the keyboard on the button it was on.
+    const focused = $("roster").contains(document.activeElement) ? document.activeElement?.getAttribute("aria-label") : null;
     $("roster").replaceChildren(
         ...arena.teams.map((t, ti) => {
             const li = document.createElement("li");
@@ -124,9 +130,18 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             const pips = add("pips", "●".repeat(left) + "○".repeat(t.players.length - left));
             pips.setAttribute("role", "img");
             pips.setAttribute("aria-label", `${left} of ${t.players.length} players left`);
+            if (kick && ti > 0 && !isHostRun(peers[ti]) && left > 0) {
+                const button = li.appendChild(document.createElement("button"));
+                button.type = "button";
+                button.className = "secondary";
+                button.textContent = "Kick";
+                button.setAttribute("aria-label", `Kick Team ${ti + 1}`);
+                button.onclick = () => kick(ti);
+            }
             li.classList.toggle("out", left === 0);
             li.classList.toggle("current", current === ti && mine);
             return li;
         }),
     );
+    if (focused) $("roster").querySelector<HTMLElement>(`button[aria-label="${focused}"]`)?.focus();
 }

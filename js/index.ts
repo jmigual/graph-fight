@@ -224,7 +224,15 @@ function roomChanged() {
         return li;
     };
     $("room-players").replaceChildren(
-        ...all.map((id) => item(short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : ""))),
+        ...all.map((id) => {
+            const text = short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : "");
+            // The host can remove a guest; it is told, and its id is ignored from then on (ADR 23).
+            const kick = () => {
+                room?.kick(id);
+                connected = connected.filter((p) => p !== id);
+            };
+            return offer && id !== selfId ? removable(text, short(id), kick, "add-local") : item(text);
+        }),
         ...locals.map((id) => removable(seatName(id), seatName(id), () => (locals = locals.filter((l) => l !== id)), "add-local")),
         ...bots.map((id) => removable(seatName(id), `Bot ${parseBot(id)?.n}`, () => (bots = bots.filter((b) => b !== id)), "add-bot")),
     );
@@ -476,8 +484,13 @@ function refresh(p: Play) {
     const out = !p.over && p.peers.every((id, t) => !playsHere(id) || view.arena.teams[t].players.every((pl) => !pl.alive));
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
-    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine);
+    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, hostId === selfId && !p.over ? (team) => kickTeam(p, team) : undefined);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
+}
+
+/** Host: once confirmed, removes the guest playing `team`; the team is out as after a quit (ADR 23). */
+function kickTeam(p: Play, team: number) {
+    if (confirm(`Kick Team ${team + 1}? Their team will be out.`)) room?.kick(p.peers[team]);
 }
 
 /** We are a guest and our link to the host is down (ADR 16): the board is frozen until the replay arrives. */

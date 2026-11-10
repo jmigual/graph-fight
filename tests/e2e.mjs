@@ -44,9 +44,10 @@ const comparable = async (page) => {
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
  * `blockStorage` makes the host's localStorage refuse writes; `bots` lists the levels of the bots the
  * host adds before anyone joins (ADR 21); `locals` is the number of local players it adds before them
- * (ADR 22); `offline` cuts the pages' network once they have loaded.
+ * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name)` runs
+ * in the waiting room once everyone has joined, before the host clicks Start.
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -140,6 +141,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length + locals, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
     for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
+    if (beforeStart) await beforeStart(pages, name);
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
@@ -933,6 +935,69 @@ const scenarios = {
             await takeTurn(pages, turn, ["t", "0"]);
         }
         assert.ok(localTurns >= 1, "the local player had a turn");
+        return errors;
+    },
+    async Z() {
+        // The host removes a guest in the waiting room (ADR 23): the guest is told, and joining again
+        // under the same peer id is ignored. The game starts without it.
+        let removed;
+        const { pages, errors } = await startGame(3, "disc", "Z", {
+            seats: 4,
+            beforeStart: async ([host, ...guests], name) => {
+                removed = guests[0];
+                const [id, next] = await Promise.all(guests.map(async (g) => (await g.locator("#room-players li", { hasText: "(you)" }).innerText()).split(" ")[0]));
+                // Guests join in any order: Remove the one listed first, so the focus has a next Remove to go to.
+                const first = (await host.locator("#room-players li >> nth=1").innerText()).startsWith(id);
+                if (!first) removed = guests[1];
+                await host.getByRole("button", { name: `Remove ${first ? id : next}` }).click();
+                assert.equal(await host.evaluate(() => document.activeElement.getAttribute("aria-label")), `Remove ${first ? next : id}`, "the focus moves to the next Remove");
+                assert.equal(await host.locator("#room-players li").count(), 2);
+                await removed.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+                assert.match(await text(removed, "#end-message"), /removed you/i);
+                await removed.click("#back");
+                await removed.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+                await removed.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+                assert.match(await text(removed, "#end-message"), /removed you/i, "a removed peer joining again is told again");
+                await host.waitForTimeout(3000);
+                assert.equal(await host.locator("#room-players li").count(), 2, "and the host does not list it");
+            },
+        });
+        const players = pages.filter((page) => page !== removed);
+        assert.equal(await removed.evaluate(() => window.__state()), null, "the removed page has no game");
+        await assertSynced(players, 0);
+        await takeTurn(players, 0, ["t", "0"]);
+        return errors;
+    },
+    async AA() {
+        // The host kicks a guest mid-game (ADR 23): its team is out as after a quit, its page ends, and
+        // neither a reload nor a reload that restores its old seat token gets it back.
+        const { pages, errors } = await startGame(3, "disc", "AA");
+        const [host, kicked, other] = pages;
+        await assertSynced(pages, 0);
+        await kicked.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const seat = await kicked.evaluate(() => sessionStorage.getItem("graph-fight-seat"));
+        const team = JSON.parse(await state(kicked)).me;
+        assert.equal(await other.locator("#roster button").count(), 0, "only the host can kick");
+        assert.equal(await host.locator("#roster li >> nth=0").getByRole("button").count(), 0, "the host does not kick itself");
+        await host.getByRole("button", { name: `Kick Team ${team + 1}` }).click();
+        assert.match(host.dialogs.at(-1), /Kick Team/);
+        await kicked.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        assert.match(await text(kicked, "#end-message"), /removed you/i);
+        const rest = [host, other];
+        for (const page of rest) await page.waitForFunction((t) => window.__state().arena.teams[t].players.every((p) => !p.alive), team, { timeout: TURN_WAIT_MS });
+        assert.equal(await host.getByRole("button", { name: `Kick Team ${team + 1}` }).count(), 0, "an out team has no Kick");
+        await kicked.reload();
+        await kicked.waitForSelector("#lobby:not([hidden])");
+        assert.equal(await kicked.evaluate(() => window.__state()), null, "the ended game left no seat to rejoin");
+        // A tab that kept the seat token: the host knows it was revoked and says so.
+        await kicked.evaluate((s) => sessionStorage.setItem("graph-fight-seat", s), seat);
+        await kicked.reload();
+        await kicked.waitForSelector("#end:not([hidden])", { timeout: SETUP_MS });
+        assert.match(await text(kicked, "#end-message"), /removed you/i);
+        assert.equal(await kicked.evaluate(() => window.__state()), null, "the revoked seat gets no replay");
+        const { turn } = JSON.parse(await state(host));
+        await assertSynced(rest, turn);
+        await takeTurn(rest, turn, ["t", "0"]);
         return errors;
     },
     async AH() {
