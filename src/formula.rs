@@ -90,7 +90,7 @@ pub struct Formula(Node);
 
 impl Formula {
     /// Parses `src`, where `var` is the one variable name allowed (`x`, `t` or
-    /// `θ`). `theta` is accepted as an ASCII alias of `θ`.
+    /// `θ`). `theta` and `th` are accepted as ASCII aliases of `θ`, and `π` as an alias of `pi`.
     pub fn parse(src: &str, var: &str) -> Result<Self, ParseError> {
         if src.chars().count() > MAX_LEN {
             return Err(ParseError::TooLong);
@@ -255,7 +255,11 @@ impl Parser<'_> {
             self.pos += 1;
         }
         let name: String = self.chars[start..self.pos].iter().collect();
-        let canonical = if name == "theta" { "θ" } else { &name };
+        let canonical = match name.as_str() {
+            "theta" | "th" => "θ",
+            "π" => "pi",
+            other => other,
+        };
         if canonical == self.var {
             return Ok(Node::Var);
         }
@@ -340,11 +344,36 @@ mod tests {
     fn theta_and_alias() {
         let a = Formula::parse("θ^2", "θ").unwrap();
         let b = Formula::parse("theta^2", "θ").unwrap();
+        let c = Formula::parse("th^2", "θ").unwrap();
         assert_eq!(a.eval(3.0), 9.0);
         assert_eq!(b.eval(3.0), 9.0);
+        assert_eq!(c.eval(3.0), 9.0);
+        for alias in ["theta", "th"] {
+            assert_eq!(
+                Formula::parse(alias, "x").unwrap_err(),
+                ParseError::UnknownName(alias.into())
+            );
+        }
+        // Longer names that start with `th` are other names, never θ.
+        for name in ["th2", "theta2", "thx"] {
+            assert_eq!(
+                Formula::parse(name, "θ").unwrap_err(),
+                ParseError::UnknownName(name.into())
+            );
+        }
         assert_eq!(
-            Formula::parse("theta", "x").unwrap_err(),
-            ParseError::UnknownName("theta".into())
+            Formula::parse("tanh(th)", "θ").unwrap().eval(0.5),
+            0.5_f64.tanh()
+        );
+    }
+
+    #[test]
+    fn pi_alias() {
+        assert_eq!(ev("π", 0.0), PI);
+        assert_eq!(ev("2*π + x", 1.0), 2.0 * PI + 1.0);
+        assert_eq!(
+            Formula::parse("π2", "x").unwrap_err(),
+            ParseError::UnknownName("π2".into())
         );
     }
 

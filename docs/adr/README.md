@@ -6,7 +6,7 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 |---|-------|--------|----------|
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted | Short Nygard-format ADRs in `docs/adr/`; replaced ones are marked superseded, never deleted. |
 | [0002](0002-deterministic-lockstep-in-wasm.md) | Deterministic lockstep in Rust/WASM | Accepted | Peers exchange seed and formulas only; all outcome logic runs in WASM with libm floats; `Cargo.lock` committed. |
-| [0003](0003-hand-written-formula-parser.md) | Hand-written formula parser | Accepted | `src/formula.rs` recursive-descent parser replaces `meval`; no implicit multiplication, typed `ParseError`. |
+| [0003](0003-hand-written-formula-parser.md) | Hand-written formula parser | Accepted; amended in place (2026-11-10) | `src/formula.rs` recursive-descent parser replaces `meval`; no implicit multiplication, typed `ParseError`; `theta`/`th` alias `θ`, `π` aliases `pi`. |
 | [0004](0004-shot-model.md) | Shot model (XY) | Superseded in part by 0020 | Curve anchored at the shooter, sampled at ≤0.05 spacing; ends at obstacle (crater), field edge or non-finite; players die on hit. |
 | [0005](0005-disc-field-and-polar-shots.md) | Disc field and polar shots | Superseded in part by 0014, 0020 | Host picks `Xy` (2 teams) or `Disc` (≥2); polar `r=f(θ)` / `r(t),θ(t)`; frame and direction now per 0020. |
 | [0006](0006-trystero-nostr-lobby-and-mesh.md) | Trystero over Nostr: lobby and mesh | Superseded in part by 0012 | Game rooms are Trystero (WebRTC mesh, Nostr signalling), room `game-<selfId>`; lobby part replaced by 0012. |

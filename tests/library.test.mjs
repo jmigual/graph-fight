@@ -12,6 +12,9 @@ assert.deepEqual(sliderLetters(["t - a*sin(t)", "b*(1 - cos(t))"]), ["a", "b"], 
 assert.deepEqual(sliderLetters(["A*x"]), ["A"], "uppercase is a slider");
 assert.deepEqual(sliderLetters(["x*t*e*x2*t1*e5"]), [], "x, t, e are reserved, with or without digits");
 assert.deepEqual(sliderLetters(["pi*e + theta*θ"]), [], "constants and the angle variable");
+// `th` and `π` are parser aliases: two letters or non-ASCII, so they are never sliders and substitution leaves them.
+assert.deepEqual(sliderLetters(["a*th + π*th2"]), ["a"], "th, th2 and π are not slider letters");
+assert.deepEqual(findSliders(["2th", "3π"]), { ok: true, value: [] }, "digits before them are not glue");
 // Function and constant names are single tokens: their letters are never sliders.
 for (const f of ["atan(x)", "asin(x)", "acos(x)", "sinh(x)", "cosh(x)", "tanh(x)", "sqrt(x)", "abs(x)", "exp(x)", "ln(x)", "log10(x)", "floor(x)", "ceil(x)", "tan(x)", "amp*x", "a1b"]) {
     assert.deepEqual(sliderLetters([f]), [], f);
@@ -35,6 +38,7 @@ assert.equal(findSliders(["a2"]).ok, true, "a2 is one slider named a2");
 const sl = (min, max, step, value) => ({ min, max, step, value });
 const sub = (exprs, sliders) => substitute(exprs, sliders).value;
 assert.deepEqual(sub(["a*x"], { a: sl(-10, 10, null, 1.5) }), ["1.5*x"]);
+assert.deepEqual(sub(["a*th + π*theta"], { a: sl(-10, 10, null, 2) }), ["2*th + π*theta"], "th, theta and π stay");
 assert.deepEqual(sub(["x^a"], { a: sl(-10, 10, null, -2) }), ["x^(-2)"], "negatives in parentheses");
 assert.deepEqual(sub(["-a"], { a: sl(-10, 10, null, -2) }), ["-(-2)"]);
 assert.deepEqual(sub(["a+a"], { a: sl(-10, 10, null, 3) }), ["3+3"], "every occurrence");
