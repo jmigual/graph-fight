@@ -478,7 +478,10 @@ takes its direction as an angle `a` in the map, and Cycloid has `d = 1` to roll 
 roll left. Line and Wave are unchanged. Spiral allows negative `a` (inward). "Circle"
 (`a*sin(θ)`) no longer drew a circle and "Rose" no longer drew petals; one wavy orbit, "Wave",
 replaces both. A constant angle cancels out, so "Straight shot" is the line through the centre and
-has no slider, and "Bend" bends that line around the centre. There are 10 starters.
+has no slider, and "Bend" bends that line around the centre. There are 10 starters. They are
+written for the default map-centred frame. In a player-centred game the disc "Straight shot" and
+"Bend" (`r = −t`) point away from the centre and leave the disc at once; `r = t` is the straight
+shot there. The starters are not changed per frame.
 
 Verification has two parts. The S5 unit test substitutes every starter at its min, default and
 max values and requires no slider letters left and at most 256 characters. A Rust test in
