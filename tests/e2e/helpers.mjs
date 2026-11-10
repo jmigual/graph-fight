@@ -30,6 +30,13 @@ await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 export const url = `http://127.0.0.1:${server.address().port}/`;
 
 export const browser = await chromium.launch({ args: ["--disable-features=WebRtcHideLocalIpsWithMdns"] });
+// Every page of this process lists games on the lobby topic the runner chose for its scenario (ADR 33).
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (options) => {
+    const context = await newContext(options);
+    await context.addInitScript((suffix) => (window.__lobbySuffix = suffix), process.env.E2E_LOBBY);
+    return context;
+};
 
 export const state = (page) => page.evaluate(() => JSON.stringify(window.__state()));
 export const comparable = async (page) => {
