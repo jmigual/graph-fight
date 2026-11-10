@@ -64,7 +64,7 @@
               <label class="field"><span>Game name</span><input id="host-name" value="game" maxlength="64"></label>
               <label class="field"><span>Field</span>
                 <select id="host-field">
-                  <option value="xy">XY plane, 2 players</option>
+                  <option value="xy">XY plane, 2 players or 2 teams</option>
                   <option value="disc">Polar disc, 2 to 8 players</option>
                 </select>
               </label>
@@ -118,7 +118,7 @@
                 <li>The shot follows its graph from your character until it hits a player (they die), an obstacle (it leaves a crater) or the edge of the field.</li>
                 <li>The last team standing wins.</li>
               </ul>
-              <p>Play on an XY field with 2 players or on a polar disc with 2 to 8, each on their own or in teams.</p>
+              <p>Play on an XY field with 2 players or 2 teams, or on a polar disc with 2 to 8 players, alone or in teams.</p>
               <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="Source code on GitHub, opens in a new tab">Source code on GitHub</a></p>
             </div>
             <figure>
@@ -371,7 +371,7 @@
         </ul>
         <h4 id="help-host-join">Hosting and joining</h4>
         <ul>
-          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players, or polar disc with 2 to 8), the coordinates (see <a href="#help-coordinates">Coordinates</a>), the mode (Free-for-all, or Teams with the number of teams and the players per team), for a free-for-all on the disc the seats, and the characters per player.</li>
+          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players or 2 teams, or polar disc with 2 to 8 players), the coordinates (see <a href="#help-coordinates">Coordinates</a>), the mode (Free-for-all, or Teams with the number of teams and the players per team), for a free-for-all on the disc the seats, and the characters per player.</li>
           <li>The host waits in the waiting room and presses Start, which needs at least 2 players, and in a team game a player on every team. If more people join than there are seats, the first to join play.</li>
           <li>There is no game server. Players connect directly to each other, and only formulas and control messages are sent. Public Nostr relays are used to find open games.</li>
         </ul>
