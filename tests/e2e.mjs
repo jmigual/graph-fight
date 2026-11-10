@@ -1498,6 +1498,10 @@ const scenarios = {
         assert.equal(await page.inputValue("#test-x"), "1.5", "Position keeps what was typed");
         await page.selectOption("#test-field", "disc");
         assert.equal(await page.locator("#test-items li").count(), 0, "another field starts over");
+        // With nothing selected, Move says so, before the form complains about an empty field.
+        await page.fill("#test-x", "");
+        await page.click("#test-move");
+        await page.waitForFunction(() => document.getElementById("test-error").textContent === "Choose a player or an obstacle to move.");
         assert.equal(await page.locator("#test-team option").count(), 8, "the disc has up to eight teams");
         await click(8, 0, [10, 10]);
         // Placing from the keyboard: Position, then Enter.

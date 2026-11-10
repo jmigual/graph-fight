@@ -333,10 +333,10 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         place(typed());
     };
     $("test-move").onclick = () => {
-        // A plain button skips the form's own check, so an empty field would reach the engine as NaN.
-        if (!$<HTMLFormElement>("test-coords").reportValidity()) return;
         const pick = selected;
         if (!pick) return setLive($("test-error"), "Choose a player or an obstacle to move.");
+        // A plain button skips the form's own check, so an empty field would reach the engine as NaN.
+        if (!$<HTMLFormElement>("test-coords").reportValidity()) return;
         const p = typed();
         const moved = "player" in pick ? move(pick.player, p, "Can't move it there.") : commit(teams, obstacles.map((o, i) => (i === pick.obstacle ? { ...o, ...p } : o)), "Can't move it there.");
         if (moved) render();
