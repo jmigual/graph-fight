@@ -3,6 +3,8 @@
 Status: Accepted (2026-11-09)
 Amended by 0021: `start.peers` may hold bot seats `bot:<level>:<n>`, which only the host plays;
 a `start` with a malformed `bot:` entry is dropped.
+Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
+uses `graph-fight:lobby:dev` (see "Lobby topic per build").
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
 Superseded in part by 0016: a gap or a dropped link triggers a replay of the log instead of desync or `leave`; `leave` is relayed only for an explicit quit.
 
@@ -81,6 +83,18 @@ Version check (peers on different builds would desync silently):
   message.
 - The commit hash does not change between uncommitted edits, so two dev builds of the same
   commit count as compatible.
+
+Lobby topic per build:
+- Test games from `npm start`, local builds and `npm run e2e` showed up in the live lobby as
+  "Different version - reload". `scripts/build.mjs` now sets the esbuild define `__LOBBY_TOPIC__`
+  from `scripts/lobby-topic.mjs`: `graph-fight:lobby` when `GRAPH_FIGHT_LOBBY=live`, otherwise
+  `graph-fight:lobby:dev`. Only the `npm run build` step of `pages.yml` sets that variable, so a
+  forgotten flag lands on the dev topic. Without the define (Node tests) `net.ts` falls back to dev.
+- Game rooms are unchanged: appId `graph-fight`, room `game-<hostId>`, shared by dev and live
+  builds. They cannot cross-join through the lobby, since a build only lists hosts on its own
+  topic; joining needs the random host id, which only the lobby listing carries. A dev and a live
+  build of the same commit share `BUILD_VERSION`, so the version check would not stop someone who
+  forged the id, which is accepted under ADR 7's trusted-peers model.
 
 ## Consequences
 
