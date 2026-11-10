@@ -69,6 +69,14 @@ export const scenarios = {
         const item = page.locator("#saved-list li", { hasText: "Mine" });
         assert.equal(await item.locator("details").evaluate((d) => d.open), true, "a new template opens its sliders");
         const slider = (label) => item.locator(`[aria-label="${label}"]`);
+        // Compact like Desmos: the range and the value share a line, and Lowest, Highest and Step share the next one.
+        const middle = async (label) => {
+            const box = await slider(label).boundingBox();
+            return Math.round(box.y + box.height / 2);
+        };
+        assert.equal(await middle("a"), await middle("Value of a"), "the range and the value are on one line");
+        assert.equal(new Set([await middle("Lowest a"), await middle("Highest a"), await middle("Step of a")]).size, 1, "the limits and the step are on one line");
+        assert.ok((await item.locator("details").boundingBox()).height < 150, "a one-slider block is compact");
         await slider("Value of a").fill("-2");
         assert.equal(await item.locator(".preview").innerText(), "→ (-2)*x");
         // Editing the limits updates the range; limits that cross keep the old ones.
