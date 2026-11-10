@@ -64,6 +64,7 @@
                 <select id="host-visibility">
                   <option value="public">Public</option>
                   <option value="password">Password</option>
+                  <option value="link">Private link</option>
                 </select>
               </label>
               <label class="field"><span>Password</span><input id="host-password" maxlength="64" autocomplete="off" spellcheck="false" required disabled></label>
@@ -79,6 +80,11 @@
         <p id="room-status"></p>
         <ul id="room-players"></ul>
         <p id="room-seats" class="hint"></p>
+        <div id="invite" class="actions" hidden>
+          <label class="field"><span>Invite link</span><input id="invite-link" readonly spellcheck="false"></label>
+          <button id="copy-link" type="button" class="secondary">Copy invite link</button>
+          <span id="copy-status" class="hint" role="status"></span>
+        </div>
         <div id="bots" class="actions" hidden>
           <label for="bot-level">Bot level</label>
           <select id="bot-level">

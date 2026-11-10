@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, outbox, parseBot, parseGameMsg, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
+import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -237,6 +237,16 @@ assert.equal(parseListing({ ...listing, version: "v0", locked: "yes" }, "v1"), u
 // A build before ADR 24 sends no `locked`: it reads as unlocked, and is only listed as another version.
 const { locked: _locked, ...unflagged } = listing;
 assert.deepEqual(parseListing({ ...unflagged, version: "v0" }, "v1"), { ...listing, version: "v0" });
+
+// Invite links (ADR 24): the fragment names the host, the room password and the build.
+const invite = inviteFragment("h0st", "s3cret &=#");
+assert.match(invite, /^#join=h0st&key=.+&v=/);
+assert.deepEqual(parseInvite(invite), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "the key survives URL encoding");
+assert.deepEqual(parseInvite(invite.slice(1)), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "with or without the #");
+assert.match(newToken(), /^[0-9a-f]{32}$/, "a private link's key is 128 random bits");
+for (const bad of ["", "#", "#join=h", "#key=k&v=v", "#join=h&key=k", "#join=&key=k&v=v", "#join=h&key=&v=v", `#join=${"h".repeat(65)}&key=k&v=v`, `#join=h&key=${"k".repeat(65)}&v=v`, `#join=h&key=k&v=${"v".repeat(65)}`]) {
+    assert.equal(parseInvite(bad), undefined, bad);
+}
 
 // Lobby book: refresh, own game, malformed, expiry, withdraw, size bound.
 const book = lobbyBook("me", "v1", 10_000);

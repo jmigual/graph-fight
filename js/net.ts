@@ -202,6 +202,19 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
     return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked };
 }
 
+/** An invite link's fragment (ADR 24): the host's id, the room password and our build. */
+export const inviteFragment = (hostId: string, key: string) => `#${new URLSearchParams({ join: hostId, key, v: BUILD_VERSION })}`;
+
+/**
+ * Reads an invite link's fragment (ADR 24). The link is untrusted input: undefined unless it names
+ * a host and a key, and carries a build version, each at most `MAX_TEXT` long.
+ */
+export function parseInvite(hash: string): { hostId: string; key: string; version: string } | undefined {
+    const p = new URLSearchParams(hash.replace(/^#/, ""));
+    const [hostId, key, version] = [p.get("join"), p.get("key"), p.get("v")];
+    return hostId && key && isText(hostId) && isText(key) && isText(version) ? { hostId, key, version } : undefined;
+}
+
 /**
  * The open-games list built from lobby announcements. Entries are keyed by the event's
  * pubkey (so a sender can only overwrite its own entry), ignore our own game, expire
@@ -354,8 +367,8 @@ export function outbox() {
     };
 }
 
-/** A private seat token: 128 random bits as hex. */
-const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+/** A private seat token, or a private link's room password (ADR 24): 128 random bits as hex. */
+export const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 /**
  * Host only (ADR 16): a private token for each seat in `peers` (`start.peers`) and the peer

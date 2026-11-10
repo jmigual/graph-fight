@@ -3,12 +3,12 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_VERSION, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, parseBot, parseLocal, selfId } from "./net";
+import { BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
-import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setText, short, showError, TITLE } from "./status";
+import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";
 
 // Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
 await init();
@@ -84,6 +84,8 @@ let hostId = "";
 let me = selfId;
 /** What we advertise while hosting a game that has not started. */
 let offer: Announce | null = null;
+/** Host: a private-link game, which is never announced (ADR 24). */
+let unlisted = false;
 /** The room password of the game we host or joined, "" for a public one (ADR 24). */
 let key = "";
 let connected: string[] = [];
@@ -157,8 +159,9 @@ $<HTMLFormElement>("host-form").onsubmit = (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
     const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
-    // A password game is listed with a lock (ADR 24).
-    const password = hostVisibility.value === "password" ? $<HTMLInputElement>("host-password").value : "";
+    // A password game is listed with a lock; a private link's random key never leaves the link (ADR 24).
+    const password = hostVisibility.value === "link" ? newToken() : hostVisibility.value === "password" ? $<HTMLInputElement>("host-password").value : "";
+    unlisted = hostVisibility.value === "link";
     offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
     enterRoom(selfId, undefined, password);
 };
@@ -193,6 +196,8 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     $("room-title").textContent = roomInfo?.name || "Waiting room";
     $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${FRAME_NAMES[roomInfo.frame][0]}, ${roomInfo.seats} seats` : "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
+    $<HTMLInputElement>("invite-link").value = key ? `${location.origin}${location.pathname}${inviteFragment(id, key)}` : "";
+    $("copy-status").textContent = "";
     room = joinGame(id, {
         onMessage,
         onShotRequest: acceptShot,
@@ -276,8 +281,24 @@ function roomChanged() {
     $<HTMLButtonElement>("start").disabled = players < 2;
     $("bots").hidden = !offer;
     for (const id of ["add-bot", "add-local"]) $<HTMLButtonElement>(id).disabled = !offer || hostRun >= offer.seats - 1;
-    if (offer) lobby.announce({ ...offer, players });
+    $("invite").hidden = !offer || !key;
+    if (offer && !unlisted) lobby.announce({ ...offer, players });
 }
+
+$("copy-link").onclick = () => {
+    const field = $<HTMLInputElement>("invite-link");
+    // The clipboard needs a secure context and the page's focus; otherwise the link is selected to copy by hand.
+    Promise.resolve()
+        .then(() => navigator.clipboard.writeText(field.value))
+        .then(
+            () => setLive($("copy-status"), "Link copied."),
+            () => {
+                field.focus();
+                field.select();
+                setLive($("copy-status"), "Copy the selected link.");
+            },
+        );
+};
 
 /** The lowest seat number from 1 to 7 not in `taken`. */
 const freeNumber = (taken: (number | undefined)[]) => [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
@@ -624,9 +645,30 @@ setInterval(() => {
 (window as unknown as { __state: () => unknown }).__state = () =>
     play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot, faint: olderPaths(play.shots, play.sim.arena(), play.shot).length };
 
-// After a reload, rejoin the game we hold a seat in (ADR 16).
+/**
+ * Joins the game an invite link names (ADR 24), and first takes the link out of the address bar so
+ * a screenshot or a shared URL does not show the key. Returns false when the address holds none.
+ */
+function openInvite() {
+    const invite = parseInvite(location.hash);
+    if (!invite) return false;
+    history.replaceState(null, "", location.pathname + location.search);
+    if (invite.version === BUILD_VERSION) enterRoom(invite.hostId, undefined, invite.key);
+    else end(...MISMATCH);
+    return true;
+}
+// A link pasted into this tab changes only the fragment, which does not reload the page.
+addEventListener("hashchange", () => {
+    if (!parseInvite(location.hash) || (room && !ended)) return;
+    toLobby();
+    // The last game's end must not swallow this one's (a version mismatch ends at once).
+    ended = false;
+    openInvite();
+});
+
+// After a reload, rejoin the game we hold a seat in (ADR 16); an invite opened in this tab wins over it.
 const saved = sessionStorage.getItem(SEAT_KEY);
-if (saved) {
+if (!openInvite() && saved) {
     const seat = JSON.parse(saved) as Seat;
     if (seat.version === BUILD_VERSION) enterRoom(seat.hostId, seat);
     else end(...MISMATCH);

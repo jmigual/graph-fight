@@ -212,7 +212,9 @@ dialog h2 { margin-top: 0; }
 #room-players { list-style: none; padding: 0; }
 #room-players li { padding: 0.125rem 0; }
 #room-players button { margin-left: 0.75rem; }
-#bots { margin-bottom: 1rem; }
+#bots, #invite { margin-bottom: 1rem; }
+#invite { align-items: end; }
+#invite .field { margin-bottom: 0; flex: 1 1 18rem; }
 #guest-hint { display: none; }
 #start[hidden] ~ #guest-hint { display: inline; }
 #start:not(:disabled) ~ #start-hint, #start[hidden] ~ #start-hint { display: none; }

@@ -46,16 +46,19 @@ const comparable = async (page) => {
  * host adds before anyone joins (ADR 21); `locals` is the number of local players it adds before them
  * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name, errors)`
  * runs in the waiting room once everyone has joined, before the host clicks Start; `visibility` is
- * `public` (default) or `password` (guests join from the lobby with `password`) (ADR 24).
+ * `public` (default), `password` (guests join from the lobby with `password`) or `link` (guests open
+ * the host's invite link) (ADR 24).
  */
 async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "" } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
-        const page = await (await browser.newContext()).newPage();
+        const page = await (await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] })).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
         // Counts game-room subscriptions (Nostr REQs other than the lobby's): joining a room sends them.
+        // Also keeps the Nostr events the page publishes (lobby listings and signalling).
         page.subscriptions = 0;
+        page.published = [];
         page.on("websocket", (ws) =>
             ws.on("framesent", (f) => {
                 const frame = String(f.payload);
@@ -63,6 +66,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
                 const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
                 if (announced) page.announced = announced[1];
                 if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
+                if (frame.startsWith('["EVENT"')) page.published.push(frame);
             }),
         );
         // Leave game asks for confirmation (ADR 17): record the message, then accept unless told to dismiss.
@@ -131,28 +135,36 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         await host.click("#add-local");
         assert.equal(await host.getByRole("button", { name: `Remove Local ${locals}` }).count(), 1);
     }
+    // A private-link game is not listed: its guests open the invite link (ADR 24). The first one loads
+    // it, as from a new tab; the next one pastes it into its open lobby, which only changes the fragment.
+    const listed = visibility === "link" ? [] : guests;
+    for (const [i, guest] of guests.filter((g) => !listed.includes(g)).entries()) {
+        if (i % 2 === 0) await guest.goto("about:blank");
+        await guest.goto(await host.inputValue("#invite-link"));
+    }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
-    const rows = guests.map((guest) => guest.locator("#games tr", { hasText: name }));
+    const rows = listed.map((guest) => guest.locator("#games tr", { hasText: name }));
     const joins = rows.map((row) => row.getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // The footer shows the version the host announced, on the lobby screen...
     await assertBuild(pages, host.announced);
     // The listing counts the bots and local players (ADR 21, 22), and marks a password game (ADR 24).
-    if (guests.length && (bots.length || locals)) await rows[0].filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
+    if (listed.length && (bots.length || locals)) await rows[0].filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
     for (const row of rows) assert.equal(await row.getByRole("img", { name: "Password required" }).count(), visibility === "password" ? 1 : 0);
     // With a game listed, the empty-list text gives way to the table.
-    for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
+    for (const guest of listed) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(
         joins.map(async (join, i) => {
             await join.click({ timeout: 5000 });
             if (visibility !== "password") return;
-            await guests[i].fill("#join-password", password);
-            await guests[i].press("#join-password", "Enter");
+            await listed[i].fill("#join-password", password);
+            await listed[i].press("#join-password", "Enter");
         }),
     );
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length + locals, { timeout: SETUP_MS });
-    for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
-    for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
+    // A guest that came by link has no listing to take the name and field from.
+    for (const page of visibility === "link" ? [host] : pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
+    for (const page of visibility === "link" ? [host] : pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
     if (beforeStart) await beforeStart(pages, name, errors);
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
@@ -1041,6 +1053,31 @@ const scenarios = {
         await guest.reload();
         await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
         await assertSynced(pages, 1);
+        await takeTurn(pages, 1, ["t", "0"]);
+        return errors;
+    },
+    async AC() {
+        // A private-link game (ADR 24) is never announced. The host copies the invite link, which
+        // carries a 128-bit key in the fragment; the guests join through it, and their address bars drop the key.
+        const { pages, errors } = await startGame(3, "disc", "AC", {
+            visibility: "link",
+            beforeStart: async ([host, ...guests], name) => {
+                const observer = await (await browser.newContext()).newPage();
+                await observer.goto(url);
+                await observer.waitForTimeout(7000); // more than two announce periods
+                assert.equal(await observer.locator("#games tr", { hasText: name }).count(), 0, "a lobby page does not list it");
+                assert.equal(host.published.some((f) => f.includes(name)), false, "the host never announced it");
+                const link = await host.inputValue("#invite-link");
+                assert.ok(link.startsWith(`${url}#join=`), link);
+                assert.match(link, /&key=[0-9a-f]{32}&v=/);
+                await host.click("#copy-link");
+                assert.equal(await host.evaluate(() => navigator.clipboard.readText()), link);
+                await host.waitForFunction(() => document.getElementById("copy-status").textContent !== "");
+                for (const guest of guests) assert.equal(await guest.evaluate(() => location.href), url, "the key is gone from the guest's address bar");
+            },
+        });
+        await assertSynced(pages, 0);
+        await takeTurn(pages, 0, ["t", "0"]);
         await takeTurn(pages, 1, ["t", "0"]);
         return errors;
     },
