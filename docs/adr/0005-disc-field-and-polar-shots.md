@@ -1,7 +1,8 @@
 # 5. Disc field with polar shots; field kind is a host option
 
 Status: Accepted (2026-11-09)
-Superseded in part by 0014 (shot direction: CCW is the default; clockwise mirrors θ).
+Superseded in part by 0014 (shot direction: CCW is the default; clockwise mirrors θ) and by
+0020 (polar coordinates about the map centre, offset to start at the shooter).
 
 ## Context
 

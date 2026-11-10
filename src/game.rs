@@ -206,8 +206,9 @@ impl Game {
             .unwrap_or_default()
     }
 
-    /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc.
-    /// On the disc `clockwise` mirrors the shot across the shooter-to-centre axis; XY ignores it.
+    /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc,
+    /// in map polar coordinates from the player's angle and offset to pass through the player
+    /// (ADR 20). On the disc `clockwise` sweeps θ downward; XY ignores it.
     /// On an error nothing changes and the turn is not consumed.
     pub fn fire(&mut self, expr: &str, clockwise: bool) -> Result<Shot, FireError> {
         let var = match self.arena.field() {
@@ -534,7 +535,7 @@ mod tests {
     #[test]
     fn fire_kills_and_passes_the_turn() {
         let mut game = three_teams();
-        let shot = game.fire_param("t", "0", false).unwrap();
+        let shot = game.fire_param("-t", "0", false).unwrap();
         assert!(!shot.points.is_empty());
         assert_eq!(
             game.arena.alive(),
@@ -653,7 +654,7 @@ mod tests {
     fn a_kill_by_fire_can_decide_the_winner() {
         let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(-5., 0.)]]);
         assert_eq!(game.winner(), None);
-        game.fire_param("t", "0", false).unwrap();
+        game.fire_param("-t", "0", false).unwrap();
         assert_eq!(game.winner(), Some(0));
     }
 
@@ -665,22 +666,22 @@ mod tests {
 
     #[test]
     fn clockwise_shot_can_hit_what_counter_clockwise_misses() {
-        // r = θ from (8, 0) passes (8, -π/2) counter-clockwise and (8, π/2) clockwise;
-        // r = t, θ = 0.5 passes (4.49, -1.92) counter-clockwise and (4.49, 1.92) clockwise
+        // r = θ from (8, 0) passes polar (9, 1) counter-clockwise and (7, -1) clockwise;
+        // r = -t/2, θ = t/4 passes polar (6, 1) counter-clockwise and (6, -1) clockwise
         for clockwise in [false, true] {
             for (x, y, param) in [
-                (8., 1.5, false),
-                (8., -1.5, false),
-                (4.49, 1.92, true),
-                (4.49, -1.92, true),
+                (4.863, 7.573, false),
+                (3.782, -5.890, false),
+                (3.242, 5.049, true),
+                (3.242, -5.049, true),
             ] {
                 let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(x, y)]]);
                 if param {
-                    game.fire_param("t", "0.5", clockwise).unwrap();
+                    game.fire_param("-t/2", "t/4", clockwise).unwrap();
                 } else {
                     game.fire("theta", clockwise).unwrap();
                 }
-                assert_eq!(game.arena.alive()[1][0], (y < 0.) == clockwise);
+                assert_eq!(game.arena.alive()[1][0], (y > 0.) == clockwise);
             }
         }
     }
