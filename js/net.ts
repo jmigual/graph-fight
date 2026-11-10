@@ -347,6 +347,8 @@ export function seatBook(peers: string[]) {
         tokens: tokens as readonly string[],
         /** Moves the seat whose token is exactly `token` to `peer`; false for an unknown token. */
         rejoin(token: string, peer: string): boolean {
+            // The host's and the bots' seats share the empty token.
+            if (!token) return false;
             const i = tokens.indexOf(token);
             if (i > 0) holders[i] = peer;
             return i > 0;
