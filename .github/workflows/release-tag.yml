@@ -1,0 +1,35 @@
+name: Release tag
+
+# A pushed tag cannot be blocked: a red run here is the signal (watch it with `gh run watch`).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Check the tag is the top CHANGELOG version at its commit, and on master
+        run: node scripts/release-check.mjs tag "$GITHUB_REF_NAME"
+      - name: Check the tagged commit has a successful github-pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse "$GITHUB_REF_NAME^{commit}")
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&sha=$sha" --jq '.[].id'); do
+            # statuses come newest first
+            state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state')
+            if [ "$state" = success ]; then exit 0; fi
+          done
+          echo "::error::$GITHUB_REF_NAME ($sha) has no successful github-pages deployment: tag the commit that was deployed, or wait for the deploy to finish and re-run"
+          exit 1

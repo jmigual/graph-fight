@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -44,6 +46,8 @@ jobs:
           grep -qF "\"$version+" dist/index.js
           grep -qF "<h2 id=\"v$version\">" dist/changelog.html
           if grep -qF -- '-dev+' dist/index.js; then exit 1; fi
+      - name: Check the top CHANGELOG version is not already tagged on another commit
+        run: node scripts/release-check.mjs free
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
