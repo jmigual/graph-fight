@@ -11,7 +11,9 @@ import { initArena } from "./arena";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
-import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, setText, showError } from "./status";
+import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setText, showError } from "./status";
+import { charactersPerSide, owner, seatsOf, sideOf } from "./teams";
+import { renderSides } from "./teams-view";
 import { dropSeat, HOST_LEFT, hostId, me, room, SEAT_KEY } from "./room";
 
 const TURN_MS = 60_000;
@@ -35,8 +37,12 @@ type Play = {
     seed: string;
     field: Field;
     frame: Frame;
-    /** `peers[i]` plays team `i`. */
+    /** The seats, in `start.peers` order. In a free-for-all `peers[i]` plays team `i`. */
     peers: string[];
+    /** Team mode (ADR 27): `teams[i]` is the side, the engine team, of `peers[i]`. */
+    teams?: number[];
+    /** Seats whose `leave` was applied: their characters went to a teammate, or their side is out (ADR 27). */
+    left: Set<string>;
     /** Number of applied shots and timeouts. */
     turn: number;
     shot: LastShot | null;
@@ -48,6 +54,8 @@ type Play = {
     shots: Map<string, LastShot>;
     /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
+    /** The disconnected seats as last drawn, so a change redraws the board and the roster. */
+    away?: string;
     /**
      * Turn starts so far: the start, each shot and timeout, and each leave that passes the turn on.
      * Unlike `turn`, it moves when a quit or a kick hands the turn to the next team; a replay counts
@@ -81,7 +89,7 @@ function startGame(msg: Start) {
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
-        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, msg.frame === "map" ? WasmFrame.Map : WasmFrame.Player, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(DEFAULT_K), PLAYER_RADIUS, BigInt(msg.seed));
+        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, msg.frame === "map" ? WasmFrame.Map : WasmFrame.Player, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(charactersPerSide(msg, msg.k ?? DEFAULT_K)), PLAYER_RADIUS, BigInt(msg.seed));
     } catch (err) {
         return end("Could not start the game.", `${err}`);
     }
@@ -89,15 +97,21 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, seed: msg.seed, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
+    play = { sim, seed: msg.seed, field: msg.field, frame: msg.frame, peers: msg.peers, teams: msg.teams, left: new Set(), turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
 }
 
-/** Host: relays `shot` if `from` is the current team's seat and the shot is for the current turn (ADR 12). */
+/** The seat that aims now: the one playing the current team's current character (ADR 27). */
+function shooterOf(p: Play) {
+    const team = p.sim.get_current_team_idx();
+    return owner(p, p.left, team, p.sim.arena().teams[team].currentPlayer) ?? "";
+}
+
+/** Host: relays `shot` if `from` is the current shooter's seat and the shot is for the current turn (ADR 12). */
 export function acceptShot(from: string, shot: Shot) {
-    if (play && !play.over && from === play.peers[play.sim.get_current_team_idx()] && shot.turn === play.turn) room?.relay(shot);
+    if (play && !play.over && from === shooterOf(play) && shot.turn === play.turn) room?.relay(shot);
 }
 
 /**
@@ -106,7 +120,7 @@ export function acceptShot(from: string, shot: Shot) {
  * turn started. It gives up when the game or the turn moves on meanwhile (ADR 21).
  */
 async function playBot(p: Play) {
-    const id = p.peers[p.sim.get_current_team_idx()];
+    const id = shooterOf(p);
     const level = parseBot(id)?.level;
     if (!level) return;
     const turn = p.turn;
@@ -156,18 +170,21 @@ export function onMessage(msg: GameMsg) {
     if (msg.type === "start") return startGame(msg);
     const p = play;
     if (!p || p.over) return;
-    // A leave from a peer without a seat changes nothing. One from a seated peer only restarts the
-    // clock when it passes the turn on, so joining and leaving cannot stall the shooter.
+    // A leave from a peer without a seat changes nothing. One from a seated peer hands its characters
+    // to a teammate, or takes its side out with its last seat (ADR 27), and only restarts the clock
+    // when the shooter's seat changes, so joining and leaving cannot stall the shooter.
     let newTurn = true;
     try {
         if (msg.type === "leave") {
             if (msg.peer === hostId) return end(...HOST_LEFT);
-            const team = p.peers.indexOf(msg.peer);
-            if (team < 0) return;
-            const before = p.sim.get_current_team_idx();
-            p.sim.eliminate_team(team);
-            newTurn = p.sim.get_current_team_idx() !== before;
-            p.note = `Team ${team + 1} left the game.`;
+            const team = sideOf(p, msg.peer);
+            if (team === undefined || p.left.has(msg.peer)) return;
+            const before = shooterOf(p);
+            p.left.add(msg.peer);
+            const out = seatsOf(p, team).every((seat) => p.left.has(seat));
+            if (out) p.sim.eliminate_team(team);
+            newTurn = shooterOf(p) !== before;
+            p.note = out ? `Team ${team + 1} left the game.` : `${seatName(msg.peer)} left the game. Team ${team + 1} plays on.`;
         } else {
             p.turn++;
             p.pending = false;
@@ -209,10 +226,7 @@ function restore(shot: LastShot) {
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
 function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
-    if (winner !== undefined) {
-        const id = p.peers[winner];
-        return end(playsHere(id) ? ourWin(id, hotSeat(p)) : `Team ${winner + 1} wins.`);
-    }
+    if (winner !== undefined) return end(...winWords(p, winner));
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw.", "Nobody is left.");
     if (newTurn) {
         p.starts++;
@@ -220,8 +234,9 @@ function changed(p: Play, newTurn: boolean) {
         resetClock(p);
         // Our turn starts (or a local player's): say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17, 22).
         const team = p.sim.get_current_team_idx();
-        const mine = playsHere(p.peers[team]);
-        cueTurn(mine ? p.peers[team] : null, hotSeat(p));
+        const seat = shooterOf(p);
+        const mine = playsHere(seat);
+        cueTurn(mine ? seat : null, hotSeat(p));
         // Our character's last formula comes back (each local player's own, since characters are per team); one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
         const fresh = p.seed !== restored.seed || p.starts > restored.starts;
@@ -233,6 +248,20 @@ function changed(p: Play, newTurn: boolean) {
     refresh(p);
 }
 
+/**
+ * The end screen for side `team`'s win. A free-for-all names the seat as before (ADR 22). In team
+ * mode every seat of the side reads "Your team wins."; at a shared screen, or on a page of the
+ * other side, the side's number and its seats are named (ADR 27).
+ */
+function winWords(p: Play, team: number): [string, string?] {
+    if (!p.teams) {
+        const id = p.peers[team];
+        return [playsHere(id) ? ourWin(id, hotSeat(p)) : `Team ${team + 1} wins.`];
+    }
+    if (!hotSeat(p) && sideOf(p, me) === team) return ["Your team wins."];
+    return [`Team ${team + 1} wins.`, seatsOf(p, team).map(seatName).join(", ")];
+}
+
 /** This page plays seat `id`: it is ours, or we host and it is a local player's (ADR 22). */
 const playsHere = (id: string) => id === me || (hostId === selfId && isLocal(id));
 /** We host a game with local players: several people share this screen, so the host's own turn is named too (ADR 22). */
@@ -240,19 +269,27 @@ const hotSeat = (p: Play) => hostId === selfId && p.peers.some(isLocal);
 
 export function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
-    const mine = playsHere(p.peers[team]);
+    const seat = shooterOf(p);
+    const mine = playsHere(seat);
     const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, shots: new Map(p.shots), looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    renderStatus({ over: p.over, team, seat: p.peers[team], mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
+    const away = absentSeats(p);
+    p.away = String(away);
+    renderStatus({ over: p.over, team, seat, mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && away.includes(seat), teams: !!p.teams });
     setText($("last-shot"), p.note);
-    // The editor goes once every team played here is out.
-    const out = !p.over && p.peers.every((id, t) => !playsHere(id) || view.arena.teams[t].players.every((pl) => !pl.alive));
+    // The editor goes once every character played here is dead; in team mode the side may play on (ADR 27).
+    const out = !p.over && view.arena.teams.every((t, ti) => t.players.every((pl, j) => !pl.alive || !playsHere(owner(p, p.left, ti, j) ?? "")));
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
-    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, hostId === selfId && !p.over ? (team) => kickTeam(p, team) : undefined);
+    const ours = sideOf(p, me);
+    const on = !!p.teams && ours !== undefined && view.arena.teams[ours].players.some((pl) => pl.alive);
+    setText($("out-note"), on ? `Your players are out. Team ${ours + 1} plays on.` : OUT_NOTE);
+    const host = hostId === selfId && !p.over;
+    if (p.teams) renderSides({ arena: view.arena, start: p, left: p.left, me, current: view.current, shooter: seat, absent: away, mine }, host ? (id) => kickSeat(p, id) : undefined);
+    else renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, host ? (team) => kickTeam(p, team) : undefined);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
 }
 
@@ -261,11 +298,35 @@ function kickTeam(p: Play, team: number) {
     if (confirm(`Kick Team ${team + 1}? Their team will be out.`)) room?.kick(p.peers[team]);
 }
 
+/** Host, team mode: once confirmed, removes the guest in `seat`; its teammates take over its players, or its side is out (ADR 23, 27). */
+function kickSeat(p: Play, seat: string) {
+    const team = sideOf(p, seat)!;
+    const last = seatsOf(p, team).every((s) => s === seat || p.left.has(s));
+    if (confirm(`Kick ${seatName(seat)}? ${last ? "Their team will be out." : "Their teammates take over their players."}`)) room?.kick(seat);
+}
+
+/** What Leave game asks: a guest whose side has a seat still in hands it its players (ADR 27). */
+export function leaveQuestion() {
+    const p = play;
+    const team = p ? sideOf(p, me) : undefined;
+    const heirs = !!p?.teams && hostId !== selfId && team !== undefined && seatsOf(p, team).some((s) => s !== me && !p.left.has(s));
+    return heirs ? "Leave the game? Your teammates take over your players." : "Leave the game? Your team will be out.";
+}
+
 /** We are a guest and our link to the host is down (ADR 16): the board is frozen until the replay arrives. */
 const hostLinkDown = () => hostId !== selfId && !!room?.absent().includes(hostId);
 
-/** Teams whose seat this page knows is disconnected (ADR 16). */
-const absentTeams = (p: Play) => (room && !p.over ? room.absent().map((id) => p.peers.indexOf(id)).filter((t) => t >= 0) : []);
+/** Seats this page knows are disconnected (ADR 16). */
+const absentSeats = (p: Play) => (room && !p.over ? room.absent().filter((id) => p.peers.includes(id)) : []);
+
+/** Teams whose seats still in the game are all disconnected (ADR 16, 27). */
+function absentTeams(p: Play) {
+    const away = absentSeats(p);
+    return p.sim.arena().teams.flatMap((_, t) => {
+        const rest = seatsOf(p, t).filter((seat) => !p.left.has(seat));
+        return rest.length && rest.every((seat) => away.includes(seat)) ? [t] : [];
+    });
+}
 
 // The board redraws when its size, the pixel ratio, the colour scheme or the fonts change (ADR 17),
 // which also ends a running shot animation on its final frame.
@@ -301,6 +362,8 @@ export function end(headline: string, detail = "") {
 for (const id of ["input-a", "input-b"]) $(id).addEventListener("input", clearError);
 
 const clockwise = () => $<HTMLInputElement>("dir-cw").checked;
+/** The out note of a free-for-all, as the page has it. */
+const OUT_NOTE = $("out-note").textContent ?? "";
 document.querySelectorAll("input[name=dir]").forEach((el) => ((el as HTMLInputElement).onchange = () => play && refresh(play)));
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
 const editor = initEditor();
@@ -334,7 +397,7 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         $<HTMLButtonElement>("fire").disabled = true;
         const shot: Shot = { type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() };
         // A local player's shot goes through the same check as a remote request, for its own seat (ADR 22).
-        const seat = p.peers[p.sim.get_current_team_idx()];
+        const seat = shooterOf(p);
         if (isLocal(seat)) acceptShot(seat, shot);
         else room.shoot(shot);
     } catch (err) {
@@ -350,13 +413,13 @@ setInterval(() => {
     $("countdown").textContent = p && !p.over ? String(Math.ceil(left / 1000)) : "";
     $("timer").classList.toggle("low", !!p && !p.over && left <= 10_000);
     $("timer-fill").style.width = `${(100 * left) / TURN_MS}%`;
-    if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
+    if (p?.view && String(absentSeats(p)) !== p.away) refresh(p);
 }, 250);
 
-// Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours);
-// `faint` counts the older paths on the board (ADR 17).
+// Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours: our
+// side); `shooter` is the seat aiming now (ADR 27); `faint` counts the older paths on the board (ADR 17).
 (window as unknown as { __state: () => unknown }).__state = () =>
-    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot, faint: olderPaths(play.shots, play.sim.arena(), play.shot).length };
+    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: sideOf(play, me) ?? -1, shooter: shooterOf(play), arena: play.sim.arena(), shot: play.shot, faint: olderPaths(play.shots, play.sim.arena(), play.shot).length };
 
 /** Drops the game, for a page that goes back to the lobby. */
 export function dropGame() {

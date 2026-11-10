@@ -9,6 +9,9 @@ with it is answered with a kick.
 Amended by 0024: the stored seat also keeps the room password (`key`) of a private game.
 Amended by 0018: a seated peer whose host link stays down for 25 s rejoins the game room, and
 gives the game up after 3 minutes.
+Amended by 0027: in team mode a `leave` (a quit or a kick) hands the seat's characters to the next
+seat of its side still in, and the side is out only when its last seat leaves; a side counts as
+disconnected once all its seats still in are.
 
 ## Context
 

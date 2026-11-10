@@ -142,8 +142,8 @@ export function parseLocal(id: string): number | undefined {
 /** A seat the host's page plays, a bot's or a local player's: the seat book never binds it to a peer (ADR 21, 22). */
 export const isHostRun = (id: string) => isBot(id) || isLocal(id);
 
-/** A seat id as `start.peers` holds it: a short text, and a well-formed id in the bot and local namespaces. */
-const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
+/** A seat id as `start.peers` and `lineup` hold it: a short text, and a well-formed id in the bot and local namespaces. */
+export const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
 
 /**
  * The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at
@@ -154,6 +154,16 @@ function parseLineup(v: Record<string, unknown>): Lineup | undefined {
     if (!isCount(size, MAX_PLAYERS) || size < 1 || !Array.isArray(teams) || teams.length < 2 || teams.length * size > MAX_PLAYERS) return undefined;
     if (!Array.isArray(waiting) || waiting.length > MAX_WAITING || !waiting.every(isSeatId)) return undefined;
     return teams.every((t) => Array.isArray(t) && t.length <= size && t.every(isSeatId)) ? { size, teams, waiting } : undefined;
+}
+
+/**
+ * The host's `lineup` message for `lineup` (ADR 27). Guests see the first `MAX_WAITING` joiners in
+ * line; the rest still wait on the host. Throws on a lineup guests would drop otherwise.
+ */
+export function lineupMessage(lineup: Lineup) {
+    const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
+    if (!parseLineup(sent)) throw new Error("invalid lineup");
+    return { type: "lineup", ...sent };
 }
 
 /**
@@ -833,12 +843,10 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         lineup(lineup) {
             if (!isHost) throw new Error("only the host sends the lineup");
             if (out.started()) throw new Error("lineup after start");
-            // Guests see the first MAX_WAITING joiners in line; the rest still wait on the host.
-            const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
-            if (!parseLineup(sent)) throw new Error("invalid lineup");
+            const msg = lineupMessage(lineup);
             const guests = Object.keys(room.getPeers()).filter((p) => !banned.has(p));
             // A lost one is replaced by the next, sent on every change.
-            action.send({ type: "lineup", ...sent }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
+            action.send(msg, { target: guests }).catch((err) => console.warn("lineup send failed", err));
         },
         askTeam(team) {
             if (isHost) throw new Error("the host seats itself");

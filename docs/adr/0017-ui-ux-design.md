@@ -34,7 +34,21 @@ the inputs, the error line and the direction, and the helper buttons and hint mo
 sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
 `#turn` is up to 1.25 rem, and on our turn the formula inputs get a 2 px `--mark` border (section 10).
 The end screen hides the editor, the saved formulas, the timer bar and the out note; the board, the
-last-shot line and the roster stay (section 6).
+last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide as the screen
+under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
+bar (sections 4 and 6). The Test arena button (ADR 25) sits in "Open games", under the list, and
+on a phone the test arena's editor follows the board, before the setup panel (section 6).
+Amended by 0027: in team mode the roster has one entry per side with its pips, then its seats, each
+with "you", "aiming", "disconnected" or "left"; the status bar and turn cue name the seat ("Team 2:
+abc123 is aiming"); a seat whose characters are all dead reads "Your players are out. Team 1 plays
+on."; a guest's Leave game asks "Leave the game? Your teammates take over your players." while its
+side has a seat still in; the end screen reads "Your team wins." on the winning side, otherwise
+"Team 2 wins." with its seats named (sections 10 and 11). In the waiting room each side is a list
+("Team 1, 2 of 2") with the joiners waiting for a seat below; the host has Move to Team N on each
+row for each other side with room, a seated guest Join Team N; the info line reads "2 teams of 2",
+and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `#host-teams`,
+`#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
+"2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
 
 ## Context
 
@@ -223,10 +237,15 @@ are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed f
 ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
 engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
 disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)))`, so
-the whole board fits the viewport without distortion. `--ratio` and `--chrome` (7rem) are `:root`
-tokens, and so is `--game-w`, the game's width at which the height-bound board exactly fills its
-column: `(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most
-that wide, so on a wide window the board takes the rest of the width beside the side column.
+the whole board fits the viewport without distortion. `--ratio` and `--chrome` are `:root` tokens.
+`--chrome` is `calc(5.25rem + 2 * var(--control-h))`: two controls, the Help button in the bar above
+the screens (ADR 26) and the button in the status bar (Leave game, or Back to lobby in the test
+arena), plus 5.25rem for the bar's top padding, `main`'s top padding, the status bar's padding, the
+timer bar, the board's margins and the last-shot line. That is 7rem plus the Help bar with a fine
+pointer (36 px controls), and it grows with the 44 px controls of a coarse one. `--game-w` is a
+`:root` token too, the game's width at which the height-bound board exactly fills its column:
+`(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most that
+wide, so on a wide window the board takes the rest of the width beside the side column.
 
 Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
 The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to
@@ -248,7 +267,8 @@ Settled with ADR 20 (`js/render.ts`, `js/lobby.ts`, `js/room.ts`): the host pick
 has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
 `map`) and "Player-centred" (`player`), with the hint `#frame-hint` under it (named by its
 `aria-describedby`): "Map-centred: x and y are the map's, as in Graphwar. Player-centred: they
-start at your player." The lobby's Field cell adds it ("XY plane, map-centred",
+start at your player. More in Help.", where "More in Help" links to `#help-coordinates` (ADR 26). The
+lobby's Field cell adds it ("XY plane, map-centred",
 short "XY, map") and so does the waiting room's info line ("Polar disc, player-centred, 3 seats").
 In the player-centred frame the board is as described above and in section 7. In the
 map-centred frame shots are in map coordinates on both fields, so the graph paper does not
@@ -313,14 +333,18 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 Gutter 16 px on phones and 24 px from 600 px up. Each screen is a centred block, and text inside it
 is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, the game
 and end screens `--game-w` (section 4), and the changelog page (ADR 28) 44rem, a reading
-measure. The footer is centred. One breakpoint at 960 px.
+measure. The footer is centred. The Help bar above the screens (ADR 26) has the same width as the
+screen shown, plus the gutters it pads with, so Help ends at the screen's right edge: `--page` in
+the lobby, 40rem in the waiting room, `--game-w` in a game or the test arena. Help's list items keep
+the 65ch measure of every paragraph. One breakpoint at 960 px.
 No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas) get
 `overflow-wrap: anywhere`.
 
 **Lobby.** Open games come first because joining a friend's game is the common case. The list
 stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one and send a
 friend this page, or host one and add a bot to play alone." in a dashed `--grid-major` outline
-that marks where games will appear (no fill, no shadow: not a card). Field names shown to users: "XY plane" and "Polar disc"; the option
+that marks where games will appear (no fill, no shadow: not a card). Under the list (or that
+text), still in "Open games", is **Test arena** (`#test-open`, ADR 25) with its hint. Field names shown to users: "XY plane" and "Polar disc"; the option
 values stay `xy`/`disc`. Players are shown as "2 of 4". A full game's button reads "Full"
 (disabled). A game on another build has no button and reads "Different version. Reload the page."
 Host form: "Game name", "Field" (select: "XY plane, 2 players" / "Polar disc, 2 to 8 players"),
@@ -356,7 +380,11 @@ from 960 to 1279 px). Left: status bar, board, then
 the last-shot line. Right: formula editor, roster, saved formulas. On phone it is one column:
 status bar (sticky top), board, editor, roster, saved formulas. On desktop the left column is
 sticky, so the board stays in view while the side column scrolls (to a template, for example),
-except in the test arena (ADR 25), where the setup panel under the board must scroll.
+except in the test arena (ADR 25), where the setup panel under the board must scroll. On a phone
+the test arena shows the board, then the editor, then the setup panel, so Fire stays near the
+board. `#test-panel` comes after `.game-side` in the DOM, so focus follows that order too; on desktop
+the test arena's grid has the rows `auto 1fr` with no row gap, the side column spans both, and the
+setup panel takes the first column's second row, under the board as before.
 
 ```
 +-----------------------------------------------+------------------------+

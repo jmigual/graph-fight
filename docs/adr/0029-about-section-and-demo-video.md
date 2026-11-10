@@ -32,8 +32,10 @@ the open games and the host form, must not have to scroll past it.
   `recordVideo`. Run it after `npm run build` when the UI changes enough to date the clip; the
   files are committed and copied to `dist/` with the rest of `static/`.
 - Size budget: about 8 to 15 s and well under 1 MB for the webm. The page is laid out at
-  960x540 and recorded scaled down to 480x270, which gives 13 s and about 410 KB; the poster is a
-  JPEG at quality 70 (about 50 KB). ffmpeg is not required.
+  960x540 and recorded scaled down to 480x270, which gives 13 s and about 430 KB; the poster is a
+  JPEG at quality 70 (about 46 KB). ffmpeg is not required. The 0.7.0 clip was recorded on a
+  `GRAPH_FIGHT_LOBBY=live` build, so the footer reads "v 0.7.0" rather than a `-dev+hash` id; the network
+  is cut, so the lobby topic does not matter.
 - Styles use the ADR 17 tokens only. The section is one column on a phone and two from 960 px (text
   and video); the video scales to its container, with a 16:9 box so the layout does not jump when it
   loads.

@@ -12,10 +12,11 @@ import { scenarios as editor } from "./e2e/editor.mjs";
 import { scenarios as ui } from "./e2e/ui.mjs";
 import { scenarios as arena } from "./e2e/arena.mjs";
 import { scenarios as build } from "./e2e/build.mjs";
+import { scenarios as teams } from "./e2e/teams.mjs";
 
-const scenarios = { ...core, ...net, ...bots, ...local, ...editor, ...ui, ...arena, ...build };
+const scenarios = { ...core, ...net, ...bots, ...local, ...editor, ...ui, ...arena, ...build, ...teams };
 
-const ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "Help", "W", "X", "Y", "Z", "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AJ", "AK", "AI", "AL", "AM", "AN"];
+const ORDER = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "Help", "W", "X", "Y", "Z", "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AJ", "AK", "AI", "AL", "AM", "AN", "AO", "AP"];
 assert.deepEqual(Object.keys(scenarios).sort(), [...ORDER].sort(), "ORDER lists every scenario");
 const names = process.argv.length > 2 ? process.argv.slice(2) : ORDER;
 const unknown = names.filter((name) => !Object.hasOwn(scenarios, name));

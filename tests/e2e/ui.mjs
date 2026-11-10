@@ -38,6 +38,12 @@ export const scenarios = {
         await phone.click("#help-close");
         assert.equal(await isOpen(), false, "Close closes it");
         assert.equal(await focused(), "help-open", "focus returns to the Help button after Close");
+        // The host form's Coordinates hint links to that section (ADR 17).
+        await phone.click("#frame-hint a");
+        await phone.waitForFunction(() => document.getElementById("help").open);
+        assert.equal(await inView("help-coordinates"), true, "the Coordinates hint opens its section");
+        await phone.keyboard.press("Escape");
+        await closed();
         // Unrelated fragments (an invite link, ADR 24) do not open it. Wait for the event the help listens to.
         await phone.evaluate(
             () =>
@@ -121,9 +127,18 @@ export const scenarios = {
                 return { left: r.left, right: clientWidth - r.right, width: r.width, sideways: scrollWidth > clientWidth };
             }, sel);
         const assertCentred = ({ left, right }, what) => assert.ok(Math.abs(left - right) <= 4, `${what} is centred (${left}, ${right})`);
+        // The Help button ends where the screen under it ends (ADR 17, section 6; ADR 26).
+        const assertHelpAligned = async (page, sel, what) => {
+            const [help, screen] = [await box(page, "#help-open"), await box(page, sel)];
+            assert.ok(Math.abs(help.right - screen.right) <= 1, `Help lines up with ${what} (${help.right}, ${screen.right})`);
+        };
         const lobby = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
         await lobby.goto(url);
         assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
+        await assertHelpAligned(lobby, "#lobby", "the lobby");
+        // Help's list items keep the measure of its paragraphs.
+        const measures = await lobby.evaluate(() => ["#help li", "#help p"].map((s) => getComputedStyle(document.querySelector(s)).maxWidth));
+        assert.ok(measures[0] !== "none" && measures[0] === measures[1], `Help's list items are 65ch like its paragraphs (${measures})`);
         const changelog = await lobby.context().newPage();
         await changelog.goto(`${url}changelog.html`);
         const page = await box(changelog, "main");
@@ -131,6 +146,8 @@ export const scenarios = {
         assert.ok(page.width < 1000, `the changelog keeps a reading measure (${page.width} px)`);
         await lobby.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(lobby, "#lobby")).sideways, false, "the lobby does not scroll sideways at 360 px");
+        // The Test arena entry sits under the open games, next to the empty-list text (ADR 25).
+        assert.equal(await lobby.locator("[aria-labelledby=open-games] #test-open").count(), 1, "Test arena is in Open games");
         // The game's board stays in view while the side column scrolls, but not the test arena's: its
         // setup panel is under the board and must scroll into view (ADR 25).
         await lobby.setViewportSize({ width: 1280, height: 800 });
@@ -146,7 +163,23 @@ export const scenarios = {
                 .map((el) => el.id || el.textContent.trim()),
         );
         assert.deepEqual(cut, [], "every test-arena control scrolls into view");
-        const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
+        // On a phone the arena's editor comes right after the board, and the setup panel after it.
+        await lobby.setViewportSize({ width: 360, height: 800 });
+        const [fire, setup] = await lobby.evaluate(() => ["fire", "test-panel"].map((id) => document.getElementById(id).getBoundingClientRect().top));
+        assert.ok(fire < setup, `the editor comes before the setup panel on a phone (${fire}, ${setup})`);
+        // Focus follows the same order: from Back to lobby, Tab reaches the editor before the setup.
+        await lobby.focus("#test-exit");
+        let next = "";
+        for (let i = 0; i < 40 && !["mode-explicit", "input-a", "test-field"].includes(next); i++) {
+            await lobby.keyboard.press("Tab");
+            next = await lobby.evaluate(() => document.activeElement.id);
+        }
+        assert.notEqual(next, "test-field", `Tab reaches the editor before the setup panel (${next})`);
+        const inRoom = async ([page]) => {
+            await page.setViewportSize({ width: 1920, height: 1080 });
+            await assertHelpAligned(page, "#room", "the waiting room");
+        };
+        const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true, beforeStart: inRoom });
         const [host] = pages;
         // In a game the board stays on screen while the page scrolls down the side column.
         await host.setViewportSize({ width: 1280, height: 800 });
@@ -169,10 +202,30 @@ export const scenarios = {
         assert.equal(reached, "fire", "Tab from the formula reaches Fire before the helper buttons");
         await host.setViewportSize({ width: 1920, height: 1080 });
         assertCentred(await box(host, "#game"), "the game at 1920 px");
+        await assertHelpAligned(host, "#game", "the game");
         const board = await box(host, "#arena");
         assert.ok(board.width > 1000, `the board grows with the window (${board.width} px)`);
         await host.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(host, "#game")).sideways, false, "the game does not scroll sideways at 360 px");
-        return errors;
+        // The board's height budget counts the Help bar and the status bar's button, with a fine or a
+        // coarse pointer: a disc game's last-shot line ends inside the window (ADR 17, section 4).
+        const discErrors = [];
+        for (const hasTouch of [false, true]) {
+            const disc = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch })).newPage();
+            disc.on("pageerror", (e) => discErrors.push(`disc: ${e}`));
+            await disc.goto(url);
+            await disc.context().setOffline(true);
+            await disc.selectOption("#host-field", "disc");
+            await disc.click("#host-form button[type=submit]");
+            await disc.click("#add-bot");
+            await disc.click("#start");
+            await disc.waitForSelector("#game:not([hidden])");
+            const [bottom, height] = await disc.evaluate(() => {
+                scrollTo(0, 0);
+                return [document.getElementById("last-shot").getBoundingClientRect().bottom, innerHeight];
+            });
+            assert.ok(bottom <= height, `the disc's last-shot line ends in the window, ${hasTouch ? "coarse" : "fine"} pointer (${bottom}, ${height})`);
+        }
+        return [...errors, ...discErrors];
     },
 };

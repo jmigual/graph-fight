@@ -2,6 +2,8 @@
 
 Status: Accepted (2026-11-10). Amends 0012 (`start.peers`), 0015 (seating, lobby `players`), 0016
 (seat book), 0017 (waiting room, status bar, roster, editor memory) and 0021 (the seats bots share).
+Amended by 0027: in team mode a local player takes a seat by the joiner rule like any other, so Add
+local player (and Add bot) needs an open seat on some side.
 
 ## Context
 

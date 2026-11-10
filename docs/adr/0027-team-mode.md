@@ -1,13 +1,11 @@
 # 27. Team mode: several seats share one engine team
 
-Status: Accepted (2026-11-10). Amends 0012 (`start`, lobby listing, two out-of-sequence messages)
-and 0015 (the announce carries `teams` and `k`; the 3 characters per team are `DEFAULT_K`).
-
-Amendments still to come: the protocol and the pure rules land first; each later commit that changes
-a behaviour adds its "Amended by 0027" line to that ADR and 0027 to its index row. Those are 0015
-(host form, seating, Start rule, turn clock, characters per player), 0016 (`leave` of a seat), 0017
-(host form, waiting room, roster, status bar, end copy), 0021 (bots are seated on a team), 0022
-(local players are seated on a team) and 0023 (a kick in a team hands the seat's characters over).
+Status: Accepted (2026-11-10). Amends 0012 (`start`, lobby listing, two out-of-sequence messages),
+0015 (host form, seating, Start rule, characters per player; the 3 characters per team are
+`DEFAULT_K`), 0016 (`leave` of a seat), 0017 (host form, lobby, waiting room, roster, status bar,
+out note, Leave game, end copy), 0021 (bots are seated on a team), 0022 (local players are seated on
+a team) and 0023 (a kick in a team hands the seat's characters over). Each of them got its note in
+the commit that changed that behaviour.
 
 ## Context
 
@@ -69,8 +67,8 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   within 24, which is only reached at `k = 3`.
 - **Lobby listing** gains a required `teams: number[]`: `[]` for free-for-all, else the players
   (humans, locals, bots) on each side, length `T`, with `seats` = `T × S`. `parseListing` requires
-  `T ≥ 2` (`T = 2` on XY, as for `start`), `seats` a multiple of `T`, each entry `≤ seats / T`, and their sum `= players`. It also
-  gains a required `k` (1 to 3). A listing from another build may lack them and reads as `[]` and 3
+  `T ≥ 2` (`T = 2` on XY, as for `start`), `seats` a multiple of `T`, each entry `≤ seats / T`, and
+  their sum `= players`. It also gains a required `k` (1 to 3). A listing from another build may lack them and reads as `[]` and 3
   (only shown as another version). The Players cell keeps "3 of 4"; the Field cell adds "2 teams of
   2" and, per side with room, "Team 2: 1 open", and "1 character each" or "2 characters each" when
   `k` is not 3.
@@ -95,13 +93,18 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   listing's `compatible`, the invite link's `v`).
 - **UI.**
   - Host form: "Mode" `#host-mode` (Free-for-all, the default / Teams). In Teams, "Teams"
-    `#host-teams` (2 on XY, disabled; 2 to 4 on the disc) and "Players per team" `#host-team-size`
-    (1 to `⌊8 / teams⌋`) replace `#host-seats`, hidden like the password field. In both modes,
-    "Characters per player" `#host-characters` (1 to 3, default 3).
+    `#host-teams` (2 to 4 on the disc; always 2 on XY, where it is disabled and hidden like Seats)
+    and "Players per team" `#host-team-size` (1 to `⌊8 / teams⌋`) replace `#host-seats`, hidden like
+    the password field. In both modes, "Characters per player" `#host-characters` (1 to 3, default 3).
+  - Help (ADR 26): "How to play" says a player has 3 characters unless the host chooses 1 or 2, how
+    a team's players take its characters in turn, how team games are set up and joined, and that
+    leaving hands one's characters to the teammates.
   - Waiting room: `#room-players` becomes one list per side ("Team 1, 2 of 2"), with the waiting
     joiners below. A guest sees a **Join Team N** button on each other side with room. The host has a
-    **Move to Team N** button on every row (guests, locals, bots), and Add bot / Add local player put
-    the new seat by the joiner rule.
+    **Move to Team N** button on every row (the host's own, guests, locals, bots) for each other side
+    with room (`aria-label="Move abc123 to Team 2"`), and Add bot / Add local player put the new seat
+    by the joiner rule; they are disabled once every side is full. When a list is rebuilt, the
+    keyboard stays on the button it was on, or goes to the list when that button is gone.
   - Roster: one entry per side with its pips (of `c`), then its seats, each with "you", "aiming" on
     the current seat, "disconnected" or "left". Status bar and `#turn-cue`: "Your turn", else
     "Team 2: abc123 is aiming" (ADR 22 names for local seats). The last-shot line: "abc123 left the
@@ -112,8 +115,8 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   - `window.__state()` gains `shooter`, the seat id of the current character; `me` stays our side.
 - **Code.** `js/teams.ts` (pure, Node-tested): the sides of `start` (`sidesOf`, `seatsOf`,
   `sideOf`), the engine's `players_per_team` (`charactersPerSide`), `owner` with hand-over, and the
-  waiting room's `join`, `leave` and `move` rules over `Lineup`, the `lineup` message's own type. `js/teams-view.ts`: the
-  waiting-room side lists and the grouped roster. `js/net.ts` gains only the boundary checks and the
+  waiting room's `join`, `leave` and `move` rules over `Lineup`, the `lineup` message's own type.
+  `js/teams-view.ts`: the waiting-room side lists and the grouped roster. `js/net.ts` gains only the boundary checks and the
   two messages: `Game.lineup` (host) and `Game.askTeam` (guest) send them, `onLineup` and
   `onTeamRequest` receive them. The game and room modules call `owner` wherever they read
   `peers[current team]` or `peers.indexOf(id)` today. The default `k` is one constant,
@@ -154,8 +157,11 @@ Rejected:
 - Tests: `tests/teams.test.mjs` (ownership interleave, `c` with `k`, hand-over, last seat leaving,
   seating and move rules, free-for-all mapping equal to today's); `tests/net.test.mjs` (`start.teams`,
   `start.k` and the listing's `teams` and `k` accepted and each malformed case dropped; `lineup` only
-  from the host and `team` only at the host, both only before `start`); e2e scenarios for a 2v2 XY
-  game and for hand-over (letters fixed at merge time). `joinGame`'s wiring runs on Trystero and has
-  no unit test: whether the game has started (`applied || out.started()`, passed to
-  `routeIncoming`), `Game.lineup` cutting `waiting` to `MAX_WAITING`, and `Game.askTeam`; the e2e
-  commit covers them.
+  from the host and `team` only at the host, both only before `start`; `lineupMessage`, which
+  `Game.lineup` sends, cuts `waiting` to `MAX_WAITING`); e2e AO (a 2v2 XY game with a local
+  player and 1 character each, whose shots hit nobody: the lobby row, guests showing the host's
+  lineup before the start, a guest's Join Team 2 through `Game.askTeam`, the seats taking turns, a
+  guest quitting while it aims, after which every peer's `shooter` is its teammate before any shot
+  and the teammate gets "Your turn" and a countdown back near 60 s, the heir firing that character,
+  and the kick of a side's last seat ending the game) and AP (2 characters each in a free-for-all). `joinGame`'s wiring runs on Trystero and has no unit test; AO covers it: the
+  lineups and the team request before the start pass `applied || out.started()`.
