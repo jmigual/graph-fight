@@ -793,6 +793,9 @@ const scenarios = {
             if (!ours) waited = Math.min(waited, Date.now() - t0);
         }
         assert.match(await text(host, "#end-message"), /^(You win|Team 2 wins|Draw)\./);
+        // The end screen shows the result, not the editor: the board and the last shot stay (ADR 17).
+        for (const sel of ["#shot-form", "#saved"]) assert.equal(await host.isVisible(sel), false, `${sel} is hidden at the end`);
+        for (const sel of ["#arena", "#last-shot"]) assert.equal(await host.isVisible(sel), true, `${sel} stays at the end`);
         assert.ok(waited >= 1000, `the bot waits before it fires (${waited} ms)`);
         return errors;
     },

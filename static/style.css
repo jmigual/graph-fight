@@ -267,11 +267,12 @@ dialog h2 { margin-top: 0; }
 #start[hidden] ~ #guest-hint { display: inline; }
 #start:not(:disabled) ~ #start-hint, #start[hidden] ~ #start-hint { display: none; }
 
-#end { margin-bottom: 1.5rem; }
+#end { margin-bottom: 1rem; }
 #end-message { font: 600 1.953rem/1.2 var(--font-math); margin-bottom: 0.5rem; }
 #end-detail { overflow-wrap: anywhere; }
 #end-detail:empty { display: none; }
-#end:not([hidden]) ~ #game #quit { display: none; }
+/* The game is over: keep the board, the last shot and the roster; hide what only a live game needs. */
+#end:not([hidden]) ~ #game :is(#quit, #shot-form, #saved, .timer-bar, #out-note) { display: none; }
 
 /* Game */
 

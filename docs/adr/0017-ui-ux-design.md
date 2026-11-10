@@ -33,6 +33,8 @@ saved formula has Insert and Delete beside its name (sections 6 and 8). The Save
 the inputs, the error line and the direction, and the helper buttons and hint move below it, so Fire
 sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
 `#turn` is up to 1.25 rem, and on our turn the formula inputs get a 2 px `--mark` border (section 10).
+The end screen hides the editor, the saved formulas, the timer bar and the out note; the board, the
+last-shot line and the roster stay (section 6).
 
 ## Context
 
@@ -389,9 +391,10 @@ part of the game. On a pointer-fine device the formula input gets focus when you
 On touch it does not, because the keyboard would cover the board.
 
 **End.** `#end` moves above `#game` in the DOM and spans the grid. The board stays visible below
-it (ADR 15). The headline is STIX 1.953 rem, with one explanatory line and **Back to lobby**.
-Focus moves to the headline (`tabindex="-1"`). Without a game (Game full, version mismatch
-before start), it stands alone.
+it (ADR 15), with the last-shot line and the roster; the editor (`#shot-form`, so `#fire` too), the
+saved formulas, the timer bar, `#out-note` and Leave game are hidden by CSS. The headline is STIX
+1.953 rem, with one explanatory line and **Back to lobby**. Focus moves to the headline
+(`tabindex="-1"`). Without a game (Game full, version mismatch before start), it stands alone.
 
 ### 7. Formula editor
 
@@ -692,7 +695,7 @@ Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-f
 (the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
 `hidden` until a disc game starts (S7). "Seats" is hidden by CSS while
 `#host-seats` is disabled. The start hints and "Waiting for the host to start." are static text that CSS
-shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown. The `#rejoin` line is not
+shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown (and the editor too, section 6). The `#rejoin` line is not
 built: ADR 16 rejoins on reload without asking. `Leave game` asks `confirm("Leave the game? Your team
 will be out.")`, so the e2e test accepts dialogs. "Could not start" goes to `#room-error`.
 
