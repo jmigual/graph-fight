@@ -219,7 +219,7 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
 
     if (aiming && shooter && map && field === "xy") {
         // Our x, where y = f(x) starts, and the way x sweeps: toward the other half (ADR 20).
-        const [cx, cy] = at({ x: 0, y: 0 });
+        const [, cy] = at({ x: 0, y: 0 });
         const [x, y] = at(origin);
         const gap = shooter.shape.radius * scale + 8;
         const dir = origin.x > 0 ? -1 : 1;
