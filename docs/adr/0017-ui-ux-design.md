@@ -221,7 +221,8 @@ centre, the `θ = 0` axis along the map's `+x` with its arrowhead, the number 5 
 label, and `π/2`, `π`, `3π/2` near the rim on the quarter-turn rays. On our own turn the old arc
 and `π/2` beside the shooter are replaced by where our formula starts and which way it sweeps,
 drawn above the obstacles and under the faces. On XY: a line from the `x` axis to our face, the
-label `x ≈ -7.32` (two decimals) on the far side of the axis and clear of the face, and a 40 px
+label `x ≈ -7.32` (two decimals) on the far side of the axis, clear of the face and of the axis
+numbers below it, and a 40 px
 arrow from our face toward the other half. On the disc: a line from the centre toward our face,
 an arc from the `θ = 0` axis to it labelled `θ₀ ≈ 0.61` (the engine's value, in `[0, 2π]`, ADR 20),
 and a short arc arrow about the centre just inside our face turning the chosen way (section 7).

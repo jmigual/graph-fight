@@ -210,9 +210,10 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         const [x, y] = at(origin);
         const gap = shooter.shape.radius * scale + 8;
         const dir = origin.x > 0 ? -1 : 1;
-        // The x label goes on the far side of the axis from our face, clear of the face.
+        // The x label goes on the far side of the axis from our face, clear of the face and, below
+        // the axis, of the axis numbers (centred 10 px under it).
         const side = y < cy ? 1 : -1;
-        const ly = side > 0 ? Math.max(cy + 14, y + gap + 6) : Math.min(cy - 14, y - gap - 6);
+        const ly = side > 0 ? Math.max(cy + 30, y + gap + 6) : Math.min(cy - 14, y - gap - 6);
         ctx.strokeStyle = ctx.fillStyle = colour("ink-soft");
         ctx.lineWidth = 1.5;
         ctx.beginPath();
