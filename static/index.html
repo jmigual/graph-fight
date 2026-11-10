@@ -518,7 +518,7 @@
         <ul>
           <li><strong>Which letters:</strong> one ASCII letter, optionally followed by digits (<code>a</code>, <code>B</code>, <code>k2</code>), except <code>x</code>, <code>t</code> and <code>e</code>, which are the variables and the constant. Longer words such as <code>amp</code> are not sliders. A formula that still has slider letters cannot be fired: Fire says to insert it from its template or to type numbers.</li>
           <li><strong>Glued numbers:</strong> <code>2a</code> is refused when you save, because filling in the value would silently change the formula. Write <code>2*a</code>.</li>
-          <li><strong>Per slider:</strong> a value box to type the exact value, a slider with its lowest and highest value at each end, and an optional step. The limits start at -10 and 10, the value at 1, and the step is empty.</li>
+          <li><strong>Per slider:</strong> a slider with a value box to type the exact value, and under it one line, <code>min ≤ a ≤ max  Step: step</code>, with the lowest and highest value and an optional step. The limits start at -10 and 10, the value at 1, and the step is empty.</li>
           <li><strong>Step:</strong> optional, as on Desmos. Empty means any value in between; a step makes the slider move in jumps of that size, counted from the lowest value.</li>
           <li><strong>Limits:</strong> typing a value outside them widens the limits to include it. The lowest must stay below the highest, the step above 0, and every number at most 1,000,000 in size; otherwise the edit is refused and the old limits stay.</li>
           <li><strong>Preview:</strong> the line under a template, <code>→ 1.5*sin(0.5*x)</code>, is the exact text that Insert will put in the boxes.</li>
