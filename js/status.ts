@@ -1,6 +1,7 @@
 // The game screen's words: status bar, roster, last-shot text and the error line (ADR 17, sections 6, 10, 11).
 // DOM only; it holds no game state, so index.ts passes in what it knows.
 import type { Arena } from "../pkg/index.js";
+import { parseBot } from "./net";
 import type { Field, Shot, Timeout } from "./net";
 import { shotText } from "./render";
 
@@ -11,6 +12,11 @@ const LIVE_DELAY_MS = 50;
 const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 
 export const short = (id: string) => id.slice(0, 6);
+/** What a seat is called: "Bot 1, hard" for a bot (ADR 21), a human's short id otherwise. */
+export function seatName(id: string) {
+    const bot = parseBot(id);
+    return bot ? `Bot ${bot.n}, ${bot.level}` : short(id);
+}
 const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
 
@@ -106,7 +112,7 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             const left = t.players.filter((pl) => pl.alive).length;
             add("swatch", String(ti + 1)).setAttribute("aria-hidden", "true");
             add("team", `Team ${ti + 1}`);
-            add("id", short(peers[ti]));
+            add("id", seatName(peers[ti]));
             if (peers[ti] === me) add("you", "you");
             const state = left === 0 ? "out" : absent.includes(ti) ? "disconnected" : current === ti ? "aiming" : "";
             if (state) add("state", state);

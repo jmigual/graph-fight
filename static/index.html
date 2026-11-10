@@ -62,6 +62,15 @@
         <p id="room-status"></p>
         <ul id="room-players"></ul>
         <p id="room-seats" class="hint"></p>
+        <div id="bots" class="actions" hidden>
+          <label for="bot-level">Bot level</label>
+          <select id="bot-level">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button id="add-bot" type="button" class="secondary">Add bot</button>
+        </div>
         <p id="room-error" class="error" role="alert"></p>
         <div class="actions">
           <button id="start" type="button" class="primary">Start</button>

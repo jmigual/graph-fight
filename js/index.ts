@@ -1,11 +1,11 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import init, { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
-import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
+import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey } from "./render";
 import type { LastShot, Look, View } from "./render";
-import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, setText, short, showError, TITLE } from "./status";
+import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setText, short, showError, TITLE } from "./status";
 
 // Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
 await init();
@@ -69,6 +69,8 @@ let me = selfId;
 /** What we advertise while hosting a game that has not started. */
 let offer: Announce | null = null;
 let connected: string[] = [];
+/** Host: the bot seat ids added in the waiting room, in the order they were added (ADR 21). */
+let bots: string[] = [];
 let play: Play | null = null;
 /** The open games the lobby last listed, and the offer of the room we are in (ADR 17, section 6). */
 let games: OpenGame[] = [];
@@ -133,6 +135,7 @@ function enterRoom(id: string, seat?: Seat) {
     hostId = id;
     me = seat?.me ?? selfId;
     connected = [];
+    bots = [];
     ended = false;
     roomInfo = id === selfId ? offer ?? undefined : games.find((g) => g.id === id);
     clearError();
@@ -179,26 +182,53 @@ function enterRoom(id: string, seat?: Seat) {
 function roomChanged() {
     if (play || ended) return;
     const all = [selfId, ...connected];
+    const item = (text: string) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        return li;
+    };
     $("room-players").replaceChildren(
-        ...all.map((id) => {
-            const li = document.createElement("li");
-            li.textContent = short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : "");
+        ...all.map((id) => item(short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : ""))),
+        ...bots.map((id) => {
+            const li = item(seatName(id));
+            const remove = li.appendChild(document.createElement("button"));
+            remove.type = "button";
+            remove.className = "secondary";
+            remove.textContent = "Remove";
+            remove.setAttribute("aria-label", `Remove Bot ${parseBot(id)?.n}`);
+            remove.onclick = () => {
+                bots = bots.filter((b) => b !== id);
+                roomChanged();
+            };
             return li;
         }),
     );
-    const open = roomInfo ? roomInfo.seats - all.length : 0;
-    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats} to join play.` : "";
+    // Bots keep their seats; humans beyond the rest wait out the game (ADR 21).
+    const players = all.length + bots.length;
+    const open = roomInfo ? roomInfo.seats - players : 0;
+    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats - bots.length} to join play.` : "";
     $("start").hidden = !offer;
-    $<HTMLButtonElement>("start").disabled = all.length < 2;
-    if (offer) lobby.announce({ ...offer, players: all.length });
+    $<HTMLButtonElement>("start").disabled = players < 2;
+    $("bots").hidden = !offer;
+    $<HTMLButtonElement>("add-bot").disabled = !offer || bots.length >= offer.seats - 1;
+    if (offer) lobby.announce({ ...offer, players });
 }
+
+$("add-bot").onclick = () => {
+    const taken = bots.map((id) => parseBot(id)?.n);
+    const n = [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
+    if (!offer || n === undefined || bots.length >= offer.seats - 1) return;
+    bots.push(`bot:${$<HTMLSelectElement>("bot-level").value}:${n}`);
+    roomChanged();
+};
 
 $("start").onclick = () => {
     if (!room || !offer) return;
     const seed = crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     try {
         // Delivered to our own onMessage, which starts the game.
-        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
+        const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length), ...bots];
+        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_VERSION });
     } catch (err) {
         $("room-error").textContent = `Could not start: ${err}.`;
         return;
