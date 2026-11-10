@@ -39,10 +39,13 @@ const comparable = async (page) => {
 
 /**
  * Counts `page`'s game-room subscriptions (Nostr REQs other than the lobby's) in `page.subscriptions`:
- * joining a room sends them. Also keeps the Nostr events it publishes (lobby listings and signalling)
- * in `page.published`, and the build version its last lobby announcement carried in `page.announced`.
+ * joining a room sends them. A subscription is counted once by its id, since some relays make
+ * Trystero send the same REQ again. Also keeps the Nostr events the page publishes (lobby listings
+ * and signalling) in `page.published`, and the build version its last lobby announcement carried in
+ * `page.announced`.
  */
 function watchFrames(page) {
+    const ids = new Set();
     page.subscriptions = 0;
     page.published = [];
     page.on("websocket", (ws) =>
@@ -51,7 +54,7 @@ function watchFrames(page) {
             // The host's lobby announcement carries the version the lobby checks (ADR 12).
             const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
             if (announced) page.announced = announced[1];
-            if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
+            if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions = ids.add(JSON.parse(frame)[1]).size;
             if (frame.startsWith('["EVENT"')) page.published.push(frame);
         }),
     );
