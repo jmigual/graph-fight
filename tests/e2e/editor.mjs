@@ -84,6 +84,8 @@ export const scenarios = {
         await slider("Highest a").press("Tab");
         assert.equal(await slider("a").getAttribute("max"), "10");
         assert.equal(await slider("Highest a").evaluate((i) => i.validity.valid), false);
+        const underline = (label) => slider(label).evaluate((i) => getComputedStyle(i).borderBottomColor);
+        assert.notEqual(await underline("Highest a"), await underline("Lowest a"), "a refused limit has a red underline");
         await slider("Lowest a").fill("-20");
         await slider("Lowest a").press("Tab");
         assert.equal(await slider("a").getAttribute("min"), "-20");
@@ -104,6 +106,13 @@ export const scenarios = {
         await item.getByRole("button", { name: "Delete Mine" }).click();
         assert.equal(await page.locator("#saved-list li", { hasText: "Mine" }).count(), 0);
         assert.equal(await page.evaluate(() => localStorage.getItem("graph-fight.formulas").includes("Mine")), false);
+        // A letter with a digit keeps to one line beside the range.
+        await page.fill("#input-a", "k2*x");
+        await page.click("#save");
+        await page.fill("#save-name", "Kay");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        const letter = page.locator("#saved-list li", { hasText: "Kay" }).locator(".slider-value > span");
+        assert.equal(await letter.evaluate((el) => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().height < 2 * parseFloat(getComputedStyle(el).fontSize)), true, "k2 is on one line");
         return errors;
     },
     async K() {

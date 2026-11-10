@@ -127,9 +127,9 @@ const plain = (v: number, digits: number) => formatValue(v, digits).replace(/^\(
 
 /**
  * The Desmos-like block for one slider letter: a line with the letter, range and value, then one line
- * `min ≤ a ≤ max  Step: step`. Edits
- * change `s` in place; `changed(commit)` runs on every edit, with `commit` true once it is final
- * (the `change` event), and `report` gets the reason an edit was refused, or "" when it was accepted.
+ * `min ≤ a ≤ max  Step: step`. Edits change `s` in place; `changed(commit)` runs on every edit, with
+ * `commit` true once it is final (the `change` event), and `report` gets the reason an edit was
+ * refused, or "" when it was accepted.
  */
 function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void, report: (msg: string) => void): HTMLElement {
     const value = numberInput(`Value of ${letter}`);
@@ -226,7 +226,9 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
         return span;
     };
     const stepLabel = make("label", "slider-step");
-    stepLabel.append(make("span", "", "Step:"), step);
+    const stepText = make("span", "", "Step:");
+    stepText.setAttribute("aria-hidden", "true");
+    stepLabel.append(stepText, step);
     limits.append(min, bound("≤"), bound(letter, "math var"), bound("≤"), max, stepLabel);
     row.append(head, limits);
     return row;

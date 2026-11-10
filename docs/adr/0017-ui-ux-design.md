@@ -536,11 +536,13 @@ a  ----------o----------  [ 1.5 ]    letter, native <input type=range>, value: n
   "Value of a", "Lowest a", "Highest a", "Step of a" (visually just the field, with `aria-label`).
   The `≤ a ≤` between the limits is `aria-hidden` decoration.
 - The number inputs are small, centred and underline-only (a bottom border in `--ink-soft`, red when
-  invalid) so the line reads like Desmos's limits editor. They keep `min-height: var(--control-h)`,
-  so the touch target is 44 px under a coarse pointer. The limits line wraps (`flex-wrap`) instead of
-  scrolling, and fits in 288 px (a 320 px screen). The limits stay always visible rather than behind
-  a toggle: Desmos reveals them on a click on the track's ends, but here that would hide the only way
-  to set them behind an extra tap and a disclosure per letter, for one more line saved.
+  invalid) so the line reads like Desmos's limits editor. The limit boxes are 4.5 rem wide, so "-10.5",
+  "0.125" and "100.25" show whole, and have no spin buttons (the arrow keys still step the value).
+  They keep `min-height: var(--control-h)`, so the touch target is 44 px under a coarse pointer. The
+  limits line wraps (`flex-wrap`) instead of scrolling, and fits in 288 px (a 320 px screen) for a
+  one-letter slider with short values. The limits stay always visible rather than behind a toggle:
+  Desmos reveals them on a click on the track's ends, but here that would hide the only way to set
+  them behind an extra tap and a disclosure per letter, for one more line saved.
 - Height: the Wave starter's block (two letters, summary included) went from 324 px to 204 px at 360
   and 1280 px (380 to 244 px with a coarse pointer).
 - Defaults for a new letter: min -10, max 10, value 1, step empty.
