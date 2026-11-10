@@ -27,7 +27,7 @@ assert.equal(html.match(/<strong id="help-max-len">(\d+)<\/strong>/)[1], limit, 
 // Every help link has a target, and the sections other pages link to exist.
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
 for (const [, id] of html.matchAll(/href="#(help-[^"]+)"/g)) assert.ok(ids.has(id), `#${id} exists`);
-for (const id of ["help-play", "help-formulas", "help-reconnect"]) {
+for (const id of ["help-play", "help-formulas", "help-coordinates", "help-reconnect"]) {
     assert.ok(ids.has(id), `section #${id} exists`);
 }
 console.log("help tests passed");

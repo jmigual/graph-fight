@@ -410,3 +410,13 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 @media (max-width: 599px) {
     #help { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; }
 }
+.help-figure { margin: 1rem 0; }
+.help-figure svg { display: block; width: min(100%, 24rem); height: auto; color: var(--ink); }
+.help-figure figcaption { color: var(--ink-soft); margin-top: 0.25rem; }
+.help-figure :is(.edge, .soft, .curve) { fill: none; stroke: currentColor; }
+.help-figure .edge { stroke-width: 2; }
+.help-figure .soft { stroke: var(--ink-soft); stroke-width: 1.25; }
+.help-figure .curve { stroke-width: 2.5; stroke-linecap: round; }
+.help-figure .dash { stroke-dasharray: 4 3; }
+.help-figure .dot, .help-figure .head { fill: currentColor; stroke: none; }
+.help-figure text { fill: currentColor; font: italic 12px var(--font-math); }
