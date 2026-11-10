@@ -51,6 +51,7 @@ row for each other side with room, a seated guest Join Team N; the info line rea
 and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `#host-teams`,
 `#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
 "2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
+Amended by 0032: `2a` is no longer refused on save; substitution writes `2(1.5)` (section 8).
 
 ## Context
 
@@ -511,9 +512,10 @@ One list, "Saved formulas", below the editor. Any saved formula that contains sl
 input prefilled with the formula text (cut to 64 characters), plus **Save formula** and
 **Cancel** (Escape cancels). Saving stores the current field, mode and input text(s) and does not
 validate the formula, so unfinished work can be saved; Fire validates. Slider letters are
-detected when saving. A letter right after a digit or `.` (`2a`), or right before a `.` (`a.5`,
-`a.`), blocks the save with "Put * between a number and a slider: 2*a." (naming the slider that was found). Without that check,
-substitution would silently turn `2a` with `a = 1.5` into `21.5` and `a.5` with `a = 1` into `1.5`.
+detected when saving. A letter right before a `.` (`a.5`, `a.`) blocks the save with "A slider
+cannot be directly followed by a point: use a*.5." (naming the slider that was found). Without that
+check, substitution would silently turn `a.5` with `a = 1` into `1.5`. A letter right after a number
+(`2a`) is a product (0032); its value is put in parentheses on substitution (`2(1.5)`).
 
 **Slider letters** are identifier tokens that are one ASCII letter, optionally followed by digits
 (`a`, `b`, `k2`), except `x`, `t`, `e`. The tokenizer mirrors the parser: an identifier is a
@@ -581,7 +583,7 @@ dropped (name ≤ 64, each expr ≤ 256, `field` in `xy|disc`, `mode` in `explic
 working in memory and shows "Can't save in this browser; saved formulas last until you close the
 tab." Slider limits and values are saved on `change` (not on every `input`).
 Settled in S5 (`js/library.ts`): an empty step is stored as `null`; read also requires |number| <= 1e6,
-`min < max`, `min <= value <= max`, `step > 0`, no `2a`-style slider, and slider keys equal to the
+`min < max`, `min <= value <= max`, `step > 0`, no `a.5`-style slider, and slider keys equal to the
 formulas' slider letters. If the stored text exists but does not fully validate (corrupt JSON,
 another version, or any invalid item), `loadItems` returns its valid items (none if the top level is
 bad), no starters, and `available: false`, and `saveItems` refuses to overwrite it, so a bad read

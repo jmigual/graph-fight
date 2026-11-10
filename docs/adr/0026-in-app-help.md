@@ -19,7 +19,7 @@ explains how the map-centred shot is computed and how to use the sliders, reacha
 - **Content.** Static HTML in that dialog (one block at the end of `static/index.html`), with no
   dependency, no Markdown renderer and no fetch. Sections, each with an id: `help-play` (turns, timer,
   teams, kills, obstacles, how a game ends, hosting and joining), `help-formulas` (variables,
-  constants, functions, operators and precedence, no implicit multiplication, the 256 limit,
+  constants, functions, operators and precedence, products (implicit multiplication after a number, ADR 32), the 256 limit,
   undefined at the shooter), `help-coordinates` (ADR 20's maths for both frames, with an XY and a
   polar diagram, and the board's on-turn hints), `help-tools` (helper buttons, saved formulas,
   templates and sliders, the starters, the per-character memory of section 7 of ADR 17), `help-modes`
