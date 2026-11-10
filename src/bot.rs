@@ -345,8 +345,8 @@ impl Bot {
         self.pool = seeds;
     }
 
-    /// The best candidate's formulas with aim noise on its sliders. If the noisy formulas fail,
-    /// the clean ones are fired.
+    /// The best candidate's formulas with aim noise on its sliders. Noise stays within the slider
+    /// limits, where every starter fires (`every_template_substitutes_to_a_formula_the_engine_parses`).
     fn aim(&mut self) -> BotShot {
         let best = self
             .pool
@@ -355,11 +355,10 @@ impl Bot {
             .expect("the search ends with at least one candidate");
         let sliders = &self.templates[best.template].sliders;
         let noisy = jitter(&mut self.rng, &best.values, sliders, self.noise);
-        let mut exprs = self.exprs(best.template, &noisy);
-        if fire(&mut self.game.clone(), &exprs, best.cw).is_err() {
-            exprs = self.exprs(best.template, &best.values);
+        BotShot {
+            exprs: self.exprs(best.template, &noisy),
+            cw: best.cw,
         }
-        BotShot { exprs, cw: best.cw }
     }
 }
 
