@@ -19,8 +19,8 @@ game, since a reload brings a new peer id.
   Both password fields, here and in the join dialog, are masked (`type="password"`) and have a
   **Show** toggle button next to them (`aria-label="Show password"`, `aria-pressed`) that reveals the
   text. Once used, a field is emptied and masked again: the host's after it hosts, the dialog's
-  whenever the dialog closes. Neither field offers to be saved (`autocomplete="off"`), since the
-  password is a key for one game.
+  whenever the dialog closes. Both fields ask not to be saved (`autocomplete="off"`; browsers may
+  ignore that on password fields), since the password is a key for one game.
 - **Room password.** A password or private-link game joins its room `game-<hostId>` with
   `joinRoom({appId, password})`, on the host and on every guest. A guest with another password never
   connects: Trystero cannot decrypt the other side's offers. There is no extra check message.

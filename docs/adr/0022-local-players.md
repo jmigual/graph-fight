@@ -38,8 +38,8 @@ them. A person at the host's screen needs the same seat, with the host's editor 
   team's formula was not restored then. It now counts turn starts (`Play.starts`: the start, each shot
   and timeout, and each `leave` that passes the turn on), which a replay counts again in the same
   order, and is keyed by the game's `start.seed` rather than the host, so the host's next game
-  starts afresh (ADR 17, section 7). On a local player's first round its characters have not fired, so the editor keeps the
-  previous player's formula, as for any character that has not fired.
+  starts afresh (ADR 17, section 7). On a local player's first round its characters have not
+  fired, so the editor keeps the previous player's formula, as for any character that has not fired.
 - **UI.** The host's waiting room has **Add local player** `#add-local` (secondary) next to the bot
   controls. Each local player is one `li` in `#room-players`, "Local 1", listed before the bots, with
   a **Remove** button (`aria-label="Remove Local 1"`). After any Remove the focus goes to the next
@@ -60,5 +60,5 @@ Rejected:
 - No wire, replay or engine change. The new protocol rule is the local seat id format.
 - A local player's shot is as trusted as the host's own: only the host's page can send it.
 - Tests: `tests/net.test.mjs` (local ids, seat book), e2e X (host and a local player, played to the
-  end) and Y (a local player, a bot and a guest in one game), and AD (a guest quits on its turn and the
-  next local player's formula comes back).
+  end) and Y (a local player, a bot and a guest in one game), and AD (a guest quits on its turn and
+  the next local player's formula comes back).

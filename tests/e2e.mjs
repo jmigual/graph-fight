@@ -1164,8 +1164,12 @@ const scenarios = {
                 await racer.fill("#host-password", "slow");
                 await racer.click("#host-form button[type=submit]");
                 await racer.goto(link);
+                // It reaches the invite's waiting room: the host and both guests, and itself.
+                const players = () => racer.evaluate(() => document.querySelectorAll("#room-players li").length);
+                await racer.waitForFunction(() => document.querySelectorAll("#room-players li").length === 4, null, { timeout: SETUP_MS });
                 await racer.waitForTimeout(4000); // past the slowed stretch
-                assert.equal(await racer.isHidden("#start"), true, "the page is a guest in the invite's game");
+                assert.equal(await players(), 4, "the page is still in the invite's waiting room");
+                assert.equal(await racer.isHidden("#start"), true, "as a guest");
                 assert.equal(racer.published.some((f) => f.includes(racerName)), false, "and announces no game of its own");
                 await racer.close();
                 await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 3, null, { timeout: SETUP_MS });
