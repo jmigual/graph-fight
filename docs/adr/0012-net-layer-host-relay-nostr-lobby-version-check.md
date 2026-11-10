@@ -17,6 +17,8 @@ Amended by 0028: the build id peers compare is `<release>+<hash>` from `CHANGELO
 minor `-dev+<hash>` in any build without `GRAPH_FIGHT_LOBBY=live` (see "Version check").
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
 uses `graph-fight:lobby:dev` (see "Lobby topic per build").
+Amended by 0033: a dev build appends `:<suffix>` to its topic when the page sets `globalThis.__lobbySuffix`
+(the e2e harness, one topic per scenario); the live build ignores it.
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
 Superseded in part by 0016: a gap or a dropped link triggers a replay of the log instead of desync or `leave`; `leave` is relayed only for an explicit quit.
 

@@ -109,7 +109,7 @@ npm start          # wasm build once, then esbuild watch + serve on :8080
 npm run build:wasm # rebuild the wasm (pkg/); run in another terminal after Rust changes, `npm start` picks it up
 npm run build      # wasm, type check (tsc) and bundle into dist/
 npm test           # Rust and net tests
-npm run e2e        # browser P2P test (Playwright); needs public relays
+npm run e2e        # browser P2P test (Playwright); needs public relays; E2E_JOBS=n scenarios at once (default 4)
 ```
 
 Run `npx playwright install chromium` once before the first `npm run e2e`.
