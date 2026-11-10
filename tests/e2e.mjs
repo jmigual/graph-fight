@@ -1377,6 +1377,104 @@ const scenarios = {
         await log.waitForSelector("#build");
         return errors;
     },
+    async AI() {
+        // The test arena (ADR 25): players and obstacles placed by hand, shots from any player, and
+        // nothing permanent. It is offline: no lobby announcement, no game room, no WebRTC link.
+        const page = await (await browser.newContext()).newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(`${e}`));
+        let sent = 0;
+        page.on("websocket", (ws) =>
+            ws.on("framesent", (f) => {
+                const frame = String(f.payload);
+                if (frame.startsWith('["EVENT"') || (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"'))) sent++;
+            }),
+        );
+        await page.addInitScript(() => {
+            const Native = RTCPeerConnection;
+            window.__links = 0;
+            window.RTCPeerConnection = class extends Native {
+                constructor(...args) {
+                    super(...args);
+                    window.__links++;
+                }
+            };
+        });
+        await page.goto(url);
+        await page.click("#test-open");
+        assert.equal(await page.locator("#test-items li").count(), 0, "the arena starts without obstacles");
+        const board = page.locator("#arena");
+        // The page position of map point (x, y) on a field with extents xMax, yMax, and a click there.
+        const spot = async (x, y, [xMax, yMax] = [20, 10]) => {
+            await board.scrollIntoViewIfNeeded();
+            const box = await board.boundingBox();
+            const scale = box.width / (2 * xMax);
+            return [box.x + (x + xMax) * scale, box.y + (yMax - y) * scale];
+        };
+        const click = async (...args) => page.mouse.click(...(await spot(...args)));
+        const fire = async (exprs, expected) => {
+            await page.check(exprs.length === 2 ? "#mode-parametric" : "#mode-explicit");
+            await page.fill("#input-a", exprs[0]);
+            if (exprs.length === 2) await page.fill("#input-b", exprs[1]);
+            await page.evaluate(() => (document.getElementById("last-shot").textContent = ""));
+            await page.click("#fire");
+            await page.waitForFunction(() => document.getElementById("last-shot").textContent !== "");
+            assert.match(await text(page, "#last-shot"), expected);
+        };
+
+        // The first player placed shoots; y = 0 runs into the other one, and the same shot hits again.
+        await click(-8, 0);
+        await page.check("#place-team-2");
+        await click(5, 0);
+        await fire(["0"], /^Team 1 player 1 fired y = 0\. It hit Team 2 player 1\.$/);
+        await fire(["0"], /It hit Team 2 player 1\.$/);
+        // An obstacle cannot touch a player; one in the way stops the shot there.
+        await page.check("#place-obstacle");
+        await click(5, 1);
+        await page.waitForFunction(() => /^Can't place an obstacle there\. A player can't touch an obstacle\.$/.test(document.getElementById("test-error").textContent));
+        await click(0, 0);
+        await fire(["0"], /It hit no player\. It stopped in obstacle 1\.$/);
+        // A player must be fully inside the field.
+        await page.check("#place-team-1");
+        await click(19.95, 0);
+        await page.waitForFunction(() => /^Can't place a player there\. A player must be fully inside the field\.$/.test(document.getElementById("test-error").textContent));
+        assert.equal(await page.locator("#test-items li").count(), 3);
+        // Formula errors show as in a game, and nothing is fired.
+        await page.fill("#input-a", "sqrt(-1)");
+        await page.click("#fire");
+        await page.waitForFunction(() => /undefined at the shooter/.test(document.getElementById("error").textContent));
+        // From the keyboard: Delete on the obstacle's row removes it, and the shot reaches the player again.
+        await page.getByRole("button", { name: /^Obstacle 1,/ }).press("Delete");
+        assert.equal(await page.locator("#test-items li").count(), 2);
+        await fire(["0"], /It hit Team 2 player 1\.$/);
+        // A dragged player moves out of the line of fire.
+        await page.mouse.move(...(await spot(5, 0)));
+        await page.mouse.down();
+        await page.mouse.move(...(await spot(5, 1.5)), { steps: 5 });
+        await page.mouse.move(...(await spot(5, 3)), { steps: 5 });
+        await page.mouse.up();
+        assert.match(await text(page, "#test-items"), /Team 2 player 1 at \(5\.0, 3\.0\)/);
+        await fire(["0"], /^Team 1 player 1 fired y = 0\. It hit no player\.$/);
+        // Another player shoots once chosen; on the disc, the straight shot through the centre.
+        await page.getByRole("button", { name: /^Team 2 player 1/ }).click();
+        await fire(["3*x/13"], /^Team 2 player 1 fired y = 3\*x\/13\. It hit Team 1 player 1\.$/);
+        await page.selectOption("#test-field", "disc");
+        assert.equal(await page.locator("#test-items li").count(), 0, "another field starts over");
+        await click(8, 0, [10, 10]);
+        await page.check("#place-team-2");
+        await click(-5, 0, [10, 10]);
+        await fire(["-t", "0"], /^Team 1 player 1 fired r = -t, θ = 0, counterclockwise\. It hit Team 2 player 1\.$/);
+        await page.click("#random-obstacles");
+        assert.ok((await page.locator("#test-items li").count()) > 2, "random obstacles are added");
+        await page.click("#test-exit");
+        await page.waitForSelector("#lobby:not([hidden])");
+        // Nothing was announced or joined meanwhile.
+        await page.waitForTimeout(2000);
+        assert.equal(sent, 0, "no lobby announcement or room subscription");
+        assert.equal(await page.evaluate(() => window.__links), 0, "no WebRTC link");
+        assert.equal(await page.evaluate(() => window.__state()), null, "no game");
+        return errors;
+    },
 };
 
 let failed = 0;
