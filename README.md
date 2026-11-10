@@ -10,6 +10,24 @@ Each shot is a formula path:
 There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
 Nostr relays lets them find each other.
 
+## Screenshots
+
+![Lobby with an open game](docs/img/lobby.png)
+The lobby lists open games found on the Nostr relays.
+
+![XY game](docs/img/game-xy.png)
+XY field: the last shot, the roster and the formula editor with its helper buttons.
+
+![Polar disc game](docs/img/game-disc.png)
+Polar disc field with 4 players (dark theme); the last shot was fired clockwise.
+
+![Saved formulas](docs/img/formulas.png)
+Saved formulas: a template with its sliders open.
+
+<img src="docs/img/phone.png" alt="Game on a phone" width="300">
+
+The same game on a 390 px wide phone screen.
+
 ## Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) with the `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
