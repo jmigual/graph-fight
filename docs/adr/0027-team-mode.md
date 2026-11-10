@@ -65,7 +65,7 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   within 24, which is only reached at `k = 3`.
 - **Lobby listing** gains a required `teams: number[]`: `[]` for free-for-all, else the players
   (humans, locals, bots) on each side, length `T`, with `seats` = `T × S`. `parseListing` requires
-  `T ≥ 2`, `seats` a multiple of `T`, each entry `≤ seats / T`, and their sum `= players`. It also
+  `T ≥ 2` (`T = 2` on XY, as for `start`), `seats` a multiple of `T`, each entry `≤ seats / T`, and their sum `= players`. It also
   gains a required `k` (1 to 3). A listing from another build may lack them and reads as `[]` and 3
   (only shown as another version). The Players cell keeps "3 of 4"; the Field cell adds "2 teams of
   2" and, per side with room, "Team 2: 1 open", and "1 character each" or "2 characters each" when

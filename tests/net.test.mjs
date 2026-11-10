@@ -339,6 +339,7 @@ for (const bad of [
     { ...listing, teams: "" },
     { ...listing, teams: [1] },
     { ...listing, players: 3, seats: 4, teams: [1, 1, 1] },
+    { ...listing, players: 3, seats: 6, teams: [1, 1, 1] }, // XY has exactly two sides, as in `start`
     { ...listing, players: 3, seats: 4, teams: [3, 0] },
     { ...listing, players: 3, seats: 4, teams: [1, 1] },
     { ...listing, players: 3, seats: 4, teams: [2.5, 0.5] },

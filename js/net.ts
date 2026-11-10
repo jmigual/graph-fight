@@ -97,19 +97,25 @@ const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const isK = (v: unknown): v is number => isCount(v, MAX_K) && v > 0;
 
+/** True for a number of sides `T` the field takes in team mode (ADR 27): at least 2, exactly 2 on XY. */
+const isSideCount = (count: number, field: Field) => count >= 2 && (field === "disc" || count === 2);
+
 /**
- * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T ≥ 2` (exactly 2
- * on the XY field), and `T × S` within `MAX_PLAYERS` seats, S being the largest side (ADR 27).
+ * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T` a side count
+ * for `field`, and `T × S` within `MAX_PLAYERS` seats, S being the largest side (ADR 27).
  */
 function isTeams(teams: unknown, count: number, field: Field): teams is number[] {
     if (!Array.isArray(teams) || teams.length !== count || !teams.every((t) => isCount(t, count - 1))) return false;
     const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
-    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && sizes.length * Math.max(...sizes) <= MAX_PLAYERS;
+    return isSideCount(sizes.length, field) && !sizes.includes(0) && sizes.length * Math.max(...sizes) <= MAX_PLAYERS;
 }
 
-/** True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T ≥ 2` sides of `seats / T` seats, adding up to `players`. */
-const isSideCounts = (v: unknown, seats: number, players: number): v is number[] =>
-    Array.isArray(v) && (v.length === 0 || (v.length >= 2 && v.length <= seats && seats % v.length === 0 && v.every((n) => isCount(n, seats / v.length)) && v.reduce((a, b) => a + b, 0) === players));
+/**
+ * True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T` sides of `seats / T`
+ * seats, `T` a side count for `field`, adding up to `players`.
+ */
+const isSideCounts = (v: unknown, field: Field, seats: number, players: number): v is number[] =>
+    Array.isArray(v) && (v.length === 0 || (isSideCount(v.length, field) && v.length <= seats && seats % v.length === 0 && v.every((n) => isCount(n, seats / v.length)) && v.reduce((a, b) => a + b, 0) === players));
 
 /** A bot's seat id in `start.peers` (ADR 21). Trystero peer ids are alphanumeric, so no peer has one. */
 const BOT_ID = /^bot:(easy|medium|hard):([1-7])$/;
@@ -262,7 +268,7 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
     const locked = v.locked === undefined && old ? false : v.locked;
     const teams = v.teams === undefined && old ? [] : v.teams;
     const k = v.k === undefined && old ? DEFAULT_K : v.k;
-    if (!isFrame(frame) || typeof locked !== "boolean" || !isSideCounts(teams, v.seats, v.players) || !isK(k)) return undefined;
+    if (!isFrame(frame) || typeof locked !== "boolean" || !isSideCounts(teams, v.field, v.seats, v.players) || !isK(k)) return undefined;
     return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked, teams, k };
 }
 
