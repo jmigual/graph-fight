@@ -27,9 +27,9 @@ jobs:
         run: |
           sha=$(git rev-parse "$GITHUB_REF_NAME^{commit}")
           for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&sha=$sha" --jq '.[].id'); do
-            # statuses come newest first
-            state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq '.[0].state')
-            if [ "$state" = success ]; then exit 0; fi
+            # a later deploy marks this one `inactive`, so any `success` in its history counts
+            ok=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq 'any(.[]; .state == "success")')
+            if [ "$ok" = true ]; then exit 0; fi
           done
           echo "::error::$GITHUB_REF_NAME ($sha) has no successful github-pages deployment: tag the commit that was deployed, or wait for the deploy to finish and re-run"
           exit 1

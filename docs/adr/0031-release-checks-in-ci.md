@@ -27,7 +27,9 @@ are made locally and GPG-signed (CI cannot sign them), so CI cannot create them,
   fetches tags. The error says to add a CHANGELOG entry.
 - Gap 2: `.github/workflows/release-tag.yml` runs on every push of a tag `v*`. It runs `tag`, then
   asks `gh api` (the built-in token, `deployments: read`) for the `github-pages` deployments of the
-  tagged commit and requires that the newest status of one of them is `success`.
+  tagged commit and requires that some status of one of them is `success`. The newest status is
+  not enough: a later deploy adds `inactive` to an older deployment (0.5.0 and 0.6.0 show
+  `inactive,success,...`), which would fail a late tag or a re-run for a release that was fine.
 - A pushed tag cannot be blocked, so a failed run is only a signal: after `git push origin
   v<version>`, watch it with `gh run watch`. A tag pushed before the deploy ends fails the
   deployment check; re-run it once the deploy is green.
