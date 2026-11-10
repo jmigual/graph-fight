@@ -202,4 +202,16 @@ assert.equal(snap(0, 1, 0.1, 0.30000000000000004), 0.3, "float noise is removed"
 assert.equal(snap(0, 1, 0.1, 0.7), 0.7, "0.1 steps stay exact");
 assert.equal(snap(0, 10, null, 3.14159), 3.14159, "no step, no change");
 
+// The texts `values_are_written_like_library_substitute` in src/bot.rs expects (ADR 21): a bot
+// writes values as a slider whose step has 6 decimals.
+for (const [v, text] of [
+    [0.0078125, "0.007813"], [-0.0078125, "(-0.007813)"], [1e-7, "0"], [-1e-7, "0"], [-0, "0"], [2.5, "2.5"],
+    [-3.25, "(-3.25)"], [1 / 3, "0.333333"], [-2 / 3, "(-0.666667)"], [20, "20"], [0.1234565, "0.123456"],
+    [1.0000005, "1.000001"], [-0.0005, "(-0.0005)"],
+]) assert.equal(formatValue(v, 6), text, String(v));
+const fine = (value) => sl(-1, 1, 0.000001, value);
+assert.deepEqual(sub(["a*(x - b)^2"], { a: fine(-0.0213456789), b: fine(12.3456785) }), ["(-0.021346)*(x - 12.345678)^2"]);
+assert.deepEqual(sub(["d*(t - a*sin(t))"], { a: fine(2.9999999), d: fine(-1) }), ["(-1)*(t - 3*sin(t))"]);
+assert.deepEqual(sub(["a*sin(b*θ)"], { a: fine(4.25), b: fine(7.0000004) }), ["4.25*sin(7*θ)"]);
+
 console.log("library tests ok");

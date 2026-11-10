@@ -407,7 +407,8 @@ mod tests {
 
     #[test]
     fn values_are_written_like_library_substitute() {
-        // Expected texts from `formatValue(v, 6)` and `substitute` in js/library.ts
+        // The texts `formatValue(v, 6)` and `substitute` in js/library.ts give; tests/library.test.mjs
+        // asserts the same pairs there
         for (v, text) in [
             (0.0078125, "0.007813"),
             (-0.0078125, "(-0.007813)"),
