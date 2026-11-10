@@ -58,6 +58,9 @@ ${e.notes.map((n) => `          <li>${inline(n)}</li>`).join("\n")}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title>Changelog - Graph fight!</title>
+    <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&amp;family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&amp;display=swap">
     <link rel="stylesheet" href="./style.css">
   </head>

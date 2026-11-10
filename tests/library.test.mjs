@@ -26,6 +26,8 @@ for (const same of ["th", "the", "thet", "pix", "xpi", "pi2", "theta2", "thetas"
     assert.deepEqual(autoSymbols(same, same.length), { text: same, caret: same.length }, same);
 }
 assert.deepEqual(autoSymbols("2pi", 3), { text: "2π", caret: 2 }, "a digit before is not part of the word");
+assert.deepEqual(autoSymbols("2theta", 6), { text: "2θ", caret: 2 }, "also before theta");
+assert.deepEqual(autoSymbols("2.5theta+3pi", 12), { text: "2.5θ+3π", caret: 7 });
 // Function and constant names are single tokens: their letters are never sliders.
 for (const f of ["atan(x)", "asin(x)", "acos(x)", "sinh(x)", "cosh(x)", "tanh(x)", "sqrt(x)", "abs(x)", "exp(x)", "ln(x)", "log10(x)", "floor(x)", "ceil(x)", "tan(x)", "amp*x", "a1b"]) {
     assert.deepEqual(sliderLetters([f]), [], f);
@@ -33,15 +35,18 @@ for (const f of ["atan(x)", "asin(x)", "acos(x)", "sinh(x)", "cosh(x)", "tanh(x)
 assert.deepEqual(sliderLetters(["a*atan(b)"]), ["a", "b"], "atan beside real sliders");
 assert.deepEqual(findSliders(["a*x"]), { ok: true, value: ["a"] });
 
-// `2a` would silently change meaning on substitution (a = 1.5 gives 21.5), so it is rejected.
-for (const bad of ["2a", "2.5a", ".5a", "x+3k2", "x^2b", "a.5*x", "a.*x", "x+k2.5"]) {
+// `a.5` would silently change meaning on substitution (a = 1 gives 1.5), so it is rejected.
+for (const bad of ["a.5*x", "a.*x", "x+k2.", "x^b.5"]) {
     const r = findSliders([bad]);
     assert.equal(r.ok, false, bad);
     assert.equal(r.error.kind, "glued", bad);
 }
-assert.equal(findSliders(["t", "2a*t"]).ok, false, "second formula too");
+assert.equal(findSliders(["t", "a.5*t"]).ok, false, "second formula too");
+// A number directly before a slider is an implicit product (ADR 32); the slider is still found.
+for (const ok of ["2a", "2.5a", ".5a", "x+3k2", "x^2b", "2 a"]) assert.equal(findSliders([ok]).ok, true, ok);
+assert.deepEqual(sliderLetters(["2a*x"]), ["a"]);
+assert.deepEqual(sliderLetters(["2sin(x)", "2pi", "2theta", "2th", "2x", "2t", "2e", "2(x+1)"]), [], "functions, constants and variables after a number are not sliders");
 assert.equal(findSliders(["2*a"]).ok, true);
-assert.equal(findSliders(["2 a"]).ok, true, "space is not glue; the parser rejects it anyway");
 assert.equal(findSliders(["2x"]).ok, true, "x is not a slider");
 assert.equal(findSliders(["a2"]).ok, true, "a2 is one slider named a2");
 
@@ -54,6 +59,17 @@ const typed = autoSymbols("a*theta + pi", 12).text;
 assert.deepEqual(sliderLetters([typed]), ["a"]);
 assert.deepEqual(sub([typed], { a: sl(-10, 10, null, 2) }), ["2*θ + π"]);
 assert.deepEqual(sub(["a*th + π*theta"], { a: sl(-10, 10, null, 2) }), ["2*th + π*theta"], "th, theta and π stay");
+// A value after a number, or before a name or `(`, goes in parentheses; src/bot.rs asserts the same pairs.
+const two = { a: sl(-10, 10, null, 1.5), k2: sl(-10, 10, null, 0.5) };
+for (const [expr, text] of [
+    ["2a", "2(1.5)"], ["2.5a", "2.5(1.5)"], [".5a", ".5(1.5)"], ["2 a", "2 (1.5)"], ["x+3a", "x+3(1.5)"],
+    ["3k2", "3(0.5)"], ["x^2a", "x^2(1.5)"], ["3a+a", "3(1.5)+1.5"], ["2a*x", "2(1.5)*x"],
+    ["a(x+1)", "(1.5)(x+1)"], ["a x", "(1.5) x"], ["a sin(x)", "(1.5) sin(x)"],
+    ["q2 a", "q2 1.5"], ["log10 a", "log10 1.5"], ["a*x", "1.5*x"], ["x^a", "x^1.5"], ["sin(a)", "sin(1.5)"],
+]) assert.deepEqual(sub([expr], two), [text], expr);
+const neg = { a: sl(-10, 10, null, -2) };
+assert.deepEqual(sub(["2a"], neg), ["2(-2)"], "a negative already has its parentheses");
+assert.deepEqual(sub(["a(x+1)", "a x", "a sin(x)"], neg), ["(-2)(x+1)", "(-2) x", "(-2) sin(x)"], "an error at either sign");
 assert.deepEqual(sub(["x^a"], { a: sl(-10, 10, null, -2) }), ["x^(-2)"], "negatives in parentheses");
 assert.deepEqual(sub(["-a"], { a: sl(-10, 10, null, -2) }), ["-(-2)"]);
 assert.deepEqual(sub(["a+a"], { a: sl(-10, 10, null, 3) }), ["3+3"], "every occurrence");
@@ -86,12 +102,13 @@ assert.deepEqual(substitute([cap(256)], { a: sl(0, 9, 1, 1) }), { ok: true, valu
 assert.deepEqual(substitute([cap(256)], { a: sl(0, 99, 1, 12) }), { ok: false, error: { kind: "too-long", length: 257, max: 256 } });
 assert.equal(substitute(["t", cap(256)], { a: sl(0, 99, 1, 12) }).error.length, 257, "the longest formula is reported");
 
-// Saving: sliders get the defaults; `2a`, a too-long formula and a long name are handled.
+// Saving: sliders get the defaults; `a.5`, a too-long formula and a long name are handled.
 assert.deepEqual(newItem("n", "xy", "explicit", ["a*sin(b*x)"]).value, {
     name: "n", field: "xy", mode: "explicit", exprs: ["a*sin(b*x)"], sliders: { a: defaultSlider(), b: defaultSlider() },
 });
 assert.deepEqual(newItem("n", "xy", "explicit", ["x^2"]).value.sliders, {}, "a plain formula has no sliders");
-assert.equal(newItem("n", "xy", "explicit", ["2a"]).error.kind, "glued");
+assert.equal(newItem("n", "xy", "explicit", ["a.5"]).error.kind, "glued");
+assert.deepEqual(newItem("n", "xy", "explicit", ["2a"]).value.sliders, { a: defaultSlider() });
 assert.equal(newItem("n", "xy", "explicit", [cap(257)]).error.kind, "too-long");
 assert.equal(newItem("n", "xy", "explicit", [cap(256)]).ok, true);
 assert.equal(newItem("n".repeat(70), "xy", "explicit", ["x"]).value.name.length, 64);
@@ -156,7 +173,7 @@ const dropped = [
     { ...base, mode: "parametric" },
     { ...base, exprs: [1] },
     { ...base, exprs: [cap(257)] },
-    { ...base, exprs: ["2a"] },
+    { ...base, exprs: ["a.5"] },
     { ...base, sliders: {} },
     { ...base, sliders: { a: slider, b: slider } },
     { ...base, sliders: undefined },

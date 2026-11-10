@@ -38,6 +38,8 @@ last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide
 under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
 bar (sections 4 and 6). The Test arena button (ADR 25) sits in "Open games", under the list, and
 on a phone the test arena's editor follows the board, before the setup panel (section 6).
+Amended 2026-11-10 (compact sliders): a slider block is two lines instead of three, modelled on Desmos
+(section 8).
 Amended by 0027: in team mode the roster has one entry per side with its pips, then its seats, each
 with "you", "aiming", "disconnected" or "left"; the status bar and turn cue name the seat ("Team 2:
 abc123 is aiming"); a seat whose characters are all dead reads "Your players are out. Team 1 plays
@@ -49,6 +51,7 @@ row for each other side with room, a seated guest Join Team N; the info line rea
 and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `#host-teams`,
 `#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
 "2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
+Amended by 0032: `2a` is no longer refused on save; substitution writes `2(1.5)` (section 8).
 
 ## Context
 
@@ -509,9 +512,10 @@ One list, "Saved formulas", below the editor. Any saved formula that contains sl
 input prefilled with the formula text (cut to 64 characters), plus **Save formula** and
 **Cancel** (Escape cancels). Saving stores the current field, mode and input text(s) and does not
 validate the formula, so unfinished work can be saved; Fire validates. Slider letters are
-detected when saving. A letter right after a digit or `.` (`2a`), or right before a `.` (`a.5`,
-`a.`), blocks the save with "Put * between a number and a slider: 2*a." (naming the slider that was found). Without that check,
-substitution would silently turn `2a` with `a = 1.5` into `21.5` and `a.5` with `a = 1` into `1.5`.
+detected when saving. A letter right before a `.` (`a.5`, `a.`) blocks the save with "A slider
+cannot be directly followed by a point: use a*.5." (naming the slider that was found). Without that
+check, substitution would silently turn `a.5` with `a = 1` into `1.5`. A letter right after a number
+(`2a`) is a product (0032); its value is put in parentheses on substitution (`2(1.5)`).
 
 **Slider letters** are identifier tokens that are one ASCII letter, optionally followed by digits
 (`a`, `b`, `k2`), except `x`, `t`, `e`. The tokenizer mirrors the parser: an identifier is a
@@ -523,16 +527,26 @@ capture the variable of another mode. One letter matches Desmos and catches typo
 a slider, and Fire reports "Unknown name 'amp'". In a parametric template both formulas share
 their sliders.
 
-**Slider row** per letter, in order of first appearance, laid out like Desmos:
+**Slider block** per letter, in order of first appearance, laid out like Desmos in two lines:
 
 ```
-a = [ 1.5 ]                      value: number input, exact entry
-[-10] ----------o---------- [10]  min, native <input type=range>, max
-step [     ]                     optional; empty = continuous
+a  ----------o----------  [ 1.5 ]    letter, native <input type=range>, value: number input, exact entry
+[-10] ≤ a ≤ [10]   Step: [   ]      min, max, optional step; empty = continuous
 ```
 
 - Labels: the letter in STIX italic is the range's label. The number inputs are labelled
-  "Lowest a", "Highest a", "Step of a" (visually just the field, with `aria-label`).
+  "Value of a", "Lowest a", "Highest a", "Step of a" (visually just the field, with `aria-label`).
+  The `≤ a ≤` between the limits is `aria-hidden` decoration.
+- The number inputs are small, centred and underline-only (a bottom border in `--ink-soft`, red when
+  invalid) so the line reads like Desmos's limits editor. The limit boxes are 4.5 rem wide, so "-10.5",
+  "0.125" and "100.25" show whole, and have no spin buttons (the arrow keys still step the value).
+  They keep `min-height: var(--control-h)`, so the touch target is 44 px under a coarse pointer. The
+  limits line wraps (`flex-wrap`) instead of scrolling, and fits in 288 px (a 320 px screen) for a
+  one-letter slider with short values. The limits stay always visible rather than behind a toggle:
+  Desmos reveals them on a click on the track's ends, but here that would hide the only way to set
+  them behind an extra tap and a disclosure per letter, for one more line saved.
+- Height: the Wave starter's block (two letters, summary included) went from 324 px to 204 px at 360
+  and 1280 px (380 to 244 px with a coarse pointer).
 - Defaults for a new letter: min -10, max 10, value 1, step empty.
 - Empty step gives `step="any"`. The value is shown and inserted with
   `clamp(ceil(-log10((max - min) / 1000)), 0, 6)` decimals (2 for the default span). A step
@@ -569,7 +583,7 @@ dropped (name ≤ 64, each expr ≤ 256, `field` in `xy|disc`, `mode` in `explic
 working in memory and shows "Can't save in this browser; saved formulas last until you close the
 tab." Slider limits and values are saved on `change` (not on every `input`).
 Settled in S5 (`js/library.ts`): an empty step is stored as `null`; read also requires |number| <= 1e6,
-`min < max`, `min <= value <= max`, `step > 0`, no `2a`-style slider, and slider keys equal to the
+`min < max`, `min <= value <= max`, `step > 0`, no `a.5`-style slider, and slider keys equal to the
 formulas' slider letters. If the stored text exists but does not fully validate (corrupt JSON,
 another version, or any invalid item), `loadItems` returns its valid items (none if the top level is
 bad), no starters, and `available: false`, and `saveItems` refuses to overwrite it, so a bad read
@@ -790,3 +804,4 @@ still leaves this page, although `quit` is then dropped and the seat stays held 
 - No curve preview. Players learn from the frame-aware grid and from watching shots. A practice
   mode stays a possible later feature.
 - Player names other than the short id remain out of scope (it would be a protocol change).
+- The README images in `docs/img` are light theme only, taken at 2x by `scripts/screenshots.mjs`.

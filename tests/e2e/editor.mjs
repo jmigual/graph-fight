@@ -69,6 +69,14 @@ export const scenarios = {
         const item = page.locator("#saved-list li", { hasText: "Mine" });
         assert.equal(await item.locator("details").evaluate((d) => d.open), true, "a new template opens its sliders");
         const slider = (label) => item.locator(`[aria-label="${label}"]`);
+        // Compact like Desmos: the range and the value share a line, and Lowest, Highest and Step share the next one.
+        const middle = async (label) => {
+            const box = await slider(label).boundingBox();
+            return Math.round(box.y + box.height / 2);
+        };
+        assert.equal(await middle("a"), await middle("Value of a"), "the range and the value are on one line");
+        assert.equal(new Set([await middle("Lowest a"), await middle("Highest a"), await middle("Step of a")]).size, 1, "the limits and the step are on one line");
+        assert.ok((await item.locator("details").boundingBox()).height < 150, "a one-slider block is compact");
         await slider("Value of a").fill("-2");
         assert.equal(await item.locator(".preview").innerText(), "→ (-2)*x");
         // Editing the limits updates the range; limits that cross keep the old ones.
@@ -76,6 +84,8 @@ export const scenarios = {
         await slider("Highest a").press("Tab");
         assert.equal(await slider("a").getAttribute("max"), "10");
         assert.equal(await slider("Highest a").evaluate((i) => i.validity.valid), false);
+        const underline = (label) => slider(label).evaluate((i) => getComputedStyle(i).borderBottomColor);
+        assert.notEqual(await underline("Highest a"), await underline("Lowest a"), "a refused limit has a red underline");
         await slider("Lowest a").fill("-20");
         await slider("Lowest a").press("Tab");
         assert.equal(await slider("a").getAttribute("min"), "-20");
@@ -96,6 +106,13 @@ export const scenarios = {
         await item.getByRole("button", { name: "Delete Mine" }).click();
         assert.equal(await page.locator("#saved-list li", { hasText: "Mine" }).count(), 0);
         assert.equal(await page.evaluate(() => localStorage.getItem("graph-fight.formulas").includes("Mine")), false);
+        // A letter with a digit keeps to one line beside the range.
+        await page.fill("#input-a", "k2*x");
+        await page.click("#save");
+        await page.fill("#save-name", "Kay");
+        await page.getByRole("button", { name: "Save formula" }).click();
+        const letter = page.locator("#saved-list li", { hasText: "Kay" }).locator(".slider-value > span");
+        assert.equal(await letter.evaluate((el) => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().height < 2 * parseFloat(getComputedStyle(el).fontSize)), true, "k2 is on one line");
         return errors;
     },
     async K() {
@@ -104,12 +121,12 @@ export const scenarios = {
         const page = pages[0];
         assert.equal(await page.isVisible("#saved-notice"), true);
         assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1, "starters are listed from memory");
-        // `2a` would silently become `21.5`, so saving it is refused.
-        await page.fill("#input-a", "2b");
+        // `b.5` would silently become `1.5`, so saving it is refused (`2b` is a product, ADR 32).
+        await page.fill("#input-a", "b.5");
         await page.click("#save");
         await page.getByRole("button", { name: "Save formula" }).click();
         assert.equal(await page.isVisible("#save-row"), true);
-        assert.match(await text(page, "#save-error"), /2\*b/);
+        assert.match(await text(page, "#save-error"), /b\*\.5/);
         await page.fill("#input-a", "a+".repeat(100) + "a");
         await page.click("#save");
         await page.fill("#save-name", "Long");
@@ -268,6 +285,8 @@ export const scenarios = {
         await typeAndFire("1000*theta", "1000*θ", 0);
         await typeAndFire("1000*th", "1000*th", 1);
         await typeAndFire("1000*pi*th", "1000*π*th", 2);
+        // A number before the name is a product, so no `*` is needed (ADR 32).
+        await typeAndFire("1000theta", "1000θ", 3);
         return errors;
     },
 };

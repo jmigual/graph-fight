@@ -34,7 +34,7 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", tex
 /** The ADR's wording for a library error. */
 function describe(error: LibraryError): string {
     return error.kind === "glued"
-        ? `Put * between a number and a slider: 2*${error.slider}.`
+        ? `A slider cannot be directly followed by a point: use ${error.slider}*.5.`
         : `Too long with these values (${error.length} of ${error.max} characters).`;
 }
 
@@ -126,9 +126,10 @@ function numberInput(label: string): HTMLInputElement {
 const plain = (v: number, digits: number) => formatValue(v, digits).replace(/^\((.*)\)$/, "$1");
 
 /**
- * The Desmos-like row for one slider letter: value, then lowest, range and highest, then step. Edits
- * change `s` in place; `changed(commit)` runs on every edit, with `commit` true once it is final
- * (the `change` event), and `report` gets the reason an edit was refused, or "" when it was accepted.
+ * The Desmos-like block for one slider letter: a line with the letter, range and value, then one line
+ * `min ≤ a ≤ max  Step: step`. Edits change `s` in place; `changed(commit)` runs on every edit, with
+ * `commit` true once it is final (the `change` event), and `report` gets the reason an edit was
+ * refused, or "" when it was accepted.
  */
 function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void, report: (msg: string) => void): HTMLElement {
     const value = numberInput(`Value of ${letter}`);
@@ -216,12 +217,20 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
     sync();
     const row = make("div", "slider");
     const head = make("div", "slider-value");
-    head.append(make("span", "math", `${letter} =`), value);
+    head.append(make("span", "math", letter), range, value);
     const limits = make("div", "slider-limits");
-    limits.append(min, range, max);
+    // The "≤ a ≤" is decoration: each limit input has its own label.
+    const bound = (text: string, cls = "math") => {
+        const span = make("span", cls, text);
+        span.setAttribute("aria-hidden", "true");
+        return span;
+    };
     const stepLabel = make("label", "slider-step");
-    stepLabel.append(make("span", "", "step"), step);
-    row.append(head, limits, stepLabel);
+    const stepText = make("span", "", "Step:");
+    stepText.setAttribute("aria-hidden", "true");
+    stepLabel.append(stepText, step);
+    limits.append(min, bound("≤"), bound(letter, "math var"), bound("≤"), max, stepLabel);
+    row.append(head, limits);
     return row;
 }
 

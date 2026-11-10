@@ -2,6 +2,8 @@
 
 Status: Accepted (2026-11-09)
 
+Amended by 0032: a number directly followed by a name or `(` is a product (`2x`, `2(x+1)`).
+
 Amended 2026-11-10: `th` is a second ASCII alias of `θ` besides `theta`, and `π` is an alias of `pi`.
 They are whole names only (`th2`, `theta2`, `π2` are unknown names), and outside the polar variable
 `theta` and `th` are `UnknownName`. The editor types the symbols for the user (ADR 17).

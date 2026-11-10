@@ -100,6 +100,7 @@ impl Formula {
             pos: 0,
             var,
             depth: 0,
+            num_end: None,
         };
         let node = p.expr()?;
         match p.peek() {
@@ -129,6 +130,8 @@ struct Parser<'a> {
     pos: usize,
     var: &'a str,
     depth: usize,
+    /// Where the most recent number literal ended, for implicit multiplication.
+    num_end: Option<usize>,
 }
 
 impl Parser<'_> {
@@ -158,6 +161,13 @@ impl Parser<'_> {
         }
     }
 
+    /// True when nothing but whitespace separates the cursor from the end of the
+    /// last number literal.
+    fn after_number(&self) -> bool {
+        self.num_end
+            .is_some_and(|end| self.chars[end..self.pos].iter().all(|c| c.is_whitespace()))
+    }
+
     fn bin(op: Op, a: Node, b: Node) -> Node {
         Node::Bin(op, Box::new(a), Box::new(b))
     }
@@ -181,6 +191,11 @@ impl Parser<'_> {
             let op = match self.peek() {
                 Some('*') => Op::Mul,
                 Some('/') => Op::Div,
+                // A number directly followed by a name or `(` is a product: `2x`, `2(x+1)`.
+                Some(c) if (c.is_alphabetic() || c == '(') && self.after_number() => {
+                    left = Self::bin(Op::Mul, left, self.unary()?);
+                    continue;
+                }
                 _ => return Ok(left),
             };
             self.pos += 1;
@@ -239,6 +254,7 @@ impl Parser<'_> {
         {
             self.pos += 1;
         }
+        self.num_end = Some(self.pos);
         let text: String = self.chars[start..self.pos].iter().collect();
         text.parse()
             .map(Node::Num)
@@ -378,6 +394,54 @@ mod tests {
     }
 
     #[test]
+    fn implicit_multiplication_after_a_number() {
+        assert_eq!(ev("2x", 3.0), 6.0);
+        assert_eq!(ev("2.5x", 2.0), 5.0);
+        assert_eq!(ev("2 x", 3.0), 6.0);
+        assert_eq!(ev("2 (x+1)", 3.0), 8.0);
+        assert_eq!(ev("3pi", 0.0), 3.0 * PI);
+        assert_eq!(ev("2π", 0.0), 2.0 * PI);
+        assert_eq!(ev("2e", 0.0), 2.0 * E);
+        assert_eq!(ev("2sin(x)", 0.5), 2.0 * 0.5_f64.sin());
+        assert_eq!(ev("2(x+1)", 3.0), 8.0);
+        assert_eq!(ev("2x + 1", 3.0), 7.0);
+        for src in ["2θ", "2theta", "2th"] {
+            assert_eq!(Formula::parse(src, "θ").unwrap().eval(3.0), 6.0, "{src}");
+        }
+        assert_eq!(Formula::parse("2t", "t").unwrap().eval(3.0), 6.0);
+        // Same precedence as `*`.
+        assert_eq!(ev("2x^2", 3.0), 18.0);
+        assert_eq!(ev("2(x+1)^2", 3.0), 32.0);
+        assert_eq!(ev("-2x", 3.0), -6.0);
+        assert_eq!(ev("1/2x", 3.0), 1.5);
+        assert_eq!(ev("8/2(1+1)", 0.0), 8.0);
+        // An exponent's number multiplies after the power, not inside it.
+        assert_eq!(ev("x^2x", 3.0), 27.0);
+        assert_eq!(ev("e^2x", 3.0), E.powf(2.0) * 3.0);
+        // No scientific notation: `e` is the constant.
+        assert_eq!(ev("1e", 0.0), E);
+    }
+
+    #[test]
+    fn implicit_multiplication_only_after_a_number() {
+        assert_eq!(err("x y"), ParseError::UnexpectedToken('y'));
+        assert_eq!(err("x(1)"), ParseError::UnexpectedToken('('));
+        assert_eq!(err("(x)(x)"), ParseError::UnexpectedToken('('));
+        assert_eq!(err("(2)x"), ParseError::UnexpectedToken('x'));
+        assert_eq!(err("sin(x)x"), ParseError::UnexpectedToken('x'));
+        assert_eq!(err("pi x"), ParseError::UnexpectedToken('x'));
+        assert_eq!(err("pi(x)"), ParseError::UnexpectedToken('('));
+        assert_eq!(err("x2"), ParseError::UnknownName("x2".into()));
+        assert_eq!(err("2 3"), ParseError::UnexpectedToken('3'));
+        assert_eq!(err("2.5 3"), ParseError::UnexpectedToken('3'));
+        assert_eq!(err("2x3"), ParseError::UnknownName("x3".into()));
+        assert_eq!(err("2e3"), ParseError::UnknownName("e3".into()));
+        assert_eq!(err("2y"), ParseError::UnknownName("y".into()));
+        assert_eq!(err("2x)"), ParseError::UnexpectedToken(')'));
+        assert_eq!(err("2sin"), ParseError::UnexpectedEnd);
+    }
+
+    #[test]
     fn non_finite_results_are_values() {
         assert!(ev("1 / x", 0.0).is_infinite());
         assert!(ev("sqrt(x)", -1.0).is_nan());
@@ -392,7 +456,6 @@ mod tests {
         assert_eq!(err("(1"), ParseError::UnexpectedEnd);
         assert_eq!(err("1 * * 2"), ParseError::UnexpectedToken('*'));
         assert_eq!(err("1)"), ParseError::UnexpectedToken(')'));
-        assert_eq!(err("2x"), ParseError::UnexpectedToken('x'));
         assert_eq!(err("sin x"), ParseError::UnexpectedToken('x'));
         assert_eq!(err("1.2.3"), ParseError::InvalidNumber("1.2.3".into()));
         assert_eq!(err("."), ParseError::InvalidNumber(".".into()));
