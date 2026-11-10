@@ -815,30 +815,51 @@ const scenarios = {
         const [host] = pages;
         assert.equal(await host.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), false);
         await assertSynced(pages, 0);
+        // The board's fonts are in first: their arrival redraws the board, which ends a running pen (ADR 17).
+        await host.evaluate(() => Promise.all(['italic 14px "STIX Two Text"', '700 11px "Atkinson Hyperlegible Next"', '16px "Atkinson Hyperlegible Next"'].map((f) => document.fonts.load(f))).then(() => document.fonts.ready));
         // The first shooter is random: let the guest go first if it is up.
         if (!(await host.isEnabled("#fire"))) await takeTurn(pages, 0, ["x"]);
-        const { turn } = JSON.parse(await state(host));
-        await host.check("#mode-explicit");
-        await host.fill("#input-a", "0");
-        // The canvas at four instants: the pen is still moving 150 and 300 ms after Fire, and rests at the end.
-        // Fire is clicked in the same evaluate, so no round trip sits before the first frame.
-        const frames = await host.evaluate(async () => {
-            const canvas = document.getElementById("arena");
-            const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
-            document.getElementById("fire").click();
-            const out = [canvas.toDataURL()];
-            await wait(150);
-            out.push(canvas.toDataURL());
-            await wait(150);
-            out.push(canvas.toDataURL());
-            await wait(1500);
-            out.push(canvas.toDataURL());
-            return out;
-        });
-        assert.notEqual(frames[0], frames[1], "the pen is still drawing 150 ms after Fire");
-        assert.notEqual(frames[1], frames[2], "and 300 ms after Fire");
-        assert.notEqual(frames[2], frames[3], "the final frame replaces the pen");
-        await assertSynced(pages, turn + 1);
+        // Lines in several directions, in case an obstacle sits right in front of the shooter.
+        const lines = ["0", "0.3*x", "(-0.3)*x", "0.15*x", "(-0.15)*x", "0.6*x", "(-0.6)*x", "0.05*x"];
+        for (let attempt = 0; ; attempt++) {
+            const { turn } = JSON.parse(await state(host));
+            await host.check("#mode-explicit");
+            await host.fill("#input-a", lines[attempt]);
+            // The canvas on every animation frame from Fire, for 2 s (a pen takes at most 1.4 s) and then
+            // until it has not changed for 10 frames. The pen's first frames can look the same while it
+            // is still under the shooter's face, so stillness alone does not end the sampling. Fire is
+            // clicked in the same evaluate, so no round trip sits before the first frame.
+            const changes = await host.evaluate(async () => {
+                const canvas = document.getElementById("arena");
+                const frame = () => new Promise((ok) => requestAnimationFrame(ok));
+                const start = performance.now();
+                document.getElementById("fire").click();
+                const seen = [{ at: 0, image: canvas.toDataURL() }];
+                for (let still = 0; (still < 10 || performance.now() - start < 2000) && performance.now() - start < 5000; ) {
+                    await frame();
+                    const image = canvas.toDataURL();
+                    if (image === seen.at(-1).image) {
+                        still++;
+                    } else {
+                        still = 0;
+                        seen.push({ at: performance.now() - start, image });
+                    }
+                }
+                return seen.map(({ at }) => at);
+            });
+            await assertSynced(pages, turn + 1);
+            // A shot that hits something at once draws too little to watch: try again on the host's next turn.
+            const points = JSON.parse(await state(host)).shot.points.length;
+            if (points < 40 && attempt < lines.length - 1) {
+                await takeTurn(pages, turn + 1, ["100*x"]);
+                continue;
+            }
+            assert.ok(points >= 40, `a shot long enough to watch (${points} points)`);
+            // The first image is the pen's first frame, drawn inside Fire; the last is the final frame.
+            assert.ok(changes.length - 2 >= 3, `the pen drew at least 3 frames (${changes.length - 2})`);
+            assert.ok(changes.at(-1) >= 600, `the final frame came at least 600 ms after Fire (${Math.round(changes.at(-1))} ms)`);
+            break;
+        }
         return errors;
     },
     async V() {
