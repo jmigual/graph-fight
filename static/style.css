@@ -182,6 +182,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .lobby-grid { display: grid; gap: 2rem; }
 
+/* About, below the lobby so returning players need no extra scrolling (ADR 29). */
+#about { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--grid-major); }
+.about-grid { display: grid; gap: 1.5rem; }
+#about figure { margin: 0; min-width: 0; }
+#about video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--grid-major); border-radius: 4px; background: var(--paper); }
+#about figcaption { margin-top: 0.5rem; }
+
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 th { text-align: left; font-weight: 700; border-bottom: 2px solid var(--ink); }
 th, td { padding: 0.5rem 0.5rem 0.5rem 0; vertical-align: middle; }
@@ -354,6 +361,7 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 /* Desktop: two columns. */
 @media (min-width: 960px) {
     .lobby-grid { grid-template-columns: minmax(0, 1fr) 22rem; gap: 3rem; }
+    .about-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); gap: 3rem; }
     #game { grid-template-columns: minmax(0, 1fr) 24rem; gap: 2rem; }
 }
 

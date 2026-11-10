@@ -10,6 +10,7 @@ import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";
+import "./about";
 
 // Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
 await init();
