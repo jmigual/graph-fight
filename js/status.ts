@@ -1,7 +1,7 @@
 // The game screen's words: status bar, roster, last-shot text and the error line (ADR 17, sections 6, 10, 11).
 // DOM only; it holds no game state, so index.ts passes in what it knows.
 import type { Arena } from "../pkg/index.js";
-import { parseBot } from "./net";
+import { parseBot, parseLocal } from "./net";
 import type { Field, Shot, Timeout } from "./net";
 import { shotText } from "./render";
 
@@ -12,11 +12,14 @@ const LIVE_DELAY_MS = 50;
 const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 
 export const short = (id: string) => id.slice(0, 6);
-/** What a seat is called: "Bot 1, hard" for a bot (ADR 21), a human's short id otherwise. */
+/** What a seat is called: "Bot 1, hard" for a bot (ADR 21), "Local 1" for a local player (ADR 22), a human's short id otherwise. */
 export function seatName(id: string) {
     const bot = parseBot(id);
-    return bot ? `Bot ${bot.n}, ${bot.level}` : short(id);
+    const local = parseLocal(id);
+    return bot ? `Bot ${bot.n}, ${bot.level}` : local ? `Local ${local}` : short(id);
 }
+/** The turn of a seat this page plays: "Your turn", or "Local 2's turn", so the people at the screen know who plays (ADR 22). */
+export const ourTurn = (seat: string) => (parseLocal(seat) ? `${seatName(seat)}'s turn` : "Your turn");
 const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
 
@@ -57,15 +60,17 @@ export function showError(message: string, invalid = true) {
     setLive($("error"), message, () => invalid && formulaInputs().forEach((input) => input.setAttribute("aria-invalid", "true")));
 }
 
-/** Says "Your turn" to screen readers when `mine`, once per turn start. */
-export function cueTurn(mine: boolean) {
-    setLive($("turn-cue"), mine ? "Your turn" : "");
+/** Says "Your turn" (or "Local 2's turn") to screen readers when this page plays `seat`, once per turn start; null says nothing. */
+export function cueTurn(seat: string | null) {
+    setLive($("turn-cue"), seat === null ? "" : ourTurn(seat));
 }
 
 export type Status = {
     over: boolean;
     team: number;
-    /** The current shooter is ours. */
+    /** The current team's seat id. */
+    seat: string;
+    /** The current shooter plays on this page: ours, or on the host a local player (ADR 22). */
     mine: boolean;
     /** We are a guest and our link to the host is down (ADR 16). */
     hostDown: boolean;
@@ -74,14 +79,14 @@ export type Status = {
 };
 
 /** Status bar, tab title and team colour: the host link, a disconnected shooter, or whose turn it is. */
-export function renderStatus({ over, team, mine, hostDown, away }: Status) {
+export function renderStatus({ over, team, seat, mine, hostDown, away }: Status) {
     $("game").style.setProperty("--team", over ? "" : teamColour(team));
     setText($("turn-swatch"), over ? "" : String(team + 1));
-    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? "Your turn" : `Team ${team + 1} is aiming`;
+    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat) : `Team ${team + 1} is aiming`;
     setText($("turn"), over ? "" : words);
     $("turn").classList.toggle("quiet", !over && hostDown);
     $("timer").hidden = over;
-    document.title = mine && !over && !hostDown ? `Your turn | ${TITLE}` : TITLE;
+    document.title = mine && !over && !hostDown ? `${ourTurn(seat)} | ${TITLE}` : TITLE;
 }
 
 /** The board's text alternative for a shot or timeout: who fired what, and who lost players. */
@@ -97,8 +102,8 @@ export function describeTurn(field: Field, team: number, msg: Shot | Timeout, fi
     return text;
 }
 
-/** The roster: one row per team, with players left and what the team is doing (ADR 17, section 10). */
-export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[]) {
+/** The roster: one row per team, with players left and what the team is doing (ADR 17, section 10). `mine`: the current team plays on this page. */
+export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean) {
     $("roster").replaceChildren(
         ...arena.teams.map((t, ti) => {
             const li = document.createElement("li");
@@ -120,7 +125,7 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             pips.setAttribute("role", "img");
             pips.setAttribute("aria-label", `${left} of ${t.players.length} players left`);
             li.classList.toggle("out", left === 0);
-            li.classList.toggle("current", current === ti && peers[ti] === me);
+            li.classList.toggle("current", current === ti && mine);
             return li;
         }),
     );

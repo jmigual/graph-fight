@@ -3,7 +3,7 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
+import { BUILD_VERSION, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, parseBot, parseLocal, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
@@ -85,6 +85,8 @@ let offer: Announce | null = null;
 let connected: string[] = [];
 /** Host: the bot seat ids added in the waiting room, in the order they were added (ADR 21). */
 let bots: string[] = [];
+/** Host: the local players' seat ids added in the waiting room, in the order they were added (ADR 22). */
+let locals: string[] = [];
 let play: Play | null = null;
 /** The open games the lobby last listed, and the offer of the room we are in (ADR 17, section 6). */
 let games: OpenGame[] = [];
@@ -152,6 +154,7 @@ function enterRoom(id: string, seat?: Seat) {
     me = seat?.me ?? selfId;
     connected = [];
     bots = [];
+    locals = [];
     ended = false;
     roomInfo = id === selfId ? offer ?? undefined : games.find((g) => g.id === id);
     clearError();
@@ -174,8 +177,8 @@ function enterRoom(id: string, seat?: Seat) {
             sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
         },
         onPeerJoin(peer) {
-            // A peer announcing a bot id is never seated (ADR 21).
-            if (isBot(peer)) return;
+            // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
+            if (isHostRun(peer)) return;
             // A rejoined room (ADR 18) reports peers we already had.
             if (!connected.includes(peer)) connected.push(peer);
             roomChanged();
@@ -201,41 +204,54 @@ function roomChanged() {
         li.textContent = text;
         return li;
     };
+    // A row with a Remove button named after `name`, which runs `remove`.
+    const removable = (text: string, name: string, remove: () => void, fallback: string) => {
+        const li = item(text);
+        const button = li.appendChild(document.createElement("button"));
+        button.type = "button";
+        button.className = "secondary";
+        button.textContent = "Remove";
+        button.setAttribute("aria-label", `Remove ${name}`);
+        button.onclick = () => {
+            const at = [...$("room-players").querySelectorAll("button")].indexOf(button);
+            remove();
+            roomChanged();
+            // The list was rebuilt: keep the keyboard on the next Remove, or on `fallback`.
+            ($("room-players").querySelectorAll("button")[at] ?? $(fallback)).focus();
+        };
+        return li;
+    };
     $("room-players").replaceChildren(
         ...all.map((id) => item(short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : ""))),
-        ...bots.map((id) => {
-            const li = item(seatName(id));
-            const remove = li.appendChild(document.createElement("button"));
-            remove.type = "button";
-            remove.className = "secondary";
-            remove.textContent = "Remove";
-            remove.setAttribute("aria-label", `Remove Bot ${parseBot(id)?.n}`);
-            remove.onclick = () => {
-                const at = bots.indexOf(id);
-                bots = bots.filter((b) => b !== id);
-                roomChanged();
-                // The list was rebuilt: keep the keyboard on the next bot's Remove, or on Add bot.
-                ($("room-players").querySelectorAll("button")[at] ?? $("add-bot")).focus();
-            };
-            return li;
-        }),
+        ...locals.map((id) => removable(seatName(id), seatName(id), () => (locals = locals.filter((l) => l !== id)), "add-local")),
+        ...bots.map((id) => removable(seatName(id), `Bot ${parseBot(id)?.n}`, () => (bots = bots.filter((b) => b !== id)), "add-bot")),
     );
-    // Bots keep their seats; humans beyond the rest wait out the game (ADR 21).
-    const players = all.length + bots.length;
+    // Bots and local players keep their seats; humans beyond the rest wait out the game (ADR 21, 22).
+    const hostRun = bots.length + locals.length;
+    const players = all.length + hostRun;
     const open = roomInfo ? roomInfo.seats - players : 0;
-    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats - bots.length} to join play.` : "";
+    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats - hostRun} to join play.` : "";
     $("start").hidden = !offer;
     $<HTMLButtonElement>("start").disabled = players < 2;
     $("bots").hidden = !offer;
-    $<HTMLButtonElement>("add-bot").disabled = !offer || bots.length >= offer.seats - 1;
+    for (const id of ["add-bot", "add-local"]) $<HTMLButtonElement>(id).disabled = !offer || hostRun >= offer.seats - 1;
     if (offer) lobby.announce({ ...offer, players });
 }
 
+/** The lowest seat number from 1 to 7 not in `taken`. */
+const freeNumber = (taken: (number | undefined)[]) => [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
+const roomForHostRun = () => !!offer && bots.length + locals.length < offer.seats - 1;
+
 $("add-bot").onclick = () => {
-    const taken = bots.map((id) => parseBot(id)?.n);
-    const n = [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
-    if (!offer || n === undefined || bots.length >= offer.seats - 1) return;
+    const n = freeNumber(bots.map((id) => parseBot(id)?.n));
+    if (n === undefined || !roomForHostRun()) return;
     bots.push(`bot:${$<HTMLSelectElement>("bot-level").value}:${n}`);
+    roomChanged();
+};
+$("add-local").onclick = () => {
+    const n = freeNumber(locals.map(parseLocal));
+    if (n === undefined || !roomForHostRun()) return;
+    locals.push(`local:${n}`);
     roomChanged();
 };
 
@@ -244,7 +260,7 @@ $("start").onclick = () => {
     const seed = crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     try {
         // Delivered to our own onMessage, which starts the game.
-        const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length), ...bots];
+        const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length - locals.length), ...locals, ...bots];
         room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_VERSION });
     } catch (err) {
         $("room-error").textContent = `Could not start: ${err}.`;
@@ -418,16 +434,19 @@ function restore(shot: LastShot) {
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
 function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
-    if (winner !== undefined) return end(p.peers[winner] === me ? "You win." : `Team ${winner + 1} wins.`);
+    if (winner !== undefined) {
+        const id = p.peers[winner];
+        return end(id === me ? "You win." : playsHere(id) ? `${seatName(id)} wins.` : `Team ${winner + 1} wins.`);
+    }
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw.", "Nobody is left.");
     if (newTurn) {
         clearError();
         resetClock(p);
-        // Our turn starts: say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17).
+        // Our turn starts (or a local player's): say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17, 22).
         const team = p.sim.get_current_team_idx();
-        const mine = p.peers[team] === me;
-        cueTurn(mine);
-        // Our character's last formula comes back; one that has not fired leaves the editor as it is.
+        const mine = playsHere(p.peers[team]);
+        cueTurn(mine ? p.peers[team] : null);
+        // Our character's last formula comes back (each local player's own, since characters are per team); one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
         const fresh = hostId !== restored.host || p.turn > restored.turn;
         if (fresh) restored = { host: hostId, turn: p.turn };
@@ -438,20 +457,24 @@ function changed(p: Play, newTurn: boolean) {
     refresh(p);
 }
 
+/** This page plays seat `id`: it is ours, or we host and it is a local player's (ADR 22). */
+const playsHere = (id: string) => id === me || (hostId === selfId && isLocal(id));
+
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
-    const mine = p.peers[team] === me;
+    const mine = playsHere(p.peers[team]);
     const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, shots: new Map(p.shots), looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    renderStatus({ over: p.over, team, mine, hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
+    renderStatus({ over: p.over, team, seat: p.peers[team], mine, hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
     setText($("last-shot"), p.note);
-    const out = !p.over && view.arena.teams[p.peers.indexOf(me)]?.players.every((pl) => !pl.alive);
+    // The editor goes once every team played here is out.
+    const out = !p.over && p.peers.every((id, t) => !playsHere(id) || view.arena.teams[t].players.every((pl) => !pl.alive));
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
-    renderRoster(view.arena, p.peers, me, view.current, view.absent);
+    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
 }
 
@@ -477,7 +500,7 @@ function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
-    cueTurn(false);
+    cueTurn(null);
     if (play) {
         play.over = true;
         clearTimeout(play.clock);
@@ -529,7 +552,11 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         // The host applies its own shot inside `shoot`, and that refresh starts the pen. A redraw
         // after it would end the animation on its final frame, so only Fire is disabled here.
         $<HTMLButtonElement>("fire").disabled = true;
-        room.shoot({ type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() });
+        const shot: Shot = { type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() };
+        // A local player's shot goes through the same check as a remote request, for its own seat (ADR 22).
+        const seat = p.peers[p.sim.get_current_team_idx()];
+        if (isLocal(seat)) acceptShot(seat, shot);
+        else room.shoot(shot);
     } catch (err) {
         p.pending = false;
         showError(String(err));

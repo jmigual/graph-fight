@@ -43,9 +43,10 @@ const comparable = async (page) => {
  * `map` (default) or `player` (ADR 20), shown in the lobby and the waiting room; `fakeHostClock` and
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
  * `blockStorage` makes the host's localStorage refuse writes; `bots` lists the levels of the bots the
- * host adds before anyone joins (ADR 21); `offline` cuts the pages' network once they have loaded.
+ * host adds before anyone joins (ADR 21); `locals` is the number of local players it adds before them
+ * (ADR 22); `offline` cuts the pages' network once they have loaded.
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], offline = false } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -118,15 +119,25 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         await host.click("#add-bot");
         assert.equal(await host.getByRole("button", { name: `Remove Bot ${bots.length}` }).count(), 1);
     }
+    for (let i = 0; i < locals; i++) await host.click("#add-local");
+    if (locals) {
+        // Local players are listed before the bots: removing the last one moves the focus to the first bot's Remove, or to Add local player.
+        await host.getByRole("button", { name: `Remove Local ${locals}` }).click();
+        assert.equal(await host.evaluate(() => document.activeElement.getAttribute("aria-label") ?? document.activeElement.id), bots.length ? "Remove Bot 1" : "add-local");
+        await host.click("#add-local");
+        assert.equal(await host.getByRole("button", { name: `Remove Local ${locals}` }).count(), 1);
+    }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
     const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // The footer shows the version the host announced, on the lobby screen...
     await assertBuild(pages, host.announced);
+    // The listing counts the bots and local players (ADR 21, 22).
+    if (guests.length && (bots.length || locals)) await guests[0].locator("#games tr", { hasText: name }).filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
     // With a game listed, the empty-list text gives way to the table.
     for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
-    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length, { timeout: SETUP_MS });
+    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length + locals, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
     for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
     const seatsLine = await text(host, "#room-seats");
@@ -855,6 +866,71 @@ const scenarios = {
         await guest.waitForFunction(() => document.getElementById("dir-ccw").checked, null, { timeout: SETUP_MS });
         await assertSynced(pages, turn);
         assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
+        return errors;
+    },
+    async X() {
+        // Hot seat (ADR 22): the host and a local player take turns in one page, played to the end. The
+        // status bar, title and cue name whose turn it is, and each character gets its own last formula back.
+        const { pages, errors } = await startGame(1, "xy", "X", { locals: 1 });
+        const [host] = pages;
+        assert.equal((await host.locator("#roster .id").allInnerTexts())[1], "Local 1");
+        const memory = new Map();
+        let restored = 0;
+        for (let turn = 0; ; turn++) {
+            await assertSynced(pages, turn);
+            if (await host.isVisible("#end")) break;
+            assert.ok(turn < 100, "the game ends");
+            const { current, arena } = JSON.parse(await state(host));
+            const words = current === 1 ? "Local 1's turn" : "Your turn";
+            assert.equal(await text(host, "#turn"), words);
+            assert.equal(await host.title(), `${words} | Graph fight!`);
+            await host.waitForFunction((w) => document.getElementById("turn-cue").textContent === w, words);
+            assert.equal(await host.evaluate(() => document.activeElement.id), "input-a", "the formula has focus on every turn played here");
+            const key = `${current}:${arena.teams[current].currentPlayer}`;
+            if (memory.has(key)) {
+                assert.equal(await host.inputValue("#input-a"), memory.get(key), `turn ${turn}: character ${key} gets its own formula back`);
+                restored++;
+            }
+            // A straight line through the shooter and the nearest living enemy: y = k x in the map frame is
+            // offset to pass through the shooter (ADR 20). Obstacles in the way are dug out shot by shot.
+            const { pos } = arena.teams[current].players[arena.teams[current].currentPlayer].shape;
+            const targets = arena.teams[1 - current].players.filter((pl) => pl.alive).map((pl) => pl.shape.pos);
+            const target = targets.sort((a, b) => Math.hypot(a.x - pos.x, a.y - pos.y) - Math.hypot(b.x - pos.x, b.y - pos.y))[0];
+            const formula = `(${((target.y - pos.y) / (target.x - pos.x)).toFixed(6)})*x`;
+            await host.check("#mode-explicit");
+            await host.fill("#input-a", formula);
+            await host.click("#fire");
+            memory.set(key, formula);
+            await host.waitForFunction((t) => window.__state().turn > t, turn, { timeout: TURN_WAIT_MS });
+        }
+        assert.match(await text(host, "#end-message"), /^(You win|Local 1 wins|Draw)\./);
+        assert.ok(restored >= 2, `formulas were restored on later turns (${restored})`);
+        return errors;
+    },
+    async Y() {
+        // A local player, a bot and a guest in one disc game (ADR 21, 22). The guest sees the local
+        // player's turn as any other team's; humans fire straight out of the disc so the game lasts.
+        const { pages, errors } = await startGame(2, "disc", "Y", { seats: 4, bots: ["medium"], locals: 1 });
+        const [host, guest] = pages;
+        for (const page of pages) assert.deepEqual((await page.locator("#roster .id").allInnerTexts()).slice(2), ["Local 1", "Bot 1, medium"]);
+        await assertSynced(pages, 0);
+        let localTurns = 0;
+        for (let turn = 0; turn < 8; turn++) {
+            const { current } = JSON.parse(await state(host));
+            if (current === 3) {
+                await assertSynced(pages, turn + 1);
+                assert.equal(JSON.parse(await state(guest)).shot?.team, 3, "the bot fired");
+                continue;
+            }
+            if (current === 2) {
+                localTurns++;
+                assert.equal(await text(host, "#turn"), "Local 1's turn");
+                assert.equal(await text(guest, "#turn"), "Team 3 is aiming");
+                assert.equal(await guest.isDisabled("#fire"), true);
+            }
+            await takeTurn(pages, turn, ["t", "0"]);
+        }
+        assert.ok(localTurns >= 1, "the local player had a turn");
         return errors;
     },
     async AH() {
