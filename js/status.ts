@@ -124,8 +124,11 @@ export function describeTurn(field: Field, team: number, msg: Shot | Timeout, fi
  * that is still in gets a Kick button (ADR 23).
  */
 export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean, kick?: (team: number) => void) {
-    // The list is rebuilt on every change: keep the keyboard on the button it was on.
-    const focused = $("roster").contains(document.activeElement) ? document.activeElement?.getAttribute("aria-label") : null;
+    // The list is rebuilt on every change: keep the keyboard on the button it was on or, when that
+    // one is gone (its team was kicked), on the next Kick button, or on the list.
+    const buttons = () => [...$("roster").querySelectorAll<HTMLElement>("button")];
+    const at = buttons().indexOf(document.activeElement as HTMLElement);
+    const focused = at < 0 ? null : document.activeElement?.getAttribute("aria-label");
     $("roster").replaceChildren(
         ...arena.teams.map((t, ti) => {
             const li = document.createElement("li");
@@ -159,5 +162,7 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             return li;
         }),
     );
-    if (focused) $("roster").querySelector<HTMLElement>(`button[aria-label="${focused}"]`)?.focus();
+    if (at < 0) return;
+    const after = buttons();
+    (after.find((b) => b.getAttribute("aria-label") === focused) ?? after[at] ?? after[at - 1] ?? $("roster")).focus();
 }

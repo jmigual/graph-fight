@@ -1107,6 +1107,32 @@ const scenarios = {
         assert.equal(await host.inputValue("#input-b"), expected, "the local player's formula is back");
         return errors;
     },
+    async AE() {
+        // The host kicks the current shooter, and a bot is next (ADR 23): the turn passes on every page,
+        // the countdown starts again, the bot fires, and the keyboard stays in the roster.
+        const { pages, errors } = await startGame(3, "disc", "AE", { seats: 4, bots: ["medium"] });
+        const [host] = pages;
+        const teams = await Promise.all(pages.map(async (page) => JSON.parse(await state(page)).me));
+        const kicked = pages[teams.indexOf(2)];
+        const rest = pages.filter((page) => page !== kicked);
+        await assertSynced(pages, 0);
+        let turn = 0;
+        for (let { current } = JSON.parse(await state(host)); current !== 2; { current } = JSON.parse(await state(host))) {
+            assert.ok(turn < 12, "team 3 gets a turn");
+            if (current === 3) await assertSynced(pages, turn + 1);
+            else await takeTurn(pages, turn, ["t", "0"]);
+            turn++;
+        }
+        for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) <= 57, null, { timeout: 10_000 });
+        await host.getByRole("button", { name: "Kick Team 3" }).focus();
+        await host.keyboard.press("Enter");
+        for (const page of rest) await page.waitForFunction(() => window.__state().current === 3, null, { timeout: TURN_WAIT_MS });
+        for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) >= 58, null, { timeout: 2000 });
+        assert.equal(await host.evaluate(() => !!document.activeElement.closest("#roster")), true, "the focus stays in the roster");
+        await assertSynced(rest, turn + 1);
+        assert.equal(JSON.parse(await state(host)).shot?.team, 3, "the bot fired");
+        return errors;
+    },
     async AH() {
         // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
         // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.
