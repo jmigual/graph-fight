@@ -16,7 +16,8 @@ button per guest team still in, and a kicked page ends with "The host removed yo
 Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,
 a password game's row has a padlock named "Password required", Join on it opens `#password-dialog`
 (masked `#join-password` with a Show toggle, as `#host-password` has),
-and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`.
+and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`; a guest's does
+too when the host ticked "Guests can share the invite link" `#host-share`.
 
 ## Context
 

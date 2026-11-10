@@ -132,9 +132,9 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12, 16, 23). A payload from the host must be a
- * sequenced broadcast, our private seat token `{seat}` or `{type: "kick"}`, which removes us from
- * the game; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
+ * Decides what to do with a game-room payload (ADR 12, 16, 23, 24). A payload from the host must be
+ * a sequenced broadcast, our private seat token `{seat}`, `{type: "kick"}`, which removes us from
+ * the game, or `{type: "share"}`, which lets us share the invite link; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
  * as a request; everything else is dropped.
  */
 export function routeIncoming(
@@ -146,6 +146,7 @@ export function routeIncoming(
     | { kind: "relayed"; seq: number; msg: GameMsg }
     | { kind: "seat"; token: string }
     | { kind: "kicked" }
+    | { kind: "share" }
     | { kind: "request"; shot: Shot }
     | { kind: "rejoin"; token: string }
     | { kind: "quit" }
@@ -153,6 +154,7 @@ export function routeIncoming(
     if (from === hostId) {
         if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
         if (isObj(data) && data.type === "kick") return { kind: "kicked" };
+        if (isObj(data) && data.type === "share") return { kind: "share" };
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
@@ -456,6 +458,8 @@ export type GameHandlers = {
     onDesync(): void;
     /** The host removed us from the game (ADR 23); we left the room. */
     onKicked(): void;
+    /** The host lets us share its invite link (ADR 24). */
+    onShare?(): void;
     /**
      * We joined without a seat and the host link never came up, even after joining the room again
      * once (ADR 24): 3 × `REJOIN_MS` in all. With a password, a wrong one looks the same as a host
@@ -500,6 +504,8 @@ export type Game = {
      * the same answer.
      */
     kick(seat: string): void;
+    /** Host only: tell `peer` it may share the invite link (ADR 24). Sent outside the sequence, like a kick. */
+    share(peer: string): void;
     /**
      * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
      * not connected; on another peer, the host while its link is down.
@@ -672,6 +678,8 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         } else if (routed?.kind === "kicked") {
             leave();
             handlers.onKicked();
+        } else if (routed?.kind === "share") {
+            handlers.onShare?.();
         } else if (routed && seats) {
             // Requests count only from the peer holding a seat now, and act for that seat.
             if (routed.kind === "rejoin") {
@@ -722,6 +730,11 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             if (holder === undefined) return;
             ban(holder);
             relay({ type: "leave", peer: seat });
+        },
+        share(peer) {
+            if (!isHost) throw new Error("only the host shares its invite");
+            // A lost one only hides the link from that guest.
+            action.send({ type: "share" }, { target: peer }).catch((err) => console.warn("share send failed", err));
         },
         absent() {
             if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];

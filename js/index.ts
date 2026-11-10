@@ -93,6 +93,8 @@ let me = selfId;
 let offer: Announce | null = null;
 /** Host: a private-link game, which is never announced (ADR 24). */
 let unlisted = false;
+/** Host: guests may share the invite link; a guest: the host said we may (ADR 24). */
+let shareInvite = false;
 /** The room password of the game we host or joined, "" for a public one (ADR 24). */
 let roomKey = "";
 let connected: string[] = [];
@@ -161,7 +163,10 @@ hostField.onchange = () => {
     if (hostSeats.disabled) hostSeats.value = "2";
 };
 const hostVisibility = $<HTMLSelectElement>("host-visibility");
-hostVisibility.onchange = () => ($<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password");
+hostVisibility.onchange = () => {
+    $<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password";
+    $<HTMLInputElement>("host-share").disabled = hostVisibility.value === "public";
+};
 $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
@@ -178,6 +183,7 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
         submit.disabled = false;
     }
     unlisted = hostVisibility.value === "link";
+    shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
     offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
     enterRoom(selfId, undefined, password);
 };
@@ -213,6 +219,8 @@ $("password-cancel").onclick = () => passwordDialog.close();
 function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     hostId = id;
     roomKey = password;
+    // The host's choice was made in the form; a guest waits to be told.
+    if (id !== selfId) shareInvite = false;
     me = seat?.me ?? selfId;
     connected = [];
     bots = [];
@@ -247,6 +255,12 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
             if (isHostRun(peer)) return;
             // A rejoined room (ADR 18) reports peers we already had.
             if (!connected.includes(peer)) connected.push(peer);
+            // Before the game starts, the host lets each guest share its invite link if it chose so (ADR 24).
+            if (offer && shareInvite) room?.share(peer);
+            roomChanged();
+        },
+        onShare() {
+            shareInvite = true;
             roomChanged();
         },
         onPeerLeave(peer) {
@@ -309,7 +323,7 @@ function roomChanged() {
     $<HTMLButtonElement>("start").disabled = players < 2;
     $("bots").hidden = !offer;
     for (const id of ["add-bot", "add-local"]) $<HTMLButtonElement>(id).disabled = !offer || hostRun >= offer.seats - 1;
-    $("invite").hidden = !offer || !roomKey;
+    $("invite").hidden = !roomKey || !(offer || shareInvite);
     if (offer && !unlisted) lobby.announce({ ...offer, players });
 }
 

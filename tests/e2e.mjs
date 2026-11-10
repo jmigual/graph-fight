@@ -67,9 +67,9 @@ function watchFrames(page) {
  * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name, errors)`
  * runs in the waiting room once everyone has joined, before the host clicks Start; `visibility` is
  * `public` (default), `password` (guests join from the lobby with `password`) or `link` (guests open
- * the host's invite link) (ADR 24).
+ * the host's invite link) (ADR 24); `share` ticks "Guests can share the invite link".
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "" } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "", share = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -119,6 +119,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.selectOption("#host-visibility", visibility);
+    if (share) await host.check("#host-share");
     if (visibility === "password") {
         // The password is masked until its Show toggle is pressed (ADR 24).
         assert.equal(await host.getAttribute("#host-password", "type"), "password");
@@ -1057,7 +1058,7 @@ const scenarios = {
             seats: 3,
             visibility: "password",
             password,
-            beforeStart: async ([host], name, errors) => {
+            beforeStart: async ([host, guest], name, errors) => {
                 const wrong = await (await browser.newContext()).newPage();
                 wrong.on("pageerror", (e) => errors.push(`wrong: ${e}`));
                 watchFrames(wrong);
@@ -1075,6 +1076,7 @@ const scenarios = {
                 await assertGivesUp(wrong);
                 assert.match(await text(wrong, "#end-message"), /wrong password/i);
                 assert.equal(await host.locator("#room-players li").count(), 2, "the wrong password never connected");
+                assert.equal(await guest.isHidden("#invite"), true, "the host did not let guests share the link");
             },
         });
         const guest = pages[1];
@@ -1093,6 +1095,7 @@ const scenarios = {
         // carries a 128-bit key in the fragment; the guests join through it, and their address bars drop the key.
         const { pages, errors } = await startGame(3, "disc", "AC", {
             visibility: "link",
+            share: true,
             beforeStart: async ([host, ...guests], name) => {
                 const observer = await (await browser.newContext()).newPage();
                 await observer.goto(url);
@@ -1106,6 +1109,8 @@ const scenarios = {
                 assert.equal(await host.evaluate(() => navigator.clipboard.readText()), link);
                 await host.waitForFunction(() => document.getElementById("copy-status").textContent !== "");
                 for (const guest of guests) assert.equal(await guest.evaluate(() => location.href), url, "the key is gone from the guest's address bar");
+                // The host lets guests share the link: they get the same one.
+                for (const guest of guests) await guest.waitForFunction((l) => document.getElementById("invite-link").value === l && !document.getElementById("invite").hidden, link);
             },
         });
         await assertSynced(pages, 0);

@@ -67,8 +67,16 @@ game, since a reload brings a new peer id.
 - **Reconnection.** The stored seat (ADR 16) also keeps the room password (`key`, stretched for a
   password game), so a reload and the watchdog's rejoin (ADR 18) join the same room with it. It is in `sessionStorage` with the seat token,
   and is cleared with it.
-- **Unchanged.** The live and dev lobby topics (ADR 12), the game-room name, the wire protocol and the
-  engine. Guests in a password game see no invite link; they can share the password themselves.
+- **Guests sharing the link.** The host decides whether guests may copy the invite link: the host
+  form has a checkbox "Guests can share the invite link" (`#host-share`, off by default), shown for
+  password and private-link games alike, which was simplest. When it is on, the host sends each guest
+  `{type: "share"}` as the guest joins the waiting room, a targeted message outside the sequence like
+  the seat token and the kick, accepted only from the host. The guest then shows the same invite link
+  and Copy button. A boolean in `start` was considered and rejected: `start` arrives when the waiting
+  room closes, and nobody can join a game after that (ADR 15, "game full"), so the link would only show
+  once it is useless.
+- **Unchanged.** The live and dev lobby topics (ADR 12), the game-room name, the relayed protocol and
+  the engine.
 
 Rejected:
 - A password check message from the host: it would need a handshake before the room's normal
@@ -90,7 +98,7 @@ Rejected:
   kick under a new peer id (ADR 23); the host then hosts a new game with a new secret.
 - A wrong password costs the guest 75 s before the message. A correct one on a slow relay gets a
   second signalling round before it is called wrong.
-- Tests: `tests/net.test.mjs` (`locked`, `parseInvite`, `inviteFragment`, `newToken`,
+- Tests: `tests/net.test.mjs` (`locked`, `share` only from the host, `parseInvite`, `inviteFragment`, `newToken`,
   `stretchPassword` against Node's `pbkdf2Sync` with the same parameters), e2e AB (a
   password game joined with the right password, refused with a wrong one after one more join of the
   room, and a guest reload), AF (a public join to a host that is gone) and AC

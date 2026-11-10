@@ -79,6 +79,12 @@ assert.equal(routeIncoming("h", "h", "p", { type: "kick" }), undefined, "a kick 
 assert.equal(routeIncoming("h", "p", "h", { seq: 1, msg: { type: "kick" } }), undefined, "a kick is not a relayed game message");
 for (const bad of [{ kick: true }, { type: "Kick" }, "kick"]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
 
+// Permission to share the invite link (ADR 24) also comes from the host only.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "share" }), { kind: "share" });
+assert.equal(routeIncoming("h", "p", "q", { type: "share" }), undefined, "a share from a non-host");
+assert.equal(routeIncoming("h", "h", "p", { type: "share" }), undefined, "a share sent to the host");
+for (const bad of [{ share: true }, { type: "Share" }, "share", { seq: 1, msg: { type: "share" } }]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
 assert.throws(() => box.stamp(shot), /before start/, "nothing before start");
