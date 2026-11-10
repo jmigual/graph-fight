@@ -42,4 +42,21 @@ for (const file of VERSIONED_MEDIA) {
     assert.ok(built.includes(`"./${file}?v=${hash}"`), `${file} is versioned`);
     assert.ok(!built.includes(`"./${file}"`), `no bare ${file} left`);
 }
+// An e2e page may add a suffix to the lobby topic (ADR 33), but only on a dev build; the live build ignores it.
+let loaded = 0;
+async function topicWith(define, suffix) {
+    globalThis.__lobbySuffix = suffix;
+    // The comment makes each source a new module, so the data URL is not served from the import cache.
+    const js = `${await bundled(define)}\n// ${loaded++}`;
+    return (await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`)).LOBBY_TOPIC;
+}
+const dev = { __LOBBY_TOPIC__: quoted(DEV_TOPIC) };
+const live = { __LOBBY_TOPIC__: quoted(LIVE_TOPIC) };
+assert.equal(await topicWith(dev, undefined), DEV_TOPIC, "no suffix: the build topic");
+assert.equal(await topicWith({}, "run1-A"), `${DEV_TOPIC}:run1-A`, "dev topic, also without a define, takes the suffix");
+assert.equal(await topicWith(dev, "run1-A"), `${DEV_TOPIC}:run1-A`, "dev build takes the suffix");
+assert.equal(await topicWith(dev, ""), DEV_TOPIC, "an empty suffix is ignored");
+assert.equal(await topicWith(dev, 5), DEV_TOPIC, "a suffix that is not a string is ignored");
+assert.equal(await topicWith(live, "run1-A"), LIVE_TOPIC, "the live build ignores the suffix");
+delete globalThis.__lobbySuffix;
 console.log("build tests passed");

@@ -16,7 +16,11 @@ export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VER
 
 const APP_ID = "graph-fight";
 // Only the deploy build announces on the live topic (scripts/lobby-topic.mjs); anything else uses the dev one.
-const LOBBY_TOPIC = typeof __LOBBY_TOPIC__ === "string" ? __LOBBY_TOPIC__ : "graph-fight:lobby:dev";
+const BUILD_TOPIC = typeof __LOBBY_TOPIC__ === "string" ? __LOBBY_TOPIC__ : "graph-fight:lobby:dev";
+// The e2e harness gives each scenario's pages a topic of their own so parallel scenarios never list each
+// other's games (ADR 33). Only a dev topic takes the suffix; the live build ignores it.
+const SUFFIX = (globalThis as { __lobbySuffix?: unknown }).__lobbySuffix;
+export const LOBBY_TOPIC = BUILD_TOPIC.endsWith(":dev") && typeof SUFFIX === "string" && SUFFIX ? `${BUILD_TOPIC}:${SUFFIX}` : BUILD_TOPIC;
 // Relays checked to accept and forward ephemeral events (ADR 12); re-check after a trystero bump.
 const LOBBY_RELAYS = [
     "wss://relay.primal.net",
