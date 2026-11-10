@@ -159,8 +159,9 @@ Rejected:
   `start.k` and the listing's `teams` and `k` accepted and each malformed case dropped; `lineup` only
   from the host and `team` only at the host, both only before `start`; `lineupMessage`, which
   `Game.lineup` sends, cuts `waiting` to `MAX_WAITING`); e2e AO (a 2v2 XY game with a local
-  player and 1 character each: the lobby row, guests showing the host's lineup before the start, a
-  guest's Join Team 2 through `Game.askTeam`, the seats taking turns, a quit handed over to the
-  teammate, and the kick of a side's last seat ending the game) and AP (2 characters each in a
-  free-for-all). `joinGame`'s wiring runs on Trystero and has no unit test; AO covers it: the
+  player and 1 character each, whose shots hit nobody: the lobby row, guests showing the host's
+  lineup before the start, a guest's Join Team 2 through `Game.askTeam`, the seats taking turns, a
+  guest quitting while it aims, after which every peer's `shooter` is its teammate before any shot
+  and the teammate gets "Your turn" and a countdown back near 60 s, the heir firing that character,
+  and the kick of a side's last seat ending the game) and AP (2 characters each in a free-for-all). `joinGame`'s wiring runs on Trystero and has no unit test; AO covers it: the
   lineups and the team request before the start pass `applied || out.started()`.

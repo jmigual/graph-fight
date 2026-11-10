@@ -21,11 +21,15 @@ async function waitSides(page, want) {
     await page.waitForFunction((w) => JSON.stringify([...document.querySelectorAll("#room-players li.side")].map((side) => [...side.querySelectorAll(".seats > li")].map((li) => li.firstChild.textContent.trim()))) === w, JSON.stringify(want), { timeout: SETUP_MS });
 }
 
-/** Fires a steep line, which leaves the field at once, from whichever page may fire; returns that page. */
+/**
+ * Fires, from whichever page may fire, a shot that hits nobody: in the player-centred frame
+ * `sqrt(0.0001 - x)` is defined at the shooter (x = 0) and nowhere past it, so the shot ends at once.
+ * Returns that page.
+ */
 async function fire(pages, turn) {
     const page = await shooter(pages);
     await page.check("#mode-explicit");
-    await page.fill("#input-a", "100*x");
+    await page.fill("#input-a", "sqrt(0.0001 - x)");
     await page.click("#fire");
     await assertSynced(pages, turn + 1);
     return page;
@@ -35,18 +39,20 @@ export const scenarios = {
     async AO() {
         // A 2-against-2 XY game with 1 character per player: the host, a local player and two
         // guests. Guests see the host's sides before the start (`lineup`, taken only before it), one
-        // asks to change sides (`team`), and the seats of each side take its characters in turn.
+        // asks to change sides (`team`), the seats of each side take its characters in turn, and a
+        // guest who leaves while it aims hands its character to its teammate, who gets a new turn.
         const errors = [];
         const [host, first, second] = await Promise.all([0, 1, 2].map((i) => open(errors, i)));
         const name = `e2e-AO-${Math.random().toString(36).slice(2, 8)}`;
         await host.fill("#host-name", name);
         await host.selectOption("#host-field", "xy");
+        await host.selectOption("#host-frame", "player");
         await host.selectOption("#host-mode", "teams");
         assert.deepEqual(await Promise.all(["#host-seats", "#host-teams", "#host-team-size"].map((sel) => host.isVisible(sel))), [false, false, true], "XY teams: Players per team only");
         await host.fill("#host-team-size", "2");
         await host.selectOption("#host-characters", "1");
         await host.click("#host-form button[type=submit]");
-        assert.equal(await text(host, "#room-info"), "XY plane, map-centred, 2 teams of 2, 1 character each");
+        assert.equal(await text(host, "#room-info"), "XY plane, player-centred, 2 teams of 2, 1 character each");
         const hostId = (await text(host, "#room-players .seats > li")).split(" ")[0];
         await waitSides(host, [[`${hostId} (you) (host)`], []]);
 
@@ -88,30 +94,32 @@ export const scenarios = {
 
         // The seats of a side take its characters in turn: Team 1 seat 1, Team 2 seat 1, Team 1 seat 2, Team 2 seat 2.
         const order = [];
-        for (let turn = 0; turn < 4; turn++) {
-            const { shooter: seat, arena } = JSON.parse(await state(host));
-            if (arena.teams.some((t) => t.players.some((pl) => !pl.alive))) break; // a random arena may hold a teammate in the line
+        for (let turn = 0; turn < 3; turn++) {
+            const { shooter: seat } = JSON.parse(await state(host));
             order.push(seat.slice(0, 6));
             if (seat.startsWith(firstId)) assert.equal(await text(host, "#turn"), `Team 2: ${firstId} is aiming`);
             if (seat === "local:1") assert.equal(await text(host, "#turn"), "Local 1's turn");
             await fire(pages, turn);
         }
-        assert.deepEqual(order, [hostId, firstId, "local:", secondId].slice(0, order.length), "seats take turns within each side");
-        assert.ok(order.length >= 2, "at least one round of both sides");
+        const aiming = JSON.parse(await state(host));
+        assert.deepEqual([...order, aiming.shooter.slice(0, 6)], [hostId, firstId, "local:", secondId], "seats take turns within each side");
+        assert.ok(aiming.arena.teams.every((t) => t.players.every((pl) => pl.alive)), "the shots hit nobody");
 
-        // The second guest leaves: its teammate takes over its character, and Team 2 plays on.
+        // The second guest leaves while it aims Team 2's second character: the first guest takes it
+        // over at once, before any shot, and gets a full turn of its own.
+        await second.waitForFunction(() => Number(document.getElementById("countdown").textContent) <= 55, null, { timeout: TURN_WAIT_MS });
         await second.click("#quit");
         assert.equal(second.dialogs.at(-1), "Leave the game? Your teammates take over your players.");
-        await host.waitForFunction(() => document.getElementById("last-shot").textContent.endsWith("Team 2 plays on."), null, { timeout: TURN_WAIT_MS });
+        const rest = [host, first];
+        for (const page of rest) await page.waitForFunction((id) => window.__state().shooter.startsWith(id), firstId, { timeout: TURN_WAIT_MS });
+        for (const page of rest) assert.equal(JSON.parse(await state(page)).turn, 3, "no shot was applied");
         assert.equal(await text(host, "#last-shot"), `${secondId} left the game. Team 2 plays on.`);
         assert.deepEqual(await host.locator("#roster .seats li", { hasText: secondId }).locator(".state").allInnerTexts(), ["left"]);
-        const rest = [host, first];
-        const { arena } = JSON.parse(await state(host));
-        assert.equal(arena.teams[1].players.filter((pl) => pl.alive).length > 0, true);
-        // Every Team 2 character is the first guest's now.
-        let { turn } = JSON.parse(await state(host));
-        while (JSON.parse(await state(host)).current !== 1) await fire(rest, turn++);
-        assert.ok(JSON.parse(await state(host)).shooter.startsWith(firstId), "the teammate aims Team 2's characters");
+        await first.waitForFunction(() => document.getElementById("turn-cue").textContent === "Your turn", null, { timeout: TURN_WAIT_MS });
+        await first.waitForFunction(() => Number(document.getElementById("countdown").textContent) >= 58, null, { timeout: 2000 });
+        assert.equal(await text(host, "#turn"), `Team 2: ${firstId} is aiming`);
+        // The heir fires the character it inherited.
+        assert.equal(await fire(rest, 3), first);
 
         // The host kicks the last seat of Team 2: its side is out and Team 1 wins.
         await host.getByRole("button", { name: `Kick ${firstId}` }).click();
