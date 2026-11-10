@@ -6,6 +6,7 @@ import starters from "./starters.json" with { type: "json" };
 import { BUILD_ID, BUILD_VERSION, DEFAULT_K, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initArena } from "./arena";
+import { $, show } from "./dom";
 import { initEditor, sliderError } from "./editor";
 import "./help";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
@@ -81,9 +82,6 @@ type Play = {
     clock?: ReturnType<typeof setTimeout>;
 };
 
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const SECTIONS = ["lobby", "room", "game", "end"];
-const show = (...names: string[]) => SECTIONS.forEach((s) => ($(s).hidden = !names.includes(s)));
 $("build").textContent = `v ${BUILD_VERSION}`;
 $("build").setAttribute("aria-label", `v ${BUILD_VERSION}, changelog, opens in a new tab`);
 
