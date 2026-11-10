@@ -31,6 +31,8 @@ pub enum FireError {
     /// The curve is not a finite point at the start of its range (for example `1/x`), so it
     /// cannot be anchored at the shooter.
     UndefinedAtShooter,
+    /// A test arena shot names a player that does not exist (ADR 25).
+    UnknownPlayer,
 }
 
 impl From<ParseError> for FireError {
@@ -44,6 +46,7 @@ impl fmt::Display for FireError {
         match self {
             FireError::Parse(e) => e.fmt(f),
             FireError::UndefinedAtShooter => f.write_str("The formula is undefined at the shooter"),
+            FireError::UnknownPlayer => f.write_str("There is no such player"),
         }
     }
 }

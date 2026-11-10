@@ -78,7 +78,7 @@ impl Arena {
         self.field
     }
 
-    #[cfg(test)]
+    /// An arena holding exactly `obstacles` and `teams`, with no craters.
     pub fn from_parts(
         field: Field,
         x_max: f64,
@@ -103,10 +103,18 @@ impl Arena {
 
     /// True if an obstacle can be placed here: on a disc it must lie fully inside the field,
     /// on the XY field only its centre must.
-    fn obstacle_fits(&self, shape: &Circle) -> bool {
+    pub(super) fn obstacle_fits(&self, shape: &Circle) -> bool {
         match self.field {
             Field::Xy => self.contains(shape.pos()),
             Field::Disc => shape.pos().x.hypot(shape.pos().y) + shape.radius() <= self.y_max,
+        }
+    }
+
+    /// True if a player can stand here: fully inside the field.
+    pub(super) fn player_fits(&self, shape: &Circle) -> bool {
+        match self.field {
+            Field::Xy => self.area.circle_inside(shape),
+            Field::Disc => self.obstacle_fits(shape),
         }
     }
 

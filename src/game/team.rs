@@ -52,7 +52,7 @@ impl Team {
         &self.players
     }
 
-    #[cfg(test)]
+    /// A team of players of `radius` at `positions`, in that order.
     pub fn from_positions(positions: &[(f64, f64)], radius: f64) -> Team {
         Team {
             players: positions
