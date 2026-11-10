@@ -74,6 +74,8 @@ main {
     padding: 1rem var(--gutter) 3rem;
 }
 
+footer { padding: 0 var(--gutter) 1rem; color: var(--ink-soft); font-size: 0.8rem; overflow-wrap: anywhere; }
+
 noscript { display: block; padding: 1rem var(--gutter); }
 
 h1, h2 { margin: 0; line-height: 1.2; }

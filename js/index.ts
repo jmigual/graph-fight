@@ -71,6 +71,8 @@ type Play = {
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const SECTIONS = ["lobby", "room", "game", "end"];
 const show = (...names: string[]) => SECTIONS.forEach((s) => ($(s).hidden = !names.includes(s)));
+$("build").textContent = `v ${BUILD_VERSION}`;
+$("build").setAttribute("aria-label", `Build version ${BUILD_VERSION}`);
 
 // One lobby connection for the page's lifetime; the host withdraws its listing once the game starts.
 const lobby = joinLobby(renderLobby);

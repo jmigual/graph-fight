@@ -56,6 +56,9 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         page.on("websocket", (ws) =>
             ws.on("framesent", (f) => {
                 const frame = String(f.payload);
+                // The host's lobby announcement carries the version the lobby checks (ADR 12).
+                const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
+                if (announced) page.announced = announced[1];
                 if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
             }),
         );
@@ -118,6 +121,8 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
     const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
+    // The footer shows the version the host announced, on the lobby screen...
+    await assertBuild(pages, host.announced);
     // With a game listed, the empty-list text gives way to the table.
     for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
@@ -127,7 +132,19 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
+    // ...and on the game screen.
+    await assertBuild(pages, host.announced);
     return { pages, errors, seatsLine };
+}
+
+/** Every page's `#build` footer shows the announced build version as selectable text with an accessible name (ADR 17). */
+async function assertBuild(pages, version) {
+    assert.ok(version, "the host announced a version");
+    for (const page of pages) {
+        assert.equal(await text(page, "#build"), `v ${version}`);
+        assert.equal(await page.getByLabel(`Build version ${version}`).count(), 1);
+        assert.notEqual(await page.locator("#build").evaluate((el) => getComputedStyle(el).userSelect), "none", "the version can be selected and copied");
+    }
 }
 
 /** Waits until exactly one page can fire and returns it. */
