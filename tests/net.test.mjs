@@ -214,9 +214,10 @@ gated(parseGameMsg(oldStart));
 assert.deepEqual(seen, ["start", "mismatch:v0", "shot", "mismatch:v0"]);
 
 // Lobby listings: shape and size caps.
-const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2 };
+const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false };
 assert.deepEqual(parseListing(listing, "v1"), listing);
 assert.deepEqual(parseListing({ ...listing, frame: "player" }, "v1"), { ...listing, frame: "player" });
+assert.deepEqual(parseListing({ ...listing, locked: true }, "v1"), { ...listing, locked: true }, "a password game (ADR 24)");
 assert.ok(parseListing({ ...listing, name: "n".repeat(64), players: MAX_PLAYERS, seats: MAX_PLAYERS }, "v1"), "at the caps");
 for (const bad of [
     null, {}, { ...listing, id: 1 }, { ...listing, field: "q" }, { ...listing, frame: "q" }, { ...listing, frame: undefined }, { ...listing, players: "1" }, { ...listing, seats: -1 },
@@ -226,8 +227,16 @@ for (const bad of [
     { ...listing, version: "v".repeat(65) },
     { ...listing, players: MAX_PLAYERS + 1 },
     { ...listing, seats: MAX_PLAYERS + 1 },
+    { ...listing, locked: undefined },
+    { ...listing, locked: "true" },
+    { ...listing, locked: 1 },
+    { ...listing, locked: null },
 ]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
 assert.equal(parseListing({ ...listing, version: "v0", frame: "q" }, "v1"), undefined, "a frame that is there must be valid");
+assert.equal(parseListing({ ...listing, version: "v0", locked: "yes" }, "v1"), undefined, "a locked flag that is there must be a boolean");
+// A build before ADR 24 sends no `locked`: it reads as unlocked, and is only listed as another version.
+const { locked: _locked, ...unflagged } = listing;
+assert.deepEqual(parseListing({ ...unflagged, version: "v0" }, "v1"), { ...listing, version: "v0" });
 
 // Lobby book: refresh, own game, malformed, expiry, withdraw, size bound.
 const book = lobbyBook("me", "v1", 10_000);
@@ -236,8 +245,8 @@ assert.equal(book.apply("k1", listing, 3000), false, "refresh without change");
 assert.equal(book.apply("k1", { ...listing, players: 2 }, 4000), true, "changed");
 assert.equal(book.apply("k2", { ...listing, id: "g", version: "v0" }, 4000), true);
 assert.deepEqual(book.list().map((g) => [g.id, g.compatible]), [["h", true], ["g", false]], "version filter");
-// A build before ADR 20 announces no frame: it is listed as another version, not dropped.
-const { frame: __, ...oldListing } = listing;
+// A build before ADR 20 announces no frame (nor `locked`): it is listed as another version, not dropped.
+const { frame: __, locked: ___, ...oldListing } = listing;
 assert.equal(book.apply("k4", { ...oldListing, id: "old", version: "v0" }, 4000), true);
 assert.deepEqual(book.list().find((g) => g.id === "old")?.compatible, false);
 assert.equal(book.apply("k5", { ...oldListing, id: "bad" }, 4000), false, "our own version must send a frame");

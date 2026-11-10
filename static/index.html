@@ -32,6 +32,16 @@
               <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
               <tbody id="games"></tbody>
             </table>
+            <dialog id="password-dialog" aria-labelledby="password-heading">
+              <form id="password-form">
+                <h2 id="password-heading">Join with a password</h2>
+                <label class="field"><span>Password</span><input id="join-password" maxlength="64" autocomplete="off" spellcheck="false" required></label>
+                <div class="actions">
+                  <button type="submit" class="primary">Join</button>
+                  <button id="password-cancel" type="button" class="secondary">Cancel</button>
+                </div>
+              </form>
+            </dialog>
           </section>
           <section aria-labelledby="host-game">
             <h2 id="host-game">Host a game</h2>
@@ -50,6 +60,13 @@
                 </select>
               </label>
               <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
+              <label class="field"><span>Visibility</span>
+                <select id="host-visibility">
+                  <option value="public">Public</option>
+                  <option value="password">Password</option>
+                </select>
+              </label>
+              <label class="field"><span>Password</span><input id="host-password" maxlength="64" autocomplete="off" spellcheck="false" required disabled></label>
               <button type="submit" class="primary">Host game</button>
             </form>
           </section>

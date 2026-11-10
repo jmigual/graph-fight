@@ -44,10 +44,11 @@ const comparable = async (page) => {
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
  * `blockStorage` makes the host's localStorage refuse writes; `bots` lists the levels of the bots the
  * host adds before anyone joins (ADR 21); `locals` is the number of local players it adds before them
- * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name)` runs
- * in the waiting room once everyone has joined, before the host clicks Start.
+ * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name, errors)`
+ * runs in the waiting room once everyone has joined, before the host clicks Start; `visibility` is
+ * `public` (default) or `password` (guests join from the lobby with `password`) (ADR 24).
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "" } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -106,7 +107,9 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.selectOption("#host-field", field);
     await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
-    await host.click("#host-form button");
+    await host.selectOption("#host-visibility", visibility);
+    if (visibility === "password") await host.fill("#host-password", password);
+    await host.click("#host-form button[type=submit]");
     for (const level of bots) {
         await host.selectOption("#bot-level", level);
         await host.click("#add-bot");
@@ -129,19 +132,28 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         assert.equal(await host.getByRole("button", { name: `Remove Local ${locals}` }).count(), 1);
     }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
-    const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
+    const rows = guests.map((guest) => guest.locator("#games tr", { hasText: name }));
+    const joins = rows.map((row) => row.getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // The footer shows the version the host announced, on the lobby screen...
     await assertBuild(pages, host.announced);
-    // The listing counts the bots and local players (ADR 21, 22).
-    if (guests.length && (bots.length || locals)) await guests[0].locator("#games tr", { hasText: name }).filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
+    // The listing counts the bots and local players (ADR 21, 22), and marks a password game (ADR 24).
+    if (guests.length && (bots.length || locals)) await rows[0].filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
+    for (const row of rows) assert.equal(await row.getByRole("img", { name: "Password required" }).count(), visibility === "password" ? 1 : 0);
     // With a game listed, the empty-list text gives way to the table.
     for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
-    await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
+    await Promise.all(
+        joins.map(async (join, i) => {
+            await join.click({ timeout: 5000 });
+            if (visibility !== "password") return;
+            await guests[i].fill("#join-password", password);
+            await guests[i].press("#join-password", "Enter");
+        }),
+    );
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length + locals, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
     for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
-    if (beforeStart) await beforeStart(pages, name);
+    if (beforeStart) await beforeStart(pages, name, errors);
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
@@ -998,6 +1010,38 @@ const scenarios = {
         const { turn } = JSON.parse(await state(host));
         await assertSynced(rest, turn);
         await takeTurn(rest, turn, ["t", "0"]);
+        return errors;
+    },
+    async AB() {
+        // A password game (ADR 24): listed with a lock and joined with the password. A wrong password
+        // never connects and ends after the connection timeout. A reload rejoins with the stored password.
+        const password = "open sesame";
+        const { pages, errors } = await startGame(2, "disc", "AB", {
+            seats: 3,
+            visibility: "password",
+            password,
+            beforeStart: async ([host], name, errors) => {
+                const wrong = await (await browser.newContext()).newPage();
+                wrong.on("pageerror", (e) => errors.push(`wrong: ${e}`));
+                await wrong.goto(url);
+                await wrong.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+                await wrong.fill("#join-password", `${password}!`);
+                await wrong.press("#join-password", "Enter");
+                const asked = Date.now();
+                await wrong.waitForSelector("#end:not([hidden])", { timeout: RECONNECT_MS });
+                assert.ok(Date.now() - asked >= 20_000, "the page waits for the connection timeout");
+                assert.match(await text(wrong, "#end-message"), /wrong password/i);
+                assert.equal(await host.locator("#room-players li").count(), 2, "the wrong password never connected");
+            },
+        });
+        const guest = pages[1];
+        await assertSynced(pages, 0);
+        await takeTurn(pages, 0, ["t", "0"]);
+        await guest.waitForFunction((k) => JSON.parse(sessionStorage.getItem("graph-fight-seat") ?? "{}").key === k, password);
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
+        await assertSynced(pages, 1);
+        await takeTurn(pages, 1, ["t", "0"]);
         return errors;
     },
     async AH() {

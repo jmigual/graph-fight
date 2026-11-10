@@ -33,6 +33,7 @@ const SEAT_KEY = "graph-fight-seat";
 const MISMATCH = ["Different version.", "Reload the page, then join again."] as const;
 const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
 const REMOVED = ["The host removed you from this game.", "Join another game from the lobby."] as const;
+const UNREACHABLE = ["Wrong password, or the host can't be reached.", "Check the password or the link with the host, then join again."] as const;
 /** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
 const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
 /** Long and short names of a shot frame, shown after the field (ADR 20). */
@@ -42,8 +43,8 @@ const LABELS = {
     disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
 };
 
-/** What a seated peer keeps to rejoin: the room, its private token, its build and its seat id. */
-type Seat = { hostId: string; token: string; version: string; me: string };
+/** What a seated peer keeps to rejoin: the room, its private token, its build, its seat id and the room password (ADR 24). */
+type Seat = { hostId: string; token: string; version: string; me: string; key?: string };
 
 type Play = {
     sim: Sim;
@@ -83,6 +84,8 @@ let hostId = "";
 let me = selfId;
 /** What we advertise while hosting a game that has not started. */
 let offer: Announce | null = null;
+/** The room password of the game we host or joined, "" for a public one (ADR 24). */
+let key = "";
 let connected: string[] = [];
 /** Host: the bot seat ids added in the waiting room, in the order they were added (ADR 21). */
 let bots: string[] = [];
@@ -109,7 +112,13 @@ function renderLobby(list: OpenGame[]) {
                 td.textContent = text;
                 return td;
             };
-            cell(g.name);
+            const name = cell(g.name);
+            if (g.locked) {
+                const lock = name.appendChild(document.createElement("span"));
+                lock.className = "lock";
+                lock.setAttribute("role", "img");
+                lock.setAttribute("aria-label", "Password required");
+            }
             if (g.compatible) {
                 const [long, short] = FIELD_NAMES[g.field].map((name, i) => `${name}, ${FRAME_NAMES[g.frame][i]}`);
                 const field = cell("");
@@ -123,7 +132,7 @@ function renderLobby(list: OpenGame[]) {
                 const join = document.createElement("button");
                 join.textContent = full ? "Full" : "Join";
                 join.disabled = full;
-                join.onclick = () => enterRoom(g.id);
+                join.onclick = () => (g.locked ? askPassword(g.id) : enterRoom(g.id));
                 cell("").append(join);
             } else {
                 tr.className = "muted";
@@ -142,16 +151,37 @@ hostField.onchange = () => {
     hostSeats.disabled = hostField.value === "xy";
     if (hostSeats.disabled) hostSeats.value = "2";
 };
+const hostVisibility = $<HTMLSelectElement>("host-visibility");
+hostVisibility.onchange = () => ($<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password");
 $<HTMLFormElement>("host-form").onsubmit = (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
     const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
-    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value) };
-    enterRoom(selfId);
+    // A password game is listed with a lock (ADR 24).
+    const password = hostVisibility.value === "password" ? $<HTMLInputElement>("host-password").value : "";
+    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
+    enterRoom(selfId, undefined, password);
 };
 
-function enterRoom(id: string, seat?: Seat) {
+const passwordDialog = $<HTMLDialogElement>("password-dialog");
+/** The game whose password the dialog asks for. */
+let asking = "";
+function askPassword(id: string) {
+    asking = id;
+    $<HTMLInputElement>("join-password").value = "";
+    passwordDialog.showModal();
+}
+$<HTMLFormElement>("password-form").onsubmit = (e) => {
+    e.preventDefault();
+    passwordDialog.close();
+    enterRoom(asking, undefined, $<HTMLInputElement>("join-password").value);
+};
+$("password-cancel").onclick = () => passwordDialog.close();
+
+/** Joins room `id`: our own when hosting, from a stored `seat` after a reload, with the room `password` of a private game (ADR 24). */
+function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     hostId = id;
+    key = password;
     me = seat?.me ?? selfId;
     connected = [];
     bots = [];
@@ -169,6 +199,7 @@ function enterRoom(id: string, seat?: Seat) {
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
         onKicked: () => end(...REMOVED),
+        onUnreachable: () => end(...UNREACHABLE),
         onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
@@ -176,7 +207,7 @@ function enterRoom(id: string, seat?: Seat) {
             if (play) refresh(play);
         },
         onSeat(token) {
-            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
+            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me, key } satisfies Seat));
         },
         onPeerJoin(peer) {
             // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
@@ -193,7 +224,7 @@ function enterRoom(id: string, seat?: Seat) {
             if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end(...HOST_LEFT);
             else roomChanged();
         },
-    }, seat?.token);
+    }, seat?.token, key || undefined);
     roomChanged();
     show("room");
 }

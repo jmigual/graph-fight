@@ -51,8 +51,8 @@ export type BotLevel = "easy" | "medium" | "hard";
 /** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
 export type Frame = "map" | "player";
 
-/** What a host advertises in the lobby. */
-export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number };
+/** What a host advertises in the lobby; `locked` games need a password to join (ADR 24). */
+export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean };
 /** The lobby wire format: `id` is the host's peer id and names the game room. */
 export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
@@ -188,16 +188,18 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
 
 /**
  * Returns the listing if `v` has the right shape and sizes, otherwise undefined. A listing from
- * another build than `version` may lack `frame` (builds before ADR 20); it reads as `map` and is
- * only ever shown as incompatible (ADR 12).
+ * another build than `version` may lack `frame` (builds before ADR 20) or `locked` (before ADR 24);
+ * they read as `map` and unlocked, and it is only ever shown as incompatible (ADR 12).
  */
 export function parseListing(v: unknown, version: string): Listing | undefined {
     if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
         return undefined;
     }
-    const frame = v.frame === undefined && v.version !== version ? "map" : v.frame;
-    if (!isFrame(frame)) return undefined;
-    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats };
+    const old = v.version !== version;
+    const frame = v.frame === undefined && old ? "map" : v.frame;
+    const locked = v.locked === undefined && old ? false : v.locked;
+    if (!isFrame(frame) || typeof locked !== "boolean") return undefined;
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked };
 }
 
 /**
@@ -422,6 +424,11 @@ export type GameHandlers = {
     /** The host removed us from the game (ADR 23); we left the room. */
     onKicked(): void;
     /**
+     * We joined with a password and the host link did not come up within `REJOIN_MS` (ADR 24). A
+     * wrong password and a host that is gone look the same, since no link is ever made; we left the room.
+     */
+    onUnreachable(): void;
+    /**
      * We hold a seat and our link to the host has been down for `HOST_LOST_MS` (ADR 18). The host
      * keeps the game in memory only, so it cannot come back to it; we left the room.
      */
@@ -474,16 +481,17 @@ export type Game = {
  * back or when it sees a gap (ADR 16). While that link stays down it rejoins the room after
  * `REJOIN_MS`, then after twice as long each time, and gives up after `HOST_LOST_MS` (ADR 18).
  * Peer ids are announced by the peers themselves during signalling, so a modified client can
- * claim any id; that is accepted under ADR 7's trusted-peers model.
+ * claim any id; that is accepted under ADR 7's trusted-peers model. A `password` (ADR 24) is
+ * Trystero's room password: it encrypts the signalling, so only peers that know it connect.
  */
-export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
+export function joinGame(hostId: string, handlers: GameHandlers, token?: string, password?: string): Game {
     const isHost = hostId === selfId;
     let left = false;
     let seats: ReturnType<typeof seatBook> | undefined;
 
     // room.leave() takes a moment, so events from a room we left or replaced are dropped.
     function open() {
-        const r = joinRoom({ appId: APP_ID }, `game-${hostId}`);
+        const r = joinRoom({ appId: APP_ID, password }, `game-${hostId}`);
         const a = r.makeAction<JsonValue>("msg");
         const live = () => !left && r === room;
         a.onMessage = (data, { peerId }) => {
@@ -529,9 +537,14 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     // After a reload the host link is not up yet.
     watch();
 
+    // A guest joining with a password that never reaches the host gives up after the watchdog's
+    // first wait: with a wrong password no link is ever made (ADR 24).
+    const joinTimer = !isHost && !token && password ? setTimeout(() => (leave(), handlers.onUnreachable()), REJOIN_MS) : undefined;
+
     function leave() {
         left = true;
         clearTimeout(watchdog);
+        clearTimeout(joinTimer);
         void room.leave();
     }
 
@@ -627,7 +640,10 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     }
     function onPeerJoin(id: string) {
         if (banned.has(id)) return ban(id);
-        if (id === hostId) clearTimeout(watchdog);
+        if (id === hostId) {
+            clearTimeout(watchdog);
+            clearTimeout(joinTimer);
+        }
         if (id === hostId && token) rejoin(token);
         // A seated peer back under the same id may have missed the last broadcasts, which it
         // would otherwise only notice at the next one (ADR 16).

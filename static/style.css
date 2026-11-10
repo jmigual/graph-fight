@@ -192,6 +192,20 @@ td[colspan] { text-align: left; }
 /* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
 #games td:not(:last-child), #room-players, #turn, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
 .muted { color: var(--ink-soft); }
+/* A padlock after a password game's name (ADR 24), drawn in the text colour. */
+.lock {
+    display: inline-block;
+    width: 0.875em;
+    height: 1em;
+    margin-left: 0.375rem;
+    vertical-align: -0.125em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M3 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm2 0h4V5a2 2 0 0 0-4 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.field:has(#host-password:disabled) { display: none; }
+dialog { background: var(--paper); color: var(--ink); border: 1px solid var(--ink-soft); border-radius: 4px; padding: 1.5rem; }
+dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+dialog h2 { margin-top: 0; }
 
 /* Waiting room and end screen */
 
