@@ -43,7 +43,10 @@ with "you", "aiming", "disconnected" or "left"; the status bar and turn cue name
 abc123 is aiming"); a seat whose characters are all dead reads "Your players are out. Team 1 plays
 on."; a guest's Leave game asks "Leave the game? Your teammates take over your players." while its
 side has a seat still in; the end screen reads "Your team wins." on the winning side, otherwise
-"Team 2 wins." with its seats named (sections 10 and 11).
+"Team 2 wins." with its seats named (sections 10 and 11). In the waiting room each side is a list
+("Team 1, 2 of 2") with the joiners waiting for a seat below; the host has Move to Team N on each
+row for each other side with room, a seated guest Join Team N; the info line reads "2 teams of 2",
+and "1 character each" when not 3 (section 6).
 
 ## Context
 

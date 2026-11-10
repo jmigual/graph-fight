@@ -2,13 +2,13 @@
 
 Status: Accepted (2026-11-10). Amends 0012 (`start`, lobby listing, two out-of-sequence messages),
 0015 (the announce carries `teams` and `k`; the 3 characters per team are `DEFAULT_K`), 0016
-(`leave` of a seat), 0017 (roster, status bar, out note, Leave game, end copy), 0021 (bots are seated
-on a team) and 0023 (a kick in a team hands the seat's characters over).
+(`leave` of a seat), 0017 (waiting room, roster, status bar, out note, Leave game, end copy), 0021
+(bots are seated on a team), 0022 (local players are seated on a team) and 0023 (a kick in a team
+hands the seat's characters over).
 
 Amendments still to come: the protocol and the pure rules land first; each later commit that changes
-a behaviour adds its "Amended by 0027" line to that ADR and 0027 to its index row. Those are 0015
-(host form, seating, Start rule, characters per player), 0017 (host form and waiting room, added to
-its 0027 line) and 0022 (local players are seated on a team).
+a behaviour adds its "Amended by 0027" line to that ADR and 0027 to its index row. What is left is
+the host form, in 0015 and 0017 (added to their 0027 lines).
 
 ## Context
 
@@ -101,8 +101,10 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
     "Characters per player" `#host-characters` (1 to 3, default 3).
   - Waiting room: `#room-players` becomes one list per side ("Team 1, 2 of 2"), with the waiting
     joiners below. A guest sees a **Join Team N** button on each other side with room. The host has a
-    **Move to Team N** button on every row (guests, locals, bots), and Add bot / Add local player put
-    the new seat by the joiner rule.
+    **Move to Team N** button on every row (the host's own, guests, locals, bots) for each other side
+    with room (`aria-label="Move abc123 to Team 2"`), and Add bot / Add local player put the new seat
+    by the joiner rule; they are disabled once every side is full. When a list is rebuilt, the
+    keyboard stays on the button it was on, or goes to the list when that button is gone.
   - Roster: one entry per side with its pips (of `c`), then its seats, each with "you", "aiming" on
     the current seat, "disconnected" or "left". Status bar and `#turn-cue`: "Your turn", else
     "Team 2: abc123 is aiming" (ADR 22 names for local seats). The last-shot line: "abc123 left the

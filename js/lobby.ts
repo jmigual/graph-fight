@@ -9,6 +9,12 @@ export const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"
 /** Long and short names of a shot frame, shown after the field (ADR 20). */
 export const FRAME_NAMES = { map: ["map-centred", "map"], player: ["player-centred", "player"] };
 
+/** How a game is made up: "4 seats", or "2 teams of 2" in team mode, then "1 character each" unless the default (ADR 27). */
+export function gameSize({ seats, teams, k }: Announce) {
+    const size = teams.length ? [`${teams.length} teams of ${seats / teams.length}`] : [`${seats} seats`];
+    return k === DEFAULT_K ? size : [...size, `${k} ${k === 1 ? "character" : "characters"} each`];
+}
+
 // One lobby connection for the page's lifetime; the host withdraws its listing once the game starts.
 export const lobby = joinLobby(renderLobby);
 /** The open games the lobby last listed (ADR 17, section 6). */

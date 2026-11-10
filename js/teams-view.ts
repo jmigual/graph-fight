@@ -1,9 +1,72 @@
-// Team mode's views (ADR 27): the roster grouped by side. DOM only; game.ts passes in what it knows.
+// Team mode's views (ADR 27): the waiting room's side lists and the roster grouped by side. DOM
+// only; room.ts and game.ts pass in what they know.
 import type { Arena } from "../pkg/index.js";
 import { isHostRun } from "./net";
+import type { Lineup } from "./net";
 import { replaceRoster, seatName, short, teamColour } from "./status";
 import { seatsOf } from "./teams";
 import type { Teams } from "./teams";
+
+/**
+ * The waiting room in team mode: `#room-players` holds one list per side ("Team 1, 2 of 2"), then
+ * the joiners waiting for a seat. `row` builds a seat's row. The host (`move`) gets a **Move to
+ * Team N** button on every row for each other side with room; a seated guest (`ask`) gets **Join
+ * Team N** on each other side with room. The keyboard stays on the button it was on, or goes to the
+ * list when that button is gone.
+ */
+export function renderLineup(lineup: Lineup, me: string, row: (id: string) => HTMLLIElement, { move, ask }: { move?: (id: string, team: number) => void; ask?: (team: number) => void }) {
+    const list = document.getElementById("room-players")!;
+    const active = document.activeElement;
+    const focused = active instanceof HTMLButtonElement && list.contains(active) ? (active.getAttribute("aria-label") ?? active.textContent) : null;
+    const button = (text: string, label: string | null, onclick: () => void) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "secondary";
+        b.textContent = text;
+        if (label) b.setAttribute("aria-label", label);
+        b.onclick = onclick;
+        return b;
+    };
+    const room = (t: number) => lineup.teams[t].length < lineup.size;
+    const mine = lineup.teams.findIndex((t) => t.includes(me));
+    const group = (head: HTMLElement, ids: string[], className: string) => {
+        const li = document.createElement("li");
+        li.className = className;
+        li.append(head);
+        const seats = li.appendChild(document.createElement("ul"));
+        seats.className = "seats";
+        for (const id of ids) {
+            const seat = seats.appendChild(row(id));
+            if (!move || className !== "side") continue;
+            // The row's own buttons (Remove) go after its Move buttons, in one group on the right.
+            const actions = document.createElement("span");
+            actions.className = "row-actions";
+            lineup.teams.forEach((t, ti) => {
+                if (!t.includes(id) && room(ti)) actions.append(button(`Move to Team ${ti + 1}`, `Move ${seatName(id)} to Team ${ti + 1}`, () => move(id, ti)));
+            });
+            actions.append(...seat.querySelectorAll("button"));
+            seat.append(actions);
+        }
+        return li;
+    };
+    list.replaceChildren(
+        ...lineup.teams.map((ids, ti) => {
+            const head = document.createElement("div");
+            head.className = "side-head";
+            head.append(`Team ${ti + 1}, ${ids.length} of ${lineup.size}`);
+            if (ask && mine >= 0 && mine !== ti && room(ti)) head.append(button(`Join Team ${ti + 1}`, null, () => ask(ti)));
+            return group(head, ids, "side");
+        }),
+        ...(lineup.waiting.length ? [group(Object.assign(document.createElement("div"), { className: "side-head", textContent: "Waiting for a seat" }), lineup.waiting, "waiting")] : []),
+    );
+    if (focused === null) return;
+    const again = [...list.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent) === focused);
+    if (again) again.focus();
+    else {
+        list.tabIndex = -1;
+        list.focus();
+    }
+}
 
 /** What the grouped roster shows of a game in team mode. */
 export type SidesView = {

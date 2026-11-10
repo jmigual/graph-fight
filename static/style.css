@@ -264,6 +264,11 @@ dialog h2 { margin-top: 0; }
     padding: 0.375rem 0;
     border-bottom: 1px solid var(--grid-major);
 }
+/* Team mode (ADR 27): one list per side, then the joiners waiting for a seat. */
+#room-players li:is(.side, .waiting) { display: block; border-bottom: 0; padding-bottom: 0.75rem; }
+#room-players .side-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: var(--control-h); font-weight: 700; }
+#room-players .seats { list-style: none; padding: 0 0 0 1rem; }
+#room-players .row-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 0.5rem; }
 #room > .actions:last-child { margin-top: 1.5rem; }
 #bots, #invite { margin-bottom: 1rem; }
 #invite { align-items: end; }
