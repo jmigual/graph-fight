@@ -136,6 +136,9 @@ export const scenarios = {
         await lobby.goto(url);
         assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
         await assertHelpAligned(lobby, "#lobby", "the lobby");
+        // Help's list items keep the measure of its paragraphs.
+        const measures = await lobby.evaluate(() => ["#help li", "#help p"].map((s) => getComputedStyle(document.querySelector(s)).maxWidth));
+        assert.ok(measures[0] !== "none" && measures[0] === measures[1], `Help's list items are 65ch like its paragraphs (${measures})`);
         const changelog = await lobby.context().newPage();
         await changelog.goto(`${url}changelog.html`);
         const page = await box(changelog, "main");
@@ -172,7 +175,11 @@ export const scenarios = {
             next = await lobby.evaluate(() => document.activeElement.id);
         }
         assert.notEqual(next, "test-field", `Tab reaches the editor before the setup panel (${next})`);
-        const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
+        const inRoom = async ([page]) => {
+            await page.setViewportSize({ width: 1920, height: 1080 });
+            await assertHelpAligned(page, "#room", "the waiting room");
+        };
+        const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true, beforeStart: inRoom });
         const [host] = pages;
         // In a game the board stays on screen while the page scrolls down the side column.
         await host.setViewportSize({ width: 1280, height: 800 });
