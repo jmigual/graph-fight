@@ -6,7 +6,7 @@ import starters from "./starters.json" with { type: "json" };
 import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
-import { draw, lookAfterShot, lookKey } from "./render";
+import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setText, short, showError, TITLE } from "./status";
 
@@ -57,6 +57,8 @@ type Play = {
     note: string;
     /** Display only, never in `__state`: each player's gaze after its last shot (ADR 17). */
     looks: Map<string, Look>;
+    /** Each player's last shot, keyed by `lookKey`: its path stays on the board and its formula refills the editor on its next turn. */
+    shots: Map<string, LastShot>;
     /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
     /** Our shot is sent and not yet applied. */
@@ -292,7 +294,7 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -381,7 +383,7 @@ function onMessage(msg: GameMsg) {
             // Only the engine call is in here: anything else failing must not skip a second turn.
             try {
                 if (msg.type === "timeout") p.sim.skip_turn();
-                else p.shot = { team, exprs: msg.exprs, points: (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points };
+                else p.shot = { team, exprs: msg.exprs, cw: msg.cw, points: (msg.exprs.length === 1 ? p.sim.fire(msg.exprs[0], msg.cw) : p.sim.fire_param(msg.exprs[0], msg.exprs[1], msg.cw)).points };
             } catch {
                 // Every peer parses identically, so a shot that fails here fails everywhere (ADR 7, 14).
                 p.sim.skip_turn();
@@ -389,6 +391,7 @@ function onMessage(msg: GameMsg) {
             if (p.shot) {
                 const look = lookAfterShot(p.field, p.looks.get(key), p.shot.points);
                 if (look) p.looks.set(key, look);
+                p.shots.set(key, p.shot);
             }
             p.note = describeTurn(p.field, team, msg, !!p.shot, alive, aliveCounts(p.sim.arena()));
         }
@@ -397,6 +400,15 @@ function onMessage(msg: GameMsg) {
         return end("Engine error.", `${err}. This game can't continue on this device.`);
     }
     changed(p, newTurn);
+}
+
+/** Puts the formulas, mode and disc direction of a character's last shot back in the editor. */
+function restore(shot: LastShot) {
+    $<HTMLInputElement>(shot.exprs.length === 2 ? "mode-parametric" : "mode-explicit").checked = true;
+    $<HTMLInputElement>(shot.cw ? "dir-cw" : "dir-ccw").checked = true;
+    $<HTMLInputElement>("input-a").value = shot.exprs[0];
+    $<HTMLInputElement>("input-b").value = shot.exprs[1] ?? "";
+    setMode();
 }
 
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
@@ -408,8 +420,12 @@ function changed(p: Play, newTurn: boolean) {
         clearError();
         resetClock(p);
         // Our turn starts: say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17).
-        const mine = p.peers[p.sim.get_current_team_idx()] === me;
+        const team = p.sim.get_current_team_idx();
+        const mine = p.peers[team] === me;
         cueTurn(mine);
+        // Our character's last formula comes back; one that has not fired leaves the editor as it is.
+        const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
+        if (last) restore(last);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
         if (hostId === selfId) void playBot(p);
     }
@@ -419,7 +435,7 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
+    const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, shots: new Map(p.shots), looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
@@ -524,9 +540,10 @@ setInterval(() => {
     if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
 }, 250);
 
-// Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours).
+// Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours);
+// `faint` counts the older paths on the board (ADR 17).
 (window as unknown as { __state: () => unknown }).__state = () =>
-    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot };
+    play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot, faint: olderPaths(play.shots, play.sim.arena(), play.shot).length };
 
 // After a reload, rejoin the game we hold a seat in (ADR 16).
 const saved = sessionStorage.getItem(SEAT_KEY);

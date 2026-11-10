@@ -3,7 +3,8 @@
 Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4). The board
 follows ADR 20 (settled in section 4). Amended by 0021: the host's waiting room has `#bot-level`
 and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the roster names a
-bot "Bot 1, hard" where a human's short id goes.
+bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
+staying on the board and refilling the editor.
 
 ## Context
 
@@ -233,6 +234,27 @@ turned +90° (counterclockwise) or -90° (clockwise); on XY the resting gaze alr
 Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockwise down", seen from
 above the map rather than from the shooter, in the map-centred frame. The resting gaze (toward the
 centre) and the gaze after a shot (from the shot's first points) are the same in both frames.
+
+Settled with the per-character shot memory (`js/render.ts`, `js/index.ts`): every applied shot is
+also kept per character in `Play.shots`, keyed by `lookKey` like the gaze, so a reload that
+replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
+- **Board.** Each living character's last shot stays drawn: 1.5 px at half opacity in its team
+  token (`--team-1`..`--team-8`, so both themes keep their contrast), under the newest shot, which
+  keeps its 2.5 px full-colour stroke, its label and its pen animation. During the animation the
+  previous newest is already one of the faint paths. A character's path goes with its death, at the
+  final frame of the shot that killed it; a newest shot is drawn even if its shooter died of it. A
+  turn without a shot (timeout, failed formula) leaves every path faint. Not a new token, since
+  the opacity is the team token's own; with 8 teams that is at most 24 thin lines, and the label
+  stays on the newest only. `olderPaths` in `render.ts` picks them.
+- **Formula box.** When one of our characters' turn starts, the editor takes that character's last
+  formulas: mode, both expressions (the second is emptied for an explicit shot) and the CW/CCW
+  radio, which stays hidden on XY. A character that has not fired leaves the editor as it is, so
+  it may hold the previous shooter's text, but one that has fired never gets another's.
+`window.__state()` gains `faint`, the number of faint paths, for the e2e test (ADR 15's hook
+stays read-only and the same on every peer).
+Also settled (`js/index.ts`): the host's own shot applies synchronously inside `room.shoot`, so
+the Fire handler must not redraw afterwards. It only disables Fire, and refreshes on a refused
+shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
 ### 5. Motion
 

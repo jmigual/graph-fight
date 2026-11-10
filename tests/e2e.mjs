@@ -760,6 +760,57 @@ const scenarios = {
         await assertSynced(pages, turn + 1);
         return errors;
     },
+    async V() {
+        // Each character remembers its last shot (ADR 17): its path stays on the board while it lives,
+        // and on its next turn its formulas, mode and direction fill the editor again, not the last
+        // shooter's. A rejoined page gets both back from the host's replay (ADR 16).
+        const { pages, errors } = await startGame(2, "disc", "V");
+        const memory = new Map();
+        let restored = 0;
+        const editor = (page) =>
+            page.evaluate(() => ({
+                parametric: document.getElementById("mode-parametric").checked,
+                a: document.getElementById("input-a").value,
+                b: document.getElementById("input-b").value,
+                cw: document.getElementById("dir-cw").checked,
+            }));
+        const characterOf = ({ current, arena }) => `${current}:${arena.teams[current].currentPlayer}`;
+        // Odd shots are parametric rays and clockwise, even ones steep explicit curves that leave the disc at once.
+        const fire = async (page, turn) => {
+            const key = characterOf(JSON.parse(await state(page)));
+            const known = memory.get(key);
+            if (known) {
+                assert.deepEqual(await editor(page), known, `turn ${turn}: the editor holds the last shot of character ${key}`);
+                restored++;
+            }
+            const next = turn % 2 === 1 ? { parametric: true, a: "t", b: `0.0${turn}`, cw: true } : { parametric: false, a: `${100 + turn}*θ`, b: "", cw: false };
+            await page.check(next.parametric ? "#mode-parametric" : "#mode-explicit");
+            await page.check(next.cw ? "#dir-cw" : "#dir-ccw");
+            await page.fill("#input-a", next.a);
+            if (next.parametric) await page.fill("#input-b", next.b);
+            await page.click("#fire");
+            memory.set(key, next);
+            await assertSynced(pages, turn + 1);
+        };
+        await assertSynced(pages, 0);
+        // Five rounds: every character fires once, and the first two of each team twice.
+        for (let turn = 0; turn < 10; turn++) await fire(await shooter(pages), turn);
+        assert.ok(restored >= 4, `formulas were restored on later turns (${restored})`);
+        const { faint } = JSON.parse(await state(pages[0]));
+        assert.ok(faint > 1, `older paths stay on the board (${faint})`);
+        // Reload the guest on its own turn: the replay brings the paths and its formulas back.
+        const guest = pages[1];
+        let turn = 10;
+        while (JSON.parse(await state(guest)).current !== JSON.parse(await state(guest)).me) await fire(await shooter(pages), turn++);
+        const before = JSON.parse(await state(guest));
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.reload();
+        await guest.waitForFunction((t) => window.__state()?.turn === t && !document.getElementById("fire").disabled, turn, { timeout: SETUP_MS });
+        assert.equal(JSON.parse(await state(guest)).faint, before.faint, "the replay restores the older paths");
+        const known = memory.get(characterOf(before));
+        if (known) assert.deepEqual(await editor(guest), known, "the replay restores the character's formula");
+        return errors;
+    },
 };
 
 let failed = 0;
