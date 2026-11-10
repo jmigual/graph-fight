@@ -1544,7 +1544,8 @@ const scenarios = {
         // and is gone in a game (ADR 29).
         const REPO = "https://github.com/jmigual/graph-fight";
         const errors = [];
-        const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+        // Short, so the video starts below the fold.
+        const page = await (await browser.newContext({ viewport: { width: 1280, height: 500 } })).newPage();
         page.on("pageerror", (e) => errors.push(`page: ${e}`));
         await page.goto(url);
         const about = page.locator("#about");
@@ -1557,9 +1558,23 @@ const scenarios = {
         assert.match((await video.getAttribute("poster")) ?? "", /\S/, "a poster");
         assert.equal(await video.getAttribute("preload"), "none");
         for (const attr of ["muted", "loop", "playsinline", "controls"]) assert.notEqual(await video.getAttribute(attr), null, attr);
-        assert.ok(await video.getAttribute("aria-describedby"), "described by the text around it");
+        assert.ok(await video.getAttribute("aria-describedby"), "described by its caption");
+        assert.equal(await video.evaluate((v) => v.paused), true, "not playing below the fold");
+        const waitPaused = (paused) => page.waitForFunction((p) => document.querySelector("#about video").paused === p, paused, { timeout: TURN_WAIT_MS });
         await video.scrollIntoViewIfNeeded();
-        await page.waitForFunction(() => !document.querySelector("#about video").paused, null, { timeout: TURN_WAIT_MS });
+        await waitPaused(false);
+        // It pauses out of view and resumes in view...
+        await page.evaluate(() => scrollTo(0, 0));
+        await waitPaused(true);
+        await video.scrollIntoViewIfNeeded();
+        await waitPaused(false);
+        // ...but a pause by the viewer stays through a scroll away and back.
+        await video.evaluate((v) => v.pause());
+        await waitPaused(true);
+        await page.evaluate(() => scrollTo(0, 0));
+        await video.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(1000);
+        assert.equal(await video.evaluate((v) => v.paused), true, "a viewer's pause is kept");
         // With reduced motion, scrolling to the video does not start it.
         const calm = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" })).newPage();
         await calm.goto(url);

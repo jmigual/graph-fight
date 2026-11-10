@@ -92,20 +92,20 @@
           <h2 id="about-heading">About</h2>
           <div class="about-grid">
             <div id="about-text">
-              <p>Graph fight! is a worms-like artillery game where every shot is a formula. Play friends in your browser, or alone against bots; there is no server. It is inspired by <a href="https://graphwar.com/graphwar_1/index.html" target="_blank" rel="noopener">Graphwar</a>.</p>
+              <p>Graph fight! is a worms-like artillery game where every shot is a formula. Play against friends in your browser, or alone against bots; there is no server. It is inspired by <a href="https://graphwar.com/graphwar_1/index.html" target="_blank" rel="noopener">Graphwar<span class="sr-only">, opens in a new tab</span></a>.</p>
               <ul>
                 <li>On your turn, type a formula such as <span class="math">y = sin(x)</span>.</li>
                 <li>The shot follows its graph from your character until it hits a player (they die), an obstacle (it leaves a crater) or the edge of the field.</li>
                 <li>The last team standing wins.</li>
               </ul>
               <p>Play on an XY field with 2 players or on a polar disc with 2 to 8.</p>
-              <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener">Source code on GitHub<span class="sr-only">, opens in a new tab</span></a></p>
+              <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="Source code on GitHub, opens in a new tab">Source code on GitHub</a></p>
             </div>
             <figure>
-              <video id="about-video" muted loop playsinline controls preload="none" poster="./demo-poster.jpg" aria-describedby="about-text about-caption">
+              <video id="about-video" muted loop playsinline controls preload="none" poster="./demo-poster.jpg" aria-label="Demo: a solo game against a bot" aria-describedby="about-caption">
                 <source src="./demo.webm" type="video/webm">
               </video>
-              <figcaption id="about-caption" class="hint">A solo game against a bot: two turns, each a formula and the shot that follows it.</figcaption>
+              <figcaption id="about-caption" class="hint">A solo game against a bot. The clip opens on the lobby and the waiting room, then plays two turns, each a formula and the shot that follows it.</figcaption>
             </figure>
           </div>
         </section>
@@ -300,7 +300,7 @@
         </div>
       </section>
     </main>
-    <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a> · <a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="GitHub, opens in a new tab">GitHub</a></footer>
+    <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a> <span aria-hidden="true">·</span> <a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="GitHub, opens in a new tab">GitHub</a></footer>
 
     <script type="module" src="./index.js"></script>
   </body>
