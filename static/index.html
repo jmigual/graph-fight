@@ -161,10 +161,11 @@
             </div>
             <fieldset class="segmented">
               <legend>Place</legend>
-              <label><input type="radio" name="place" id="place-team-1" value="0" checked> Team 1 player</label>
-              <label><input type="radio" name="place" id="place-team-2" value="1"> Team 2 player</label>
+              <label><input type="radio" name="place" id="place-player" value="player" checked> Player</label>
               <label><input type="radio" name="place" id="place-obstacle" value="obstacle"> Obstacle</label>
             </fieldset>
+            <label class="field"><span>Team <span id="test-swatch" class="swatch" aria-hidden="true">1</span></span>
+              <select id="test-team"></select></label>
             <label class="field"><span>Obstacle radius <output id="obstacle-size-value">1.0</output></span>
               <input id="obstacle-size" type="range" min="0.2" max="2" step="0.1" value="1"></label>
             <p id="test-error" class="error" role="alert"></p>

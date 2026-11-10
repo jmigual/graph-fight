@@ -2,6 +2,7 @@
 // obstacles are placed by hand and any player fires; nothing is permanent and nothing is sent.
 import { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
 import type { Point, TrialShot } from "../pkg/index.js";
+import { MAX_PLAYERS } from "./net";
 import type { Field, Frame } from "./net";
 import { sliderError } from "./editor";
 import { describeTrial, draw, lookAfterShot, lookKey, pickAt, playerName, toWorld } from "./render";
@@ -31,7 +32,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     let field: Field = "xy";
     let frame: Frame = "map";
     /** Players by team in the engine's order, so `teams[t][i]` is `[t, i]` in a shot's hits and in `lookKey`. */
-    let teams: Point[][] = [[], []];
+    let teams: Point[][] = [];
     let obstacles: Disc[] = [];
     /** What Delete removes; choosing a player also makes it the shooter, which an obstacle's selection keeps. */
     let selected: Pick | null = null;
@@ -44,6 +45,8 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     let hits: View["hits"];
     let view: View | undefined;
 
+    /** As many teams as a game on this field can have: 2 on XY, `MAX_PLAYERS` on the disc (ADR 5, 15). */
+    const teamCount = () => (field === "xy" ? 2 : MAX_PLAYERS);
     const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
     const clockwise = () => field === "disc" && $<HTMLInputElement>("dir-cw").checked;
 
@@ -152,7 +155,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
             if (commit(teams, [...obstacles, { ...p, r: $<HTMLInputElement>("obstacle-size").valueAsNumber }], "Can't place an obstacle there.")) render();
             return;
         }
-        const team = Number(tool);
+        const team = Number($<HTMLSelectElement>("test-team").value);
         const next = teams.map((spots, t) => (t === team ? [...spots, p] : spots));
         if (!commit(next, obstacles, "Can't place a player there.")) return;
         if (!shooter) select({ player: [team, next[team].length - 1] });
@@ -218,9 +221,30 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         $("direction").hidden = field !== "disc";
         editor.refresh(field, parametric());
         selected = shooter = null;
-        commit([[], []], []);
+        // The team list follows the field; a team the field has stays chosen.
+        const choice = $<HTMLSelectElement>("test-team");
+        const team = Math.min(Number(choice.value) || 0, teamCount() - 1);
+        choice.replaceChildren(
+            ...Array.from({ length: teamCount() }, (_, t) => {
+                const option = document.createElement("option");
+                option.value = String(t);
+                option.textContent = `Team ${t + 1}`;
+                return option;
+            }),
+        );
+        choice.value = String(team);
+        showTeam();
+        commit(Array.from({ length: teamCount() }, () => []), []);
         render();
     }
+    /** The swatch beside the team list: the team's number on its colour, as on the board (ADR 17). */
+    function showTeam() {
+        const t = Number($<HTMLSelectElement>("test-team").value);
+        const swatch = $("test-swatch");
+        swatch.textContent = String(t + 1);
+        swatch.style.setProperty("--team", `var(--team-${t + 1})`);
+    }
+    $("test-team").onchange = showTeam;
     $("test-field").onchange = reset;
     $("test-frame").onchange = () => {
         frame = $<HTMLSelectElement>("test-frame").value === "player" ? "player" : "map";

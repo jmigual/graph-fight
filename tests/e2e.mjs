@@ -1423,8 +1423,9 @@ const scenarios = {
         };
 
         // The first player placed shoots; y = 0 runs into the other one, and the same shot hits again.
+        assert.equal(await page.locator("#test-team option").count(), 2, "XY has two teams");
         await click(-8, 0);
-        await page.check("#place-team-2");
+        await page.selectOption("#test-team", "1");
         await click(5, 0);
         await fire(["0"], /^Team 1 player 1 fired y = 0\. It hit Team 2 player 1\.$/);
         await fire(["0"], /It hit Team 2 player 1\.$/);
@@ -1435,7 +1436,8 @@ const scenarios = {
         await click(0, 0);
         await fire(["0"], /It hit no player\. It stopped in obstacle 1\.$/);
         // A player must be fully inside the field.
-        await page.check("#place-team-1");
+        await page.check("#place-player");
+        await page.selectOption("#test-team", "0");
         await click(19.95, 0);
         await page.waitForFunction(() => /^Can't place a player there\. A player must be fully inside the field\.$/.test(document.getElementById("test-error").textContent));
         assert.equal(await page.locator("#test-items li").count(), 3);
@@ -1460,10 +1462,11 @@ const scenarios = {
         await fire(["3*x/13"], /^Team 2 player 1 fired y = 3\*x\/13\. It hit Team 1 player 1\.$/);
         await page.selectOption("#test-field", "disc");
         assert.equal(await page.locator("#test-items li").count(), 0, "another field starts over");
+        assert.equal(await page.locator("#test-team option").count(), 8, "the disc has up to eight teams");
         await click(8, 0, [10, 10]);
-        await page.check("#place-team-2");
+        await page.selectOption("#test-team", "4");
         await click(-5, 0, [10, 10]);
-        await fire(["-t", "0"], /^Team 1 player 1 fired r = -t, θ = 0, counterclockwise\. It hit Team 2 player 1\.$/);
+        await fire(["-t", "0"], /^Team 1 player 1 fired r = -t, θ = 0, counterclockwise\. It hit Team 5 player 1\.$/);
         await page.click("#random-obstacles");
         assert.ok((await page.locator("#test-items li").count()) > 2, "random obstacles are added");
         await page.click("#test-exit");
