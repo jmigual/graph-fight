@@ -39,12 +39,14 @@ pub enum Level {
 }
 
 impl Level {
-    /// Candidates simulated per shot, and the aim noise as a fraction of each slider's span.
-    fn search(self) -> (usize, f64) {
-        match self {
-            Level::Easy => (20, 0.03),
-            Level::Medium => (100, 0.004),
-            Level::Hard => (400, 0.0003),
+    /// Candidates simulated per shot on `field`, and the aim noise as a fraction of each slider's
+    /// span. Easy searches longer and aims better on XY, where hits are rarer than on the disc.
+    fn search(self, field: Field) -> (usize, f64) {
+        match (self, field) {
+            (Level::Easy, Field::Xy) => (40, 0.007),
+            (Level::Easy, Field::Disc) => (20, 0.03),
+            (Level::Medium, _) => (100, 0.004),
+            (Level::Hard, _) => (400, 0.0003),
         }
     }
 }
@@ -251,7 +253,7 @@ impl Bot {
 
 impl Bot {
     fn with_rng(game: &Game, level: Level, starters: Vec<Starter>, rng: SmallRng) -> Bot {
-        let (candidates, noise) = level.search();
+        let (candidates, noise) = level.search(game.arena().field());
         Bot {
             rng,
             game: game.clone(),
