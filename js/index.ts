@@ -7,6 +7,7 @@ import { BUILD_ID, BUILD_VERSION, DEFAULT_K, inviteFragment, isHostRun, isLocal,
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initArena } from "./arena";
 import { initEditor, sliderError } from "./editor";
+import "./help";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";

@@ -18,6 +18,10 @@
   <body>
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
 
+    <header class="site-bar">
+      <button id="help-open" type="button" class="secondary" aria-haspopup="dialog">Help</button>
+    </header>
+
     <main>
       <section id="lobby">
         <header class="masthead">
@@ -301,6 +305,95 @@
       </section>
     </main>
     <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a> <span aria-hidden="true">·</span> <a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="GitHub, opens in a new tab">GitHub</a></footer>
+
+    <!-- In-app help (ADR 26): a modal dialog opened by #help-open or by a #help-… link. Every section has an id. -->
+    <dialog id="help" aria-labelledby="help-title">
+      <div class="help-head">
+        <h2 id="help-title">Help</h2>
+        <form method="dialog"><button id="help-close" class="primary">Close</button></form>
+      </div>
+      <nav aria-label="Help topics">
+        <ul>
+          <li><a href="#help-play">How to play</a></li>
+          <li><a href="#help-formulas">Writing formulas</a></li>
+          <li><a href="#help-reconnect">Reconnecting and versions</a></li>
+        </ul>
+      </nav>
+
+      <section id="help-play">
+        <h3>How to play</h3>
+        <p>Each player controls a team of 3 characters. You aim by writing a formula; your shot follows its curve and kills every character it touches. The last team with a character standing wins.</p>
+        <h4 id="help-turns">Turns and the timer</h4>
+        <ul>
+          <li>Teams take turns in team order. Within a team the characters take turns too: after a team shoots, its next living character is up the next time it is the team's turn.</li>
+          <li>The status bar says whose turn it is ("Your turn", "Team 2 is aiming"), and the tab title starts with "Your turn" when it is yours. You can type while you wait; only Fire is disabled.</li>
+          <li>A turn lasts 60 seconds. The bar under the status drains and the number turns red under 10 s. When it reaches 0 the host skips the turn and nobody shoots. The timer keeps running while this help is open.</li>
+          <li>Fire checks your formula first. A formula that cannot be used shows an error under the boxes and does not cost the turn.</li>
+        </ul>
+        <h4 id="help-teams">Teams and the field</h4>
+        <ul>
+          <li>The XY plane has 2 teams: Team 1 on the left half, Team 2 on the right. The polar disc has 2 to 8 teams, each in its own sector of the disc.</li>
+          <li>A team is told apart by its number, its cap colour and its face, never by colour alone. The roster lists the teams and how many characters each has left.</li>
+        </ul>
+        <h4 id="help-kills">What kills, and what stops a shot</h4>
+        <ul>
+          <li>A shot kills every character whose head it touches, teammates included. It never kills the character that fired it, and it flies on through the characters it kills.</li>
+          <li>Obstacles are the shaded circles. A shot that enters one stops there and leaves a crater, drawn as a hole. Later shots pass through a crater as if the obstacle were not there.</li>
+          <li>A shot also ends at the edge of the field, where the formula stops being a number (for example <code>sqrt</code> of a negative, or a division by zero), and at a jump in the curve (for example <code>floor(x)</code>).</li>
+        </ul>
+        <h4 id="help-end">How a game ends</h4>
+        <ul>
+          <li>When only one team has characters left, it wins: "You win." or "Team 2 wins.". If the last characters die together, the game is a draw.</li>
+          <li>Leave game (it asks first) takes your team out of the game. If the host leaves, the game ends for everyone. Back to lobby appears when it is over.</li>
+        </ul>
+        <h4 id="help-host-join">Hosting and joining</h4>
+        <ul>
+          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players, or polar disc with 2 to 8), the coordinates (see Coordinates) and, for the disc, the seats.</li>
+          <li>The host waits in the waiting room and presses Start, which needs at least 2 players. If more people join than there are seats, the first to join play.</li>
+          <li>There is no game server. Players connect directly to each other, and only formulas and control messages are sent. Public Nostr relays are used to find open games.</li>
+        </ul>
+      </section>
+
+      <section id="help-formulas">
+        <h3>Writing formulas</h3>
+        <h4 id="help-variables">The variable</h4>
+        <ul>
+          <li>XY plane, <code>y = f(x)</code>: the variable is <code>x</code>.</li>
+          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. <code>theta</code> works too, for keyboards without θ.</li>
+          <li>Parametric, on either field: the variable is <code>t</code> in both boxes, <code>x(t)</code> and <code>y(t)</code> or <code>r(t)</code> and <code>θ(t)</code>.</li>
+          <li>Any other name is an error ("Unknown name 'y'"); <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
+        </ul>
+        <h4 id="help-constants">Constants and functions</h4>
+        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Type <code>pi</code>, not π: the π button inserts it for you.</p>
+        <p>Functions, always with parentheses, as in <code>sin(x)</code>; angles are in radians and <code>ln</code> is the natural logarithm:</p>
+        <p id="help-functions"><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> <code>sinh</code> <code>cosh</code> <code>tanh</code> <code>sqrt</code> <code>abs</code> <code>exp</code> <code>ln</code> <code>log10</code> <code>floor</code> <code>ceil</code></p>
+        <h4 id="help-operators">Operators and precedence</h4>
+        <p>The operators are <code>+ - * / ^</code> and parentheses; spaces are ignored. From the tightest binding to the loosest:</p>
+        <ol>
+          <li>Parentheses and function calls.</li>
+          <li><code>^</code>, which groups from the right and takes a signed exponent: <code>2^3^2</code> is <code>2^9</code>, and <code>2^-1</code> is 0.5.</li>
+          <li>Unary minus: <code>-x^2</code> is <code>-(x^2)</code>, and <code>(-x)^2</code> is the square of <code>-x</code>.</li>
+          <li><code>*</code> and <code>/</code>, from the left.</li>
+          <li><code>+</code> and <code>-</code>, from the left.</li>
+        </ol>
+        <h4 id="help-no-implicit">No implicit multiplication</h4>
+        <p>Write every product with <code>*</code>: <code>2*x</code>, not <code>2x</code>, and <code>2*(x+1)</code>, not <code>2(x+1)</code>. Numbers are digits with an optional point (<code>.5</code> is fine); write <code>1000</code>, not <code>1e3</code>.</p>
+        <h4 id="help-length">Length</h4>
+        <p>A formula has at most <strong id="help-max-len">256</strong> characters. The boxes stop accepting more, and a template whose values make it longer is not inserted.</p>
+        <h4 id="help-undefined">Undefined at the shooter</h4>
+        <p>A shot starts at the shooter, so the formula must be a finite number at its starting point. If it is not, Fire says "The formula is undefined at the shooter" and the turn is kept. Where the starting point is depends on the coordinates (see Coordinates). For example, on a map-centred XY game <code>ln(x)</code> can be fired from the right half but not from the left half, where <code>x</code> is negative.</p>
+      </section>
+
+      <section id="help-reconnect">
+        <h3>Reconnecting and versions</h3>
+        <ul>
+          <li>Reloading the page or losing the connection does not cost your seat. The page rejoins the game and the host replays it to you ("Rejoining…"). Your seat is kept in this tab, so use the same tab. Meanwhile the timer skips your turns.</li>
+          <li>If your link to the host stays down, the page leaves and rejoins the game room by itself, and gives up with "Host unreachable." after 3 minutes.</li>
+          <li>Closing the tab looks the same as a dropped connection, so your team stays in until the game ends. Use Leave game to leave.</li>
+          <li>All players must run the same build of the game. A game from another build is listed as "Different version. Reload the page.", and a game that finds a different build ends with "Different version.": reload the page, then join again.</li>
+        </ul>
+      </section>
+    </dialog>
 
     <script type="module" src="./index.js"></script>
   </body>

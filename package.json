@@ -5,7 +5,7 @@
     "build:wasm": "wasm-pack build --target web --out-name index",
     "build": "npm run build:wasm && tsc --noEmit -p . && node scripts/build.mjs",
     "start": "npm run build:wasm && node scripts/build.mjs --serve",
-    "test": "cargo test && node --experimental-strip-types --no-warnings tests/net.test.mjs && node --experimental-strip-types --no-warnings tests/teams.test.mjs && node --experimental-strip-types --no-warnings tests/build.test.mjs && node --experimental-strip-types --no-warnings tests/changelog.test.mjs && node --experimental-strip-types --no-warnings tests/version.test.mjs && node --experimental-strip-types --no-warnings tests/library.test.mjs && node --experimental-strip-types --no-warnings tests/render.test.mjs",
+    "test": "cargo test && node --experimental-strip-types --no-warnings tests/net.test.mjs && node --experimental-strip-types --no-warnings tests/teams.test.mjs && node --experimental-strip-types --no-warnings tests/build.test.mjs && node --experimental-strip-types --no-warnings tests/changelog.test.mjs && node --experimental-strip-types --no-warnings tests/version.test.mjs && node --experimental-strip-types --no-warnings tests/library.test.mjs && node --experimental-strip-types --no-warnings tests/render.test.mjs && node --experimental-strip-types --no-warnings tests/help.test.mjs",
     "e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
