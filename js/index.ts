@@ -19,8 +19,8 @@ const PLAYER_RADIUS = 0.3;
 const BOT_LEVELS = { easy: Level.Easy, medium: Level.Medium, hard: Level.Hard };
 /** The templates bots search: the starters (ADR 17, section 8), checked like a saved list. */
 const BOT_TEMPLATES = starters.flatMap((s) => parseItem(s) ?? []);
-/** Candidates a bot simulates before yielding to the page: a few milliseconds on a desktop (ADR 21). */
-const BOT_CHUNK = 4;
+/** How long a bot searches before it yields to the page (ADR 21). */
+const BOT_SLICE_MS = 10;
 /** A bot fires no sooner than this after its turn starts, so the others can follow the game. */
 const BOT_MIN_MS = 1500;
 // Arena constants are compiled into the bundle, so they never travel (ADR 8, 15).
@@ -301,9 +301,9 @@ function acceptShot(from: string, shot: Shot) {
 }
 
 /**
- * Host: if the current team is a bot's, searches its shot on the bot's own copy of the game, a
- * chunk at a time, and sends it like a remote request once `BOT_MIN_MS` have passed since the turn
- * started. It gives up when the game or the turn moves on meanwhile (ADR 21).
+ * Host: if the current team is a bot's, searches its shot on the bot's own copy of the game in
+ * `BOT_SLICE_MS` slices, and sends it like a remote request once `BOT_MIN_MS` have passed since the
+ * turn started. It gives up when the game or the turn moves on meanwhile (ADR 21).
  */
 async function playBot(p: Play) {
     const id = p.peers[p.sim.get_current_team_idx()];
@@ -315,15 +315,31 @@ async function playBot(p: Play) {
     const bot = new Bot(p.sim, BOT_LEVELS[level], BOT_TEMPLATES);
     try {
         let shot: BotShot | undefined;
-        while (!(shot = bot.think(BOT_CHUNK))) {
-            await new Promise((ok) => setTimeout(ok));
+        while (!shot) {
             if (!live()) return;
+            const until = performance.now() + BOT_SLICE_MS;
+            do {
+                shot = bot.think(1);
+            } while (!shot && performance.now() < until);
+            if (!shot) await yieldToPage();
         }
         await new Promise((ok) => setTimeout(ok, due - Date.now()));
         if (live()) acceptShot(id, { type: "shot", turn, exprs: shot.exprs as Shot["exprs"], cw: shot.cw });
     } finally {
         bot.free();
     }
+}
+
+/** Lets the page handle its events. A message, unlike a timer, is not throttled in a hidden tab. */
+function yieldToPage() {
+    return new Promise<void>((ok) => {
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = () => {
+            port1.close();
+            ok();
+        };
+        port2.postMessage(null);
+    });
 }
 
 /** The host owns the turn clock (ADR 12); everyone shows a countdown from the same event. */
