@@ -19,11 +19,12 @@ compatibility check.
   and nothing else; `code` spans are the only inline markup. The top entry is the current release.
   `package.json` has no `version` field (nothing reads it; `Cargo.toml`'s is unused too), so there
   is no second copy to keep in sync.
-- `scripts/changelog.mjs` parses that format (no Markdown dependency) and throws on anything else,
-  (`ChangelogError`), on versions that do not strictly descend, on invalid dates, on versions with
+- `scripts/changelog.mjs` parses that format (no Markdown dependency) and throws a `ChangelogError` on anything
+  else, on versions that do not strictly descend, on invalid dates, on versions with
   leading zeros and on an entry without notes; it accepts CRLF and a BOM. `scripts/build.mjs` runs
-  it and writes `dist/changelog.html`: one `<section>` per version under a `Changelog` heading,
-  with a "Back to the game" link, styled by `static/style.css` and its ADR 17 tokens in light and
+  it and writes `dist/changelog.html`: one `<section>` per version under a `Changelog` heading
+  (without `aria-labelledby`, so a long history is not a long list of region landmarks; the `h2`
+  headings give the structure), with a "Back to the game" link, styled by `static/style.css` and its ADR 17 tokens in light and
   dark.
 - `scripts/version.mjs` computes two esbuild defines:
   - `__BUILD_ID__`, the exact id peers compare (lobby listings, `start`, invite links, the stored
