@@ -36,7 +36,7 @@
         <div class="lobby-grid">
           <section aria-labelledby="open-games">
             <h2 id="open-games">Open games</h2>
-            <p id="no-games" class="hint">No open games yet. Host one, then ask a friend to open this page.</p>
+            <p id="no-games" class="hint">No open games yet. Host one and send a friend this page, or host one and add a bot to play alone.</p>
             <table id="games-table" hidden>
               <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
               <tbody id="games"></tbody>
@@ -67,11 +67,12 @@
                 </select>
               </label>
               <label class="field"><span>Coordinates</span>
-                <select id="host-frame">
+                <select id="host-frame" aria-describedby="frame-hint">
                   <option value="map">Map-centred (like Graphwar)</option>
                   <option value="player">Player-centred</option>
                 </select>
               </label>
+              <p id="frame-hint" class="hint">Map-centred: x and y are the map's, as in Graphwar. Player-centred: they start at your player.</p>
               <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
               <label class="field"><span>Visibility</span>
                 <select id="host-visibility">

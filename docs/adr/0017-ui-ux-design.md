@@ -26,7 +26,9 @@ Amended by 0029: the lobby has an About section `#about` below the host form, wi
 and a GitHub link, and the footer links the repository too.
 Amended by 0026: a header above the screens holds the Help button.
 Amended 2026-11-10 (UI audit): each screen is a centred block, and the game is as wide as its board
-needs, so the board grows with a wide window (sections 4 and 6).
+needs, so the board grows with a wide window (sections 4 and 6). The empty lobby also offers a bot
+to play alone, in a dashed outline, and a hint under "Coordinates" says what each frame means
+(sections 4 and 6).
 
 ## Context
 
@@ -238,7 +240,9 @@ scales with length up to 1400 ms. During the animation the grid stays in the sho
 
 Settled with ADR 20 (`js/render.ts`, `js/index.ts`): the host picks the shot frame. The host form
 has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
-`map`) and "Player-centred" (`player`). The lobby's Field cell adds it ("XY plane, map-centred",
+`map`) and "Player-centred" (`player`), with the hint `#frame-hint` under it (named by its
+`aria-describedby`): "Map-centred: x and y are the map's, as in Graphwar. Player-centred: they
+start at your player." The lobby's Field cell adds it ("XY plane, map-centred",
 short "XY, map") and so does the waiting room's info line ("Polar disc, player-centred, 3 seats").
 In the player-centred frame the board is as described above and in section 7. In the
 map-centred frame shots are in map coordinates on both fields, so the graph paper does not
@@ -307,8 +311,9 @@ No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas
 `overflow-wrap: anywhere`.
 
 **Lobby.** Open games come first because joining a friend's game is the common case. The list
-stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one, then ask
-a friend to open this page." Field names shown to users: "XY plane" and "Polar disc"; the option
+stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one and send a
+friend this page, or host one and add a bot to play alone." in a dashed `--grid-major` outline
+that marks where games will appear (no fill, no shadow: not a card). Field names shown to users: "XY plane" and "Polar disc"; the option
 values stay `xy`/`disc`. Players are shown as "2 of 4". A full game's button reads "Full"
 (disabled). A game on another build has no button and reads "Different version. Reload the page."
 Host form: "Game name", "Field" (select: "XY plane, 2 players" / "Polar disc, 2 to 8 players"),

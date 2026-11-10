@@ -200,6 +200,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* One edge for the form's fields, in one column as in two. */
 #host-form { max-width: 32rem; }
 #host-form .field { max-width: none; }
+#frame-hint { margin: -0.75rem 0 1rem; font-size: 0.8rem; }
+/* Marks where games will appear; an outline in the graph paper's colour, not a card. */
+#no-games { max-width: none; padding: 1.5rem; border: 1px dashed var(--grid-major); border-radius: 4px; }
 
 /* About, below the lobby so returning players need no extra scrolling (ADR 29). */
 #about { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--grid-major); }
