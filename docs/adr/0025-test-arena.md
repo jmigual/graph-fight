@@ -48,27 +48,34 @@ turn (ADR 4, 14), so neither fits a sandbox.
 - **Client.** `js/arena.ts` runs the mode; `js/index.ts` only calls `initArena(editor, show, ARENAS,
   PLAYER_RADIUS)` and asks it to redraw when no game is on. The arena reuses the game section:
   `#game[data-mode=test]` hides the status bar, the out note and the roster and shows `.test-only`
-  parts. The editor (helper buttons, saved formulas, templates, modes, the disc's direction) is the
+  parts; opening the arena shows `#shot-form`, which a game we were out of left hidden. The editor (helper buttons, saved formulas, templates, modes, the disc's direction) is the
   game's; `editor.refresh` now also sets the input labels, so both screens use it. The arena never
   calls `lobby.announce` or `joinGame`, and `window.__state()` stays `null`.
 - **Setup.** `#test-field` and `#test-frame`, as in the host form. Opening the arena or changing the
   field starts over with an empty board (XY or the disc, map-centred by default); changing the frame
-  keeps the setup. The arena constants are the game's (ADR 15). The UI offers two teams; the
-  engine takes up to eight.
-- **Placing and moving.** "Place" chooses Team 1 player, Team 2 player or Obstacle, with an
-  obstacle radius slider (0.2 to 2, step 0.1). A click or tap on an empty spot places; every change
-  rebuilds the game with `Game.sandbox`, so the engine is the only judge of a valid spot. A refusal
-  changes nothing and `#test-error` (`role="alert"`) says "Can't place a player there. A player must
-  be fully inside the field." with the engine's reason. A press within 10 CSS px of an edge is on
-  that player or obstacle, so small faces can be tapped; players win over obstacles. Dragging a
-  player (from 4 px) moves it through valid spots only; letting go on an invalid spot says why. In
-  test mode the board has `touch-action: none`, so a drag moves a player instead of the page.
-  "Random obstacles" replaces all obstacles with the field's game count and sizes; "Clear
-  obstacles" removes them.
+  keeps the setup. The arena constants are the game's (ADR 15). The teams are a game's: 2 on XY
+  and up to `MAX_PLAYERS` (8) on the disc, in their ADR 17 colours and faces.
+- **Placing and moving.** "Place" chooses Player or Obstacle; "Team" (`#test-team`, with a swatch
+  in the team's colour and number) picks the player's team, and a slider the obstacle radius (0.2
+  to 2, step 0.1). A click or tap on an empty spot places; every change rebuilds the game with
+  `Game.sandbox`, so the engine is the only judge of a valid spot. A refusal changes nothing and
+  `#test-error` (`role="alert"`) says "Can't place a player there. A player must be fully inside
+  the field." with the engine's reason. A press within 10 CSS px of an edge is on that player or
+  obstacle, so small faces can be tapped; players win over obstacles. A press follows one pointer
+  (its id); once it moves 4 px (10 px for a finger) it is a drag or a swipe and never places or
+  selects. Dragging a player moves it through valid spots only and selects it; letting go on an
+  invalid spot says why. In test mode the board has `touch-action: none`, so a drag moves a player
+  instead of the page. "Random obstacles" replaces all obstacles with the field's game count and
+  sizes; "Clear obstacles" removes them.
+- **Position.** Number fields `x` and `y` in a "Position" group place what Place chooses ("Place at
+  x, y", or Enter) and move the selection ("Move selected to x, y"), through the same engine check
+  and `#test-error`. They are the keyboard's way to place and move, and the way to exact spots. They
+  show the selection's position after a click, a list choice or a drag, unless they are being
+  edited.
 - **Selecting and removing.** A click on a player makes it the shooter (black ring, grid origin in
   the player frame, the `x` or `θ₀` marks of our turn) and selects it; a click on an obstacle selects
-  it and keeps the shooter. A drag does not change the shooter. A player placed while there is no
-  shooter becomes it. "On the board" (`#test-items`) lists one button per player and obstacle
+  it and keeps the shooter. A drag selects but does not change the shooter. A player placed while
+  there is no shooter becomes it. "On the board" (`#test-items`) lists one button per player and obstacle
   ("Team 1 player 1 at (-8.0, 0.0), shooter", "Obstacle 1, radius 1.0, at (0.0, 0.0)"),
   `aria-pressed` on the selection: it is the keyboard's way to select. Delete or Backspace on a row
   removes that item and keeps the focus in the list; "Remove selected" and Delete or Backspace
@@ -87,19 +94,23 @@ turn (ADR 4, 14), so neither fits a sandbox.
   label. Every setup change (place, move, remove, obstacles, frame) and "Clear paths" clear them all,
   since a path drawn for another setup would mislead.
 - **Selectors** for the e2e test: `#test-open`, `#test-exit`, `#test-field`, `#test-frame`,
-  `#place-team-1`, `#place-team-2`, `#place-obstacle`, `#obstacle-size`, `#random-obstacles`,
-  `#clear-obstacles`, `#clear-paths`, `#remove-selected`, `#test-items` (one `li` per item),
-  `#test-error`, and the game's `#arena`, `#fire`, `#input-a`, `#input-b`, `#error`, `#last-shot`.
-  Scenario AI also requires that no lobby event, game-room subscription or WebRTC connection is made.
+  `#place-player`, `#place-obstacle`, `#test-team` (values `0` to `7`), `#obstacle-size`, `#test-x`,
+  `#test-y`, `#test-move`, `#random-obstacles`, `#clear-obstacles`, `#clear-paths`,
+  `#remove-selected`, `#test-items` (one `li` per item), `#test-error`, and the game's `#arena`,
+  `#fire`, `#input-a`, `#input-b`, `#error`, `#last-shot`. Scenario AI also requires that no lobby
+  event, game-room subscription or WebRTC connection is made, and that the lobby's own
+  subscription was seen.
 
 ## Consequences
 
-- ADR 17, section 9 (no preview) still holds for games. The arena previews nothing either: trying a
-  formula means firing it, on a board the player set up.
+- ADR 17, section 9 rejected a preview because trial and error within the turn would replace
+  turning a picture into a formula. The arena previews nothing, but it is trial and error: during a
+  live game a player can open it in a second tab, set up the board and try shots before firing for
+  real. The user asked for the arena knowing this; ADR 17 section 9 already noted that a
+  determined player could compute outcomes, so it was never a security measure.
 - The `Game` surface grows by four methods, five `GameError` variants and one `FireError` variant
   that only the arena uses. `Arena::from_parts` and `Team::from_positions` are no longer test-only.
-- Placing and moving are pointer only; the keyboard can select and remove but not place. A setup is
-  not saved and lasts until the arena is left.
+- A setup is not saved and lasts until the arena is left.
 - A player exactly at the disc centre has no direction toward the centre. In the player frame the
   engine then faces it along `+x` (`trace` in `src/game/shot.rs`), which is how the board already
   draws it (`ahead` in `js/render.ts`). Only the arena can put a player there: a game places disc

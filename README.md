@@ -48,7 +48,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 
 <table>
   <tr>
-    <td align="center"><img src="docs/img/lobby.png" alt="Lobby with an open game"><br>Lobby: open games found on the Nostr relays; the padlock marks a game that needs a password.</td>
+    <td align="center"><img src="docs/img/lobby.png" alt="Lobby with an open game"><br>Lobby: open games found on the Nostr relays; the padlock marks a game that needs a password, and Test arena opens the offline sandbox.</td>
     <td align="center"><img src="docs/img/game-xy.png" alt="XY game"><br>XY field: the last shot, the roster and the formula editor with its helper buttons.</td>
   </tr>
   <tr>
