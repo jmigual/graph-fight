@@ -1,7 +1,7 @@
 //! Bot players (ADR 21): a search over the starter templates, simulated on a copy of the game.
 //!
-//! A bot draws from its own generator, seeded from the operating system. The game's seed never
-//! reaches it, and the search fires only on the bot's copy, so the live game and every peer stay
+//! A bot draws from its own generator, seeded from `rand`'s thread generator (ChaCha, which
+//! `getrandom` seeds from the system). The game's seed never reaches it, and the search fires only on the bot's copy, so the live game and every peer stay
 //! in lockstep (ADR 2). The host sends the chosen formulas like a human's.
 
 // tsify 0.5 deprecates `into_wasm_abi` and `from_wasm_abi` (they panic or throw on a failed
@@ -230,7 +230,7 @@ pub struct Bot {
 impl Bot {
     /// Starts a search for the current team of `game`, at `level`, over `starters`: the client's
     /// `js/starters.json`, so the client and the bot share one list. The bot copies the game and
-    /// seeds its generator from the operating system, never from the game.
+    /// seeds its generator from `rand`'s thread generator, never from the game.
     #[wasm_bindgen(constructor)]
     pub fn new(game: &Game, level: Level, starters: Vec<Starter>) -> Bot {
         Bot::with_rng(game, level, starters, rand::make_rng())
