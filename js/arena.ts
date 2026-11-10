@@ -212,7 +212,12 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         press = null;
         if (!active) return;
         if (far(p, e)) {
-            if (p.refused && p.pick && "player" in p.pick) move(p.pick.player, worldAt(e), "Can't move it there.");
+            // The last move was refused: try the spot let go on, which may be valid, and say why if not.
+            if (p.refused && p.pick && "player" in p.pick && move(p.pick.player, worldAt(e), "Can't move it there.")) {
+                selected = p.pick;
+                showPosition();
+                render();
+            }
         } else if (p.pick) select(p.pick);
         else place(worldAt(e));
     });
