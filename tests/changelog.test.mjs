@@ -49,6 +49,12 @@ assert.ok(html.indexOf("0.10.1") < html.indexOf("0.3.0"), "newest first");
 assert.ok(html.includes("<code>code</code>"));
 assert.ok(html.includes("&lt;b&gt;feature&lt;/b&gt;") && !html.includes("<b>"), "notes are escaped");
 assert.ok(html.includes('<a href="./">Back to the game</a>'));
+// Same icon links as static/index.html; the files are copied next to dist/changelog.html.
+for (const link of [
+    '<link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32">',
+    '<link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">',
+    '<link rel="apple-touch-icon" href="./apple-touch-icon.png">',
+]) assert.ok(html.includes(link), link);
 
 // The real file follows the format and still lists the releases so far.
 const real = parseChangelog(readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8"));
