@@ -1648,6 +1648,31 @@ const scenarios = {
         assert.equal(await game.pages[0].isVisible("#about"), false, "hidden in a game");
         return [...errors, ...game.errors];
     },
+    async AM() {
+        // Layout (ADR 17, section 6): each screen is a centred block, the board grows with a wide
+        // window, and nothing scrolls sideways on a phone.
+        const box = (page, sel) =>
+            page.evaluate((s) => {
+                const r = document.querySelector(s).getBoundingClientRect();
+                const { clientWidth, scrollWidth } = document.documentElement;
+                return { left: r.left, right: clientWidth - r.right, width: r.width, sideways: scrollWidth > clientWidth };
+            }, sel);
+        const assertCentred = ({ left, right }, what) => assert.ok(Math.abs(left - right) <= 4, `${what} is centred (${left}, ${right})`);
+        const lobby = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
+        await lobby.goto(url);
+        assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
+        await lobby.setViewportSize({ width: 360, height: 800 });
+        assert.equal((await box(lobby, "#lobby")).sideways, false, "the lobby does not scroll sideways at 360 px");
+        const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
+        const [host] = pages;
+        await host.setViewportSize({ width: 1920, height: 1080 });
+        assertCentred(await box(host, "#game"), "the game at 1920 px");
+        const board = await box(host, "#arena");
+        assert.ok(board.width > 1000, `the board grows with the window (${board.width} px)`);
+        await host.setViewportSize({ width: 360, height: 800 });
+        assert.equal((await box(host, "#game")).sideways, false, "the game does not scroll sideways at 360 px");
+        return errors;
+    },
 };
 
 let failed = 0;

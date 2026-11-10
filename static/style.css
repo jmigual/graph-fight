@@ -27,7 +27,15 @@
     --font-math: "STIX Two Text", "Cambria Math", "Times New Roman", serif;
     --gutter: 16px;
     --control-h: 36px;
+    --page: 72rem;           /* lobby measure */
+    --side: 24rem;           /* game side column */
+    --chrome: 7rem;          /* vertical space above and below the board */
+    --ratio: 2;              /* board aspect: 2 on XY, 1 on the disc */
+    /* The game's width at which the board, sized by the viewport's height, exactly fills its column. */
+    --game-w: calc((100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem);
 }
+
+:root:has(#game[data-field=disc]) { --ratio: 1; }
 
 @media (prefers-color-scheme: dark) {
     :root {
@@ -58,6 +66,10 @@
     :root { --control-h: 44px; }
 }
 
+@media (min-width: 960px) and (max-width: 1279px) {
+    :root { --side: 20rem; }
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 [hidden] { display: none !important; }
@@ -71,12 +83,14 @@ body {
 
 .site-bar { display: flex; justify-content: flex-end; padding: 0.5rem var(--gutter) 0; }
 
-main {
-    max-width: 80rem;
-    padding: 1rem var(--gutter) 3rem;
-}
+main { padding: 1rem var(--gutter) 3rem; }
 
-footer { padding: 0 var(--gutter) 1rem; color: var(--ink-soft); font-size: 0.8rem; overflow-wrap: anywhere; }
+/* Each screen is a centred block; text inside it stays left-aligned. */
+#lobby { max-width: var(--page); margin-inline: auto; }
+#room { max-width: 40rem; margin-inline: auto; }
+#game, #end { max-width: var(--game-w); margin-inline: auto; }
+
+footer { text-align: center; padding: 0 var(--gutter) 1rem; color: var(--ink-soft); font-size: 0.8rem; overflow-wrap: anywhere; }
 footer a { color: inherit; }
 
 a { color: var(--mark); }
@@ -278,15 +292,13 @@ dialog h2 { margin-top: 0; }
 #turn.quiet { color: var(--ink-soft); }
 
 #arena {
-    --ratio: 2;
     display: block;
     margin: 0.5rem 0;
     aspect-ratio: var(--ratio);
-    width: min(100%, calc((100dvh - 7rem) * var(--ratio)));
+    width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)));
     height: auto;
     background: var(--paper);
 }
-#game[data-field=disc] #arena { --ratio: 1; }
 #game:not([data-field=disc]) .f-disc, #game[data-field=disc] .f-xy { display: none; }
 #last-shot { min-height: 1.5em; margin: 0; }
 
@@ -364,7 +376,7 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 @media (min-width: 960px) {
     .lobby-grid { grid-template-columns: minmax(0, 1fr) 22rem; gap: 3rem; }
     .about-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); gap: 3rem; }
-    #game { grid-template-columns: minmax(0, 1fr) 24rem; gap: 2rem; }
+    #game { grid-template-columns: minmax(0, 1fr) var(--side); gap: 2rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

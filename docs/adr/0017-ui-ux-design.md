@@ -25,6 +25,8 @@ Amended by 0025: the lobby's Test arena button, the game screen's test mode
 Amended by 0029: the lobby has an About section `#about` below the host form, with a demo video
 and a GitHub link, and the footer links the repository too.
 Amended by 0026: a header above the screens holds the Help button.
+Amended 2026-11-10 (UI audit): each screen is a centred block, and the game is as wide as its board
+needs, so the board grows with a wide window (sections 4 and 6).
 
 ## Context
 
@@ -212,8 +214,11 @@ Layering, back to front:
 are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed from `ARENAS`, and
 ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
 engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
-disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - 7rem) * var(--ratio)))`, so
-the whole board fits the viewport without distortion.
+disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)))`, so
+the whole board fits the viewport without distortion. `--ratio` and `--chrome` (7rem) are `:root`
+tokens, and so is `--game-w`, the game's width at which the height-bound board exactly fills its
+column: `(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most
+that wide, so on a wide window the board takes the rest of the width beside the side column.
 
 Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
 The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to
@@ -295,7 +300,9 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
 ### 6. Layout per screen
 
-Gutter 16 px on phones and 24 px from 600 px up. Content is left-aligned. One breakpoint at 960 px.
+Gutter 16 px on phones and 24 px from 600 px up. Each screen is a centred block, and text inside it
+is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, and the game
+and end screens `--game-w` (section 4). The footer is centred. One breakpoint at 960 px.
 No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas) get
 `overflow-wrap: anywhere`.
 
@@ -331,7 +338,8 @@ players, with "Start needs at least 2 players" next to it) and, when players out
 "More players than seats: the first 4 to join play." A guest sees "Waiting for the host to
 start." Both see **Leave**. Room errors (`Could not start`) go to `#room-error` in this section.
 
-**Game.** Desktop is a two-column grid, `minmax(0, 1fr) 24rem`. Left: status bar, board, then
+**Game.** Desktop is a two-column grid, `minmax(0, 1fr) var(--side)` (`--side` is 24rem, 20rem
+from 960 to 1279 px). Left: status bar, board, then
 the last-shot line. Right: formula editor, roster, saved formulas. On phone it is one column:
 status bar (sticky top), board, editor, roster, saved formulas.
 
