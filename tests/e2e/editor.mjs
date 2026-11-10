@@ -285,6 +285,8 @@ export const scenarios = {
         await typeAndFire("1000*theta", "1000*θ", 0);
         await typeAndFire("1000*th", "1000*th", 1);
         await typeAndFire("1000*pi*th", "1000*π*th", 2);
+        // A number before the name is a product, so no `*` is needed (ADR 32).
+        await typeAndFire("1000theta", "1000θ", 3);
         return errors;
     },
 };
