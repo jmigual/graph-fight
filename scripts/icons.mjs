@@ -1,5 +1,8 @@
-// Renders static/favicon.svg (light scheme) to the PNG icons beside it (ADR 17).
-// Run after editing the SVG: node scripts/icons.mjs
+// Renders static/favicon.svg (light scheme) to static/favicon-32.png and static/apple-touch-icon.png
+// (ADR 17). The PNGs are committed, not built: whenever favicon.svg or the light --paper colour
+// changes, run `node scripts/icons.mjs` (needs the Playwright Chromium, `npx playwright install
+// chromium`) and commit the PNGs with the change. The touch icon's background below must stay equal
+// to the light --paper in static/style.css and the SVG's light tile fill.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
