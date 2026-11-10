@@ -4,7 +4,8 @@ Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4).
 follows ADR 20 (settled in section 4). Amended by 0021: the host's waiting room has `#bot-level`
 and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the roster names a
 bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
-staying on the board and refilling the editor.
+staying on the board and refilling the editor. Amended 2026-11-10: the formula inputs turn the
+whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
 
 ## Context
 
@@ -361,14 +362,21 @@ before start), it stands alone.
   `maxlength="256"` (the parser cap; `θ` is one UTF-16 unit), `spellcheck="false"`,
   `autocapitalize="off"`, `autocorrect="off"`, `enterkeyhint="send"`, `aria-describedby="error"`.
   Enter fires (the form submits).
+  - **Typed symbols.** On `input` (not while composing), each whole identifier `theta` or `pi`
+    becomes `θ` or `π` (`autoSymbols` in `library.ts`, the same identifier rule as the slider
+    tokens), so `pix`, `theta2` and `2*pi` keep their other letters and digits. The caret keeps its
+    place in the text. `th` is not replaced, since `theta` passes through it; the parser accepts
+    it as a second alias of `θ` (ADR 3). Assigning `value` ends the browser's undo for that input.
+    Saved formulas and templates have no formula inputs of their own: Insert fills these inputs.
+    A hint under the helper buttons says so.
 - **Helper buttons**, `role="group"` with the label "Insert", placed between the inputs and the
   Save/Fire row:
   - Always visible: the mode variable (`x` on XY function, `θ` on disc function, `t` in either
     parametric mode, relabelled by `setMode`), `π`, `e`, `( )`, `^`, `√`, `sin`, `cos`, `tan`,
     `abs`, `exp`, `ln`.
   - In a `<details>` "More": `asin acos atan sinh cosh tanh log10 floor ceil`.
-  - Inserted text is what the parser accepts: `π` inserts `pi` (the parser rejects the `π`
-    character), `θ` inserts `θ`, `√` inserts `sqrt()`.
+  - Inserted text is what the parser accepts: `π` inserts `pi` (the typed-symbols rule then shows
+    it as `π`), `θ` inserts `θ`, `√` inserts `sqrt()`.
   - Target: the last focused of `#input-a`/`#input-b` (default `#input-a`).
   - Behaviour, using the native `setRangeText`. Functions, `√` and `( )`: with a selection, wrap
     it (`sin(` + selection + `)`, caret after `)`). Without one, insert `sin()` with the caret

@@ -398,14 +398,14 @@ const scenarios = {
         assert.deepEqual(await caret(), ["input-a", 4, 4], "without a selection the caret goes between the brackets");
         await input.fill("");
         await key("π").click();
-        assert.equal(await input.inputValue(), "pi");
+        assert.equal(await input.inputValue(), "π", "the π button inserts pi, which is typed as π");
         await key("√").click();
         await key("( )").click();
         await key("^").click();
-        assert.equal(await input.inputValue(), "pisqrt((^))");
+        assert.equal(await input.inputValue(), "πsqrt((^))");
         await page.locator("#helpers summary").click();
         await key("floor").click();
-        assert.equal(await input.inputValue(), "pisqrt((^floor()))");
+        assert.equal(await input.inputValue(), "πsqrt((^floor()))");
         // The variable follows the field and mode; the parametric buttons target the last focused input.
         assert.equal(await text(page, "#insert-var"), "x");
         await page.check("#mode-parametric");
@@ -855,6 +855,26 @@ const scenarios = {
         await guest.waitForFunction(() => document.getElementById("dir-ccw").checked, null, { timeout: SETUP_MS });
         await assertSynced(pages, turn);
         assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
+        return errors;
+    },
+    async X() {
+        // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
+        // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.
+        const { pages, errors } = await startGame(2, "disc", "X");
+        await assertSynced(pages, 0);
+        const typeAndFire = async (typed, shown, turn) => {
+            const page = await shooter(pages);
+            await page.check("#mode-explicit");
+            await page.fill("#input-a", "");
+            await page.locator("#input-a").pressSequentially(typed);
+            assert.equal(await page.inputValue("#input-a"), shown);
+            assert.equal(await page.locator("#input-a").evaluate((el) => el.selectionStart), shown.length, "the caret stays at the end");
+            await page.click("#fire");
+            await assertSynced(pages, turn + 1);
+        };
+        await typeAndFire("theta/2", "θ/2", 0);
+        await typeAndFire("th/2", "th/2", 1);
+        await typeAndFire("pi/4", "π/4", 2);
         return errors;
     },
 };
