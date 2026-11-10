@@ -19,8 +19,8 @@ the open games and the host form, must not have to scroll past it.
 - The video is `<video muted loop playsinline controls preload="none" poster="./demo-poster.jpg">`
   with a webm `<source>`, an `aria-label` as its name and the caption (`aria-describedby`), which
   also says that the clip opens on the lobby and the waiting room. The description beside it is the
-  text alternative. `preload="none"` keeps the 400 KB webm out of the lobby's load until someone
-  plays it or it scrolls into view; the 50 KB poster loads with the page.
+  text alternative. `preload="none"` keeps the 500 KB webm out of the lobby's load until someone
+  plays it or it scrolls into view; the 55 KB poster loads with the page.
 - `js/about.ts` (imported by `index.ts`, nothing else in it) plays the video when an
   `IntersectionObserver` reports it on screen and pauses it when it leaves. A pause the observer
   did not cause (the viewer's) stands until they press play again. With
@@ -28,26 +28,35 @@ the open games and the host form, must not have to scroll past it.
   remain. A hidden section never intersects, so nothing plays in a game.
 - `scripts/demo-video.mjs` records the clip: it serves `dist/` as e2e does, hosts a solo XY game
   against an Easy bot with the network cut (as e2e scenario S, ADR 21), types and fires two
-  formulas, and writes `static/demo.webm` and `static/demo-poster.jpg` with Playwright's
-  `recordVideo`. Run it after `npm run build` when the UI changes enough to date the clip; the
-  files are committed and copied to `dist/` with the rest of `static/`.
-- Size budget: about 8 to 15 s and well under 1 MB for the webm. The page is laid out at
-  960x540 and recorded scaled down to 480x270, which gives 13 s and about 430 KB; the poster is a
-  JPEG at quality 70 (about 46 KB). ffmpeg is not required. The 0.7.0 clip was recorded on a
-  `GRAPH_FIGHT_LOBBY=live` build, so the footer reads "v 0.7.0" rather than a `-dev+hash` id; the network
-  is cut, so the lobby topic does not matter.
+  formulas, and writes `static/demo.webm` and `static/demo-poster.jpg`. Run it after
+  `npm run build` when the UI changes enough to date the clip; the files are committed and copied
+  to `dist/` with the rest of `static/`.
+- Quality and size: the first clip was Playwright's `recordVideo` scaled down to 480x270, which is
+  blurry at the 448 CSS px the video has on a desktop (896 device px on a HiDPI screen, 984 on a
+  phone) and made the formula and status text unreadable. The recorder now renders the 960x540 page at
+  `deviceScaleFactor` 2 and takes a JPEG screenshot (quality 92) in a loop, each repeated for the
+  frames that fell due while it was taken (about 12 distinct frames a second in a 15 fps clip). It
+  pipes them into the ffmpeg that Playwright installs next to its Chromium (found from
+  `chromium.executablePath()`; the script fails with a message if it is missing) and encodes
+  1920x1080 VP9 with constant quality (`-crf 24`, `-b:v 0`, a keyframe every 10 s). That gives about
+  12 s and 480 KB, under a budget of about 1.5 MB for a lazy-loaded file; the flat board compresses
+  well, so a lower CRF buys little. The bundled ffmpeg has only the VP9, MJPEG and PNG encoders and
+  an MJPEG decoder, hence the JPEG frames. The poster is a 960x540 (CSS scale) JPEG at quality 80
+  (about 56 KB), sharp at 2x on a desktop and 3x on a phone. The 0.7.0 clip was recorded on a
+  `GRAPH_FIGHT_LOBBY=live` build, so the footer reads "v 0.7.0" rather than a `-dev+hash` id; the
+  network is cut, so the lobby topic does not matter.
 - Styles use the ADR 17 tokens only. The section is one column on a phone and two from 960 px (text
   and video); the video scales to its container, with a 16:9 box so the layout does not jump when it
   loads.
 
 ## Consequences
 
-- `dist/` grows by about 460 KB; only the poster is fetched with the page, the webm on play or
+- `dist/` grows by about 540 KB; only the poster is fetched with the page, the webm on play or
   scroll-into-view.
 - The clip shows the UI of the day it was recorded and goes stale as the UI changes; the recorder
   makes redoing it one command. The recording is not deterministic (the arena is random), so a
   re-run gives a different clip.
 - The video's first seconds show the lobby, then the waiting room, then the game: it records the
-  whole flow from page load, as nothing here trims it without ffmpeg.
+  whole flow from page load, as the recorder does not trim it.
 - e2e AL checks the section's place and visibility, the repository link and the video's poster
   and `preload`; it does not play the video.
