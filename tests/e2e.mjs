@@ -38,6 +38,26 @@ const comparable = async (page) => {
 };
 
 /**
+ * Counts `page`'s game-room subscriptions (Nostr REQs other than the lobby's) in `page.subscriptions`:
+ * joining a room sends them. Also keeps the Nostr events it publishes (lobby listings and signalling)
+ * in `page.published`, and the build version its last lobby announcement carried in `page.announced`.
+ */
+function watchFrames(page) {
+    page.subscriptions = 0;
+    page.published = [];
+    page.on("websocket", (ws) =>
+        ws.on("framesent", (f) => {
+            const frame = String(f.payload);
+            // The host's lobby announcement carries the version the lobby checks (ADR 12).
+            const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
+            if (announced) page.announced = announced[1];
+            if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
+            if (frame.startsWith('["EVENT"')) page.published.push(frame);
+        }),
+    );
+}
+
+/**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
  * `seats` is the host's seat count for the disc field (default `n`); `frame` is the shot frame,
  * `map` (default) or `player` (ADR 20), shown in the lobby and the waiting room; `fakeHostClock` and
@@ -55,20 +75,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     for (let i = 0; i < n; i++) {
         const page = await (await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] })).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
-        // Counts game-room subscriptions (Nostr REQs other than the lobby's): joining a room sends them.
-        // Also keeps the Nostr events the page publishes (lobby listings and signalling).
-        page.subscriptions = 0;
-        page.published = [];
-        page.on("websocket", (ws) =>
-            ws.on("framesent", (f) => {
-                const frame = String(f.payload);
-                // The host's lobby announcement carries the version the lobby checks (ADR 12).
-                const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
-                if (announced) page.announced = announced[1];
-                if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
-                if (frame.startsWith('["EVENT"')) page.published.push(frame);
-            }),
-        );
+        watchFrames(page);
         // Leave game asks for confirmation (ADR 17): record the message, then accept unless told to dismiss.
         page.dialogs = [];
         page.on("dialog", (d) => {
@@ -235,6 +242,20 @@ async function assertRejected(pages, turn, expr) {
 }
 
 const text = (page, sel) => page.locator(sel).innerText();
+
+/**
+ * Fast-forwards the fake clock of a page that is joining a game it cannot reach (ADR 24): after 25 s
+ * it joins the room again and keeps waiting, and 50 s later it ends.
+ */
+async function assertGivesUp(page) {
+    const before = page.subscriptions;
+    await page.clock.fastForward("00:26");
+    await page.waitForTimeout(2000); // real time for the second join to reach the relays
+    assert.ok(page.subscriptions > before, "the page joined the room again");
+    assert.equal(await page.isVisible("#end"), false, "and still waits");
+    await page.clock.fastForward("00:50");
+    await page.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+}
 
 const scenarios = {
     async A() {
@@ -1026,7 +1047,7 @@ const scenarios = {
     },
     async AB() {
         // A password game (ADR 24): listed with a lock and joined with the password. A wrong password
-        // never connects and ends after the connection timeout. A reload rejoins with the stored password.
+        // never connects; the page joins the room again once, then ends. A reload rejoins with the stored password.
         const password = "open sesame";
         const { pages, errors } = await startGame(2, "disc", "AB", {
             seats: 3,
@@ -1035,13 +1056,14 @@ const scenarios = {
             beforeStart: async ([host], name, errors) => {
                 const wrong = await (await browser.newContext()).newPage();
                 wrong.on("pageerror", (e) => errors.push(`wrong: ${e}`));
+                watchFrames(wrong);
+                await wrong.clock.install();
                 await wrong.goto(url);
                 await wrong.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
                 await wrong.fill("#join-password", `${password}!`);
                 await wrong.press("#join-password", "Enter");
-                const asked = Date.now();
-                await wrong.waitForSelector("#end:not([hidden])", { timeout: RECONNECT_MS });
-                assert.ok(Date.now() - asked >= 20_000, "the page waits for the connection timeout");
+                await wrong.waitForTimeout(3000); // real time for the signalling to meet and fail
+                await assertGivesUp(wrong);
                 assert.match(await text(wrong, "#end-message"), /wrong password/i);
                 assert.equal(await host.locator("#room-players li").count(), 2, "the wrong password never connected");
             },
@@ -1131,6 +1153,27 @@ const scenarios = {
         assert.equal(await host.evaluate(() => !!document.activeElement.closest("#roster")), true, "the focus stays in the roster");
         await assertSynced(rest, turn + 1);
         assert.equal(JSON.parse(await state(host)).shot?.team, 3, "the bot fired");
+        return errors;
+    },
+    async AF() {
+        // A public game whose host page died without withdrawing stays listed for a few seconds. A guest
+        // that joins it then joins the room again once, and ends saying the host can't be reached (ADR 24).
+        const errors = [];
+        const [host, guest] = await Promise.all([0, 1].map(async () => (await browser.newContext()).newPage()));
+        for (const page of [host, guest]) page.on("pageerror", (e) => errors.push(`${e}`));
+        watchFrames(guest);
+        await guest.clock.install();
+        for (const page of [host, guest]) await page.goto(url);
+        const name = `e2e-AF-${Math.random().toString(36).slice(2, 8)}`;
+        await host.fill("#host-name", name);
+        await host.click("#host-form button[type=submit]");
+        const join = guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false });
+        await join.waitFor({ timeout: SETUP_MS });
+        await host.close();
+        await join.click();
+        await assertGivesUp(guest);
+        assert.match(await text(guest, "#end-message"), /can't be reached/);
+        assert.doesNotMatch(await text(guest, "#end-message"), /password/i, "a public game asks for no password");
         return errors;
     },
     async AH() {

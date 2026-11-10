@@ -1,6 +1,8 @@
 # 18. Reconnect watchdog: a seated peer rejoins the room
 
 Status: Accepted (2026-11-09). Amends ADR 16 (reconnection).
+Amended by 0024: a guest without a seat whose host link has not come up joins the room again once
+after 25 s, and gives up 50 s later.
 
 ## Context
 

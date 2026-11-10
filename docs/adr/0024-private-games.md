@@ -1,7 +1,7 @@
 # 24. Private games: password or private link
 
 Status: Accepted (2026-11-10). Amends 0012 (lobby listing, game rooms), 0015 (host form, join flow),
-0016 (stored seat) and 0017 (lobby, waiting room).
+0016 (stored seat), 0017 (lobby, waiting room) and 0018 (a join timeout for guests without a seat).
 
 ## Context
 
@@ -41,10 +41,14 @@ game, since a reload brings a new peer id.
   once. If `v` is not our build, it shows "Different version." instead of joining. The link carries the
   version because the `start` gate (ADR 12) only turns a guest away once the game starts, and that
   guest would then hold a seat nobody plays.
-- **Wrong password.** A guest that joins with a password and has not reached the host after 25 s, the
-  first wait of the ADR 18 watchdog, leaves the room and ends with "Wrong password, or the host can't
-  be reached." There was no connection timeout for a fresh join before; public joins still wait as
-  they did. A wrong password and a gone host look the same, so the message names both.
+- **Join timeout.** There was no connection timeout for a fresh join before: a guest whose host never
+  answered waited in the waiting room for good. Now every guest joining without a seat, public or
+  private, does what the ADR 18 watchdog does: if the host link has not come up after 25 s, it leaves
+  and joins the room again, with fresh signalling state, so a slow or stalled relay gets a second
+  chance; if the link is still not up 50 s later (75 s in all), it leaves the room and ends. With a
+  password or a link key the message is "Wrong password, or the host can't be reached.", since a wrong
+  password and a gone host look the same; a public join ends with "The host can't be reached.". The
+  timer stops once the host link comes up.
 - **Reconnection.** The stored seat (ADR 16) also keeps the room password (`key`), so a reload and the
   watchdog's rejoin (ADR 18) join the same room with it. It is in `sessionStorage` with the seat token,
   and is cleared with it.
@@ -69,8 +73,10 @@ Rejected:
   encrypted session descriptions, as before.
 - Someone who knows the password or has the link can always join while the game waits, even after a
   kick under a new peer id (ADR 23); the host then hosts a new game with a new secret.
-- A wrong password costs the guest 25 s before the message.
+- A wrong password costs the guest 75 s before the message. A correct one on a slow relay gets a
+  second signalling round before it is called wrong.
 - Tests: `tests/net.test.mjs` (`locked`, `parseInvite`, `inviteFragment`, `newToken`), e2e AB (a
-  password game joined with the right password, refused with a wrong one, and a guest reload) and AC
+  password game joined with the right password, refused with a wrong one after one more join of the
+  room, and a guest reload), AF (a public join to a host that is gone) and AC
   (a private-link game absent from the lobby and the host's published events, its link copied, and
   joined by loading it and by pasting it into an open lobby).

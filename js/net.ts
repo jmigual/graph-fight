@@ -437,8 +437,9 @@ export type GameHandlers = {
     /** The host removed us from the game (ADR 23); we left the room. */
     onKicked(): void;
     /**
-     * We joined with a password and the host link did not come up within `REJOIN_MS` (ADR 24). A
-     * wrong password and a host that is gone look the same, since no link is ever made; we left the room.
+     * We joined without a seat and the host link never came up, even after joining the room again
+     * once (ADR 24): 3 × `REJOIN_MS` in all. With a password, a wrong one looks the same as a host
+     * that is gone, since no link is ever made. We left the room.
      */
     onUnreachable(): void;
     /**
@@ -542,17 +543,28 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             leave();
             return handlers.onHostLost();
         }
-        void room.leave();
-        [room, action] = open();
+        renew();
         wait *= 2;
         schedule();
+    }
+    /** Leaves the room and joins it again, with fresh signalling state (ADR 18). */
+    function renew() {
+        void room.leave();
+        [room, action] = open();
     }
     // After a reload the host link is not up yet.
     watch();
 
-    // A guest joining with a password that never reaches the host gives up after the watchdog's
-    // first wait: with a wrong password no link is ever made (ADR 24).
-    const joinTimer = !isHost && !token && password ? setTimeout(() => (leave(), handlers.onUnreachable()), REJOIN_MS) : undefined;
+    // A guest that has not reached the host yet, as the watchdog does, joins the room again after
+    // REJOIN_MS, then gives up after twice that: a slow relay gets a second chance, while a host that
+    // is gone or, with a password, a wrong one never makes a link (ADR 24).
+    let joinTimer =
+        isHost || token
+            ? undefined
+            : setTimeout(() => {
+                  renew();
+                  joinTimer = setTimeout(() => (leave(), handlers.onUnreachable()), 2 * REJOIN_MS);
+              }, REJOIN_MS);
 
     function leave() {
         left = true;
