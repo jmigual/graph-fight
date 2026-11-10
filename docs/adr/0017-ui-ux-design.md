@@ -6,6 +6,9 @@ and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the
 bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
 staying on the board and refilling the editor. Amended 2026-11-10: the formula inputs turn the
 whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
+Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
+`#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
+ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue.
 
 ## Context
 

@@ -3,6 +3,8 @@
 Status: Accepted (2026-11-09)
 Amended by 0021: `start.peers` may hold bot seats `bot:<level>:<n>`, which only the host plays;
 a `start` with a malformed `bot:` entry is dropped.
+Amended by 0022: `start.peers` may hold local players' seats `local:<n>`, which only the host plays;
+a `start` with a malformed `local:` entry is dropped.
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
 uses `graph-fight:lobby:dev` (see "Lobby topic per build").
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
