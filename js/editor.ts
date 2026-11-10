@@ -12,8 +12,8 @@ const NOTATION = {
 };
 /** The formula inputs' labels per field and mode. */
 const LABELS = {
-    xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
-    disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
+    xy: { explicit: ["y ="], parametric: ["x(t) =", "y(t) ="] },
+    disc: { explicit: ["r ="], parametric: ["r(t) =", "θ(t) ="] },
 };
 const OUT_OF_RANGE = `Use a number between -${LIMIT} and ${LIMIT}.`;
 const NOTICE = "Can't save in this browser; saved formulas last until you close the tab.";
@@ -295,7 +295,8 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
             if (result.ok) fill(item.mode, result.value);
         };
         changed(false);
-        li.append(details, preview, note, actions);
+        // Insert and Delete show beside the name, so they come before the sliders in focus order too.
+        li.append(actions, details, preview, note);
         return li;
     }
 

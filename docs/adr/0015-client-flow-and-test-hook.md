@@ -21,7 +21,7 @@ read game state.
 
 ## Decision
 
-- **Arena constants** live in `js/index.ts` and are compiled into the bundle (same build, same
+- **Arena constants** live in `js/game.ts` and are compiled into the bundle (same build, same
   constants, ADR 12 version check). Every team has 3 players of radius 0.3.
   - `xy`: 20 x 10 (x and y extents), 30 obstacles of size 0.2 to 2, canvas 800 x 400.
   - `disc`: radius 10, 20 obstacles of size 0.2 to 1.5, canvas 600 x 600.

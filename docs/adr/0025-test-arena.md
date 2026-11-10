@@ -47,8 +47,8 @@ turn (ADR 4, 14), so neither fits a sandbox.
   - Nothing in a game calls these, and `Game::new`, `fire`, the turn rotation and the wire are
     unchanged, so lockstep (ADR 2) is untouched. The seed for random obstacles comes from
     `crypto.getRandomValues` and never travels.
-- **Client.** `js/arena.ts` runs the mode; `js/index.ts` only calls `initArena(editor, show, ARENAS,
-  PLAYER_RADIUS)`, asks it to redraw when no game is on, and closes it in `toLobby`: an invite link
+- **Client.** `js/arena.ts` runs the mode; `js/game.ts` only calls `initArena(editor, show, ARENAS,
+  PLAYER_RADIUS)`, asks it to redraw when no game is on, and closes it in `toLobby` (`js/room.ts`): an invite link
   pasted in the arena (ADR 24) goes through there, and its room must not open in test mode. The
   arena knows nothing of seats (bots, local players) or listings. It reuses the game section:
   `#game[data-mode=test]` hides the status bar, the out note and the roster and shows `.test-only`

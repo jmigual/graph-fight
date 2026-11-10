@@ -36,7 +36,7 @@
         <div class="lobby-grid">
           <section aria-labelledby="open-games">
             <h2 id="open-games">Open games</h2>
-            <p id="no-games" class="hint">No open games yet. Host one, then ask a friend to open this page.</p>
+            <p id="no-games" class="hint">No open games yet. Host one and send a friend this page, or host one and add a bot to play alone.</p>
             <table id="games-table" hidden>
               <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
               <tbody id="games"></tbody>
@@ -67,11 +67,12 @@
                 </select>
               </label>
               <label class="field"><span>Coordinates</span>
-                <select id="host-frame">
+                <select id="host-frame" aria-describedby="frame-hint">
                   <option value="map">Map-centred (like Graphwar)</option>
                   <option value="player">Player-centred</option>
                 </select>
               </label>
+              <p id="frame-hint" class="hint">Map-centred: x and y are the map's, as in Graphwar. Player-centred: they start at your player.</p>
               <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
               <label class="field"><span>Visibility</span>
                 <select id="host-visibility">
@@ -235,6 +236,30 @@
               <input id="input-b" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="formula-hint error"></label>
             <p id="error" class="error" role="alert"></p>
 
+            <fieldset id="direction" class="segmented" hidden>
+              <legend>Direction</legend>
+              <label><input type="radio" name="dir" id="dir-ccw" checked>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Counterclockwise</label>
+              <label><input type="radio" name="dir" id="dir-cw">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                Clockwise</label>
+            </fieldset>
+
+            <div class="actions">
+              <button id="save" type="button" class="secondary">Save</button>
+              <button id="fire" type="submit" class="primary" disabled>Fire</button>
+            </div>
+
+            <div id="save-row" class="save-row" hidden>
+              <label class="field"><span>Name</span><input id="save-name" maxlength="64" autocomplete="off"></label>
+              <p id="save-error" class="error" role="alert"></p>
+              <div class="actions">
+                <button id="save-confirm" type="button" class="primary">Save formula</button>
+                <button id="save-cancel" type="button" class="secondary">Cancel</button>
+              </div>
+            </div>
+
             <div id="helpers" class="helpers" role="group" aria-label="Insert">
               <button type="button" id="insert-var">x</button>
               <button type="button">π</button>
@@ -264,30 +289,6 @@
               </details>
             </div>
             <p id="formula-hint" class="hint">Type pi for π.<span id="theta-hint"> Type theta (or th) for θ.</span></p>
-
-            <fieldset id="direction" class="segmented" hidden>
-              <legend>Direction</legend>
-              <label><input type="radio" name="dir" id="dir-ccw" checked>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                Counterclockwise</label>
-              <label><input type="radio" name="dir" id="dir-cw">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                Clockwise</label>
-            </fieldset>
-
-            <div class="actions">
-              <button id="save" type="button" class="secondary">Save</button>
-              <button id="fire" type="submit" class="primary" disabled>Fire</button>
-            </div>
-
-            <div id="save-row" class="save-row" hidden>
-              <label class="field"><span>Name</span><input id="save-name" maxlength="64" autocomplete="off"></label>
-              <p id="save-error" class="error" role="alert"></p>
-              <div class="actions">
-                <button id="save-confirm" type="button" class="primary">Save formula</button>
-                <button id="save-cancel" type="button" class="secondary">Cancel</button>
-              </div>
-            </div>
           </form>
 
           <section aria-labelledby="roster-heading">

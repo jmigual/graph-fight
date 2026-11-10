@@ -1,5 +1,5 @@
 // The game screen's words: status bar, roster, last-shot text and the error line (ADR 17, sections 6, 10, 11).
-// DOM only; it holds no game state, so index.ts passes in what it knows.
+// DOM only; it holds no game state, so game.ts and room.ts pass in what they know.
 import type { Arena } from "../pkg/index.js";
 import { isHostRun, parseBot, parseLocal } from "./net";
 import type { Field, Shot, Timeout } from "./net";

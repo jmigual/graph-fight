@@ -25,6 +25,16 @@ Amended by 0025: the lobby's Test arena button, the game screen's test mode
 Amended by 0029: the lobby has an About section `#about` below the host form, with a demo video
 and a GitHub link, and the footer links the repository too.
 Amended by 0026: a header above the screens holds the Help button.
+Amended 2026-11-10 (UI audit): each screen is a centred block, and the game is as wide as its board
+needs, so the board grows with a wide window (sections 4 and 6). The empty lobby also offers a bot
+to play alone, in a dashed outline, and a hint under "Coordinates" says what each frame means
+(sections 4 and 6). On desktop the board stays in view while the side column scrolls, and each
+saved formula has Insert and Delete beside its name (sections 6 and 8). The Save/Fire row follows
+the inputs, the error line and the direction, and the helper buttons and hint move below it, so Fire
+sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
+`#turn` is up to 1.25 rem, and on our turn the formula inputs get a 2 px `--mark` border (section 10).
+The end screen hides the editor, the saved formulas, the timer bar and the out note; the board, the
+last-shot line and the roster stay (section 6).
 
 ## Context
 
@@ -193,7 +203,7 @@ Layering, back to front:
        first trajectory point to the first point at least 0.5 units away (or the last point if
        none is that far). An empty shot leaves the gaze unchanged. The gaze stays until that
        player shoots again.
-     - Gaze is UI state in `index.ts`, keyed by team and player index. It is not in `__state` and
+     - Gaze is UI state in `game.ts`, keyed by team and player index. It is not in `__state` and
        not synchronised. It resets to the default on a new game, and after a reload it is
        rebuilt from the replayed log (see "Settled in S2" below).
    - **States.** Current shooter: a 2 px `--ink` ring 3 px outside the halo; it is also the origin
@@ -212,8 +222,11 @@ Layering, back to front:
 are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed from `ARENAS`, and
 ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
 engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
-disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - 7rem) * var(--ratio)))`, so
-the whole board fits the viewport without distortion.
+disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)))`, so
+the whole board fits the viewport without distortion. `--ratio` and `--chrome` (7rem) are `:root`
+tokens, and so is `--game-w`, the game's width at which the height-bound board exactly fills its
+column: `(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most
+that wide, so on a wide window the board takes the rest of the width beside the side column.
 
 Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
 The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to
@@ -231,9 +244,11 @@ Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r =
 with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
 scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
 
-Settled with ADR 20 (`js/render.ts`, `js/index.ts`): the host picks the shot frame. The host form
+Settled with ADR 20 (`js/render.ts`, `js/lobby.ts`, `js/room.ts`): the host picks the shot frame. The host form
 has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
-`map`) and "Player-centred" (`player`). The lobby's Field cell adds it ("XY plane, map-centred",
+`map`) and "Player-centred" (`player`), with the hint `#frame-hint` under it (named by its
+`aria-describedby`): "Map-centred: x and y are the map's, as in Graphwar. Player-centred: they
+start at your player." The lobby's Field cell adds it ("XY plane, map-centred",
 short "XY, map") and so does the waiting room's info line ("Polar disc, player-centred, 3 seats").
 In the player-centred frame the board is as described above and in section 7. In the
 map-centred frame shots are in map coordinates on both fields, so the graph paper does not
@@ -255,7 +270,7 @@ Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockw
 above the map rather than from the shooter, in the map-centred frame. The resting gaze (toward the
 centre) and the gaze after a shot (from the shot's first points) are the same in both frames.
 
-Settled with the per-character shot memory (`js/render.ts`, `js/index.ts`): every applied shot is
+Settled with the per-character shot memory (`js/render.ts`, `js/game.ts`): every applied shot is
 also kept per character in `Play.shots`, keyed by `lookKey` like the gaze, so a reload that
 replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
 - **Board.** Each living character's last shot stays drawn: 1.5 px at 75 % opacity in its team
@@ -271,7 +286,7 @@ replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
 - **Formula box.** See section 7, "Per-character formula".
 `window.__state()` gains `faint`, the number of faint paths, for the e2e test (ADR 15's hook
 stays read-only and the same on every peer).
-Also settled (`js/index.ts`): the host's own shot applies synchronously inside `room.shoot`, so
+Also settled (`js/game.ts`): the host's own shot applies synchronously inside `room.shoot`, so
 the Fire handler must not redraw afterwards. It only disables Fire, and refreshes on a refused
 shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
@@ -279,7 +294,7 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
 - **Trajectory draw.** When a shot is applied, the engine has already moved to the new state
   (`fire` returned the points and `__state` already reflects the outcome). The renderer draws the
-  arena as it was before the shot (`index.ts` keeps `sim.arena()` from just before applying) with
+  arena as it was before the shot (`game.ts` keeps `sim.arena()` from just before applying) with
   a growing prefix of the points, at constant pen speed: 700 ms, plus up to 700 ms more for long
   paths, using `requestAnimationFrame`. On the last frame it switches to the new arena, so kills
   and the new crater appear when the pen lands. A newer draw (next message, theme change) cancels
@@ -295,13 +310,17 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
 ### 6. Layout per screen
 
-Gutter 16 px on phones and 24 px from 600 px up. Content is left-aligned. One breakpoint at 960 px.
+Gutter 16 px on phones and 24 px from 600 px up. Each screen is a centred block, and text inside it
+is left-aligned: the lobby is at most `--page` (72rem) wide, the waiting room 40rem, the game
+and end screens `--game-w` (section 4), and the changelog page (ADR 28) 44rem, a reading
+measure. The footer is centred. One breakpoint at 960 px.
 No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas) get
 `overflow-wrap: anywhere`.
 
 **Lobby.** Open games come first because joining a friend's game is the common case. The list
-stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one, then ask
-a friend to open this page." Field names shown to users: "XY plane" and "Polar disc"; the option
+stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one and send a
+friend this page, or host one and add a bot to play alone." in a dashed `--grid-major` outline
+that marks where games will appear (no fill, no shadow: not a card). Field names shown to users: "XY plane" and "Polar disc"; the option
 values stay `xy`/`disc`. Players are shown as "2 of 4". A full game's button reads "Full"
 (disabled). A game on another build has no button and reads "Different version. Reload the page."
 Host form: "Game name", "Field" (select: "XY plane, 2 players" / "Polar disc, 2 to 8 players"),
@@ -325,27 +344,31 @@ On phone the table keeps four columns; the field column uses the short words "XY
 below 480 px.
 
 **Waiting room.** The heading is the game name. Below it: "Polar disc, 4 seats", then the player
-list (`#room-players`, one `li` per connected player, tagged "you" / "host"). Open seats are a
+list (`#room-players`, one `li` per connected player, tagged "you" / "host"), ruled rows like
+the lobby table with any Remove button on the right. Open seats are a
 text line ("2 seats open"), never extra `li`. The host sees **Start** (primary, disabled below 2
 players, with "Start needs at least 2 players" next to it) and, when players outnumber seats,
 "More players than seats: the first 4 to join play." A guest sees "Waiting for the host to
 start." Both see **Leave**. Room errors (`Could not start`) go to `#room-error` in this section.
 
-**Game.** Desktop is a two-column grid, `minmax(0, 1fr) 24rem`. Left: status bar, board, then
+**Game.** Desktop is a two-column grid, `minmax(0, 1fr) var(--side)` (`--side` is 24rem, 20rem
+from 960 to 1279 px). Left: status bar, board, then
 the last-shot line. Right: formula editor, roster, saved formulas. On phone it is one column:
-status bar (sticky top), board, editor, roster, saved formulas.
+status bar (sticky top), board, editor, roster, saved formulas. On desktop the left column is
+sticky, so the board stays in view while the side column scrolls (to a template, for example),
+except in the test arena (ADR 25), where the setup panel under the board must scroll.
 
 ```
 +-----------------------------------------------+------------------------+
 | [1] Your turn                42 s [Leave game]| (o) y = f(x) ( ) x(t),y(t)
 | ====================------ timer bar          | y = [2*sin(x)        ] |
-| +-------------------------------------------+ | x π e ( ) ^ √ sin cos  |
-| |  graph paper centred on the shooter       | | tan abs exp ln  More   |
-| |  +x -->   obstacles   [2] [2]             | | Formula error ...      |
-| |                                           | | (disc only:)           |
-| |                                           | | (o)↺ Counterclockwise  |
+| +-------------------------------------------+ | Formula error ...      |
+| |  graph paper centred on the shooter       | | (disc only:)           |
+| |  +x -->   obstacles   [2] [2]             | | (o)↺ Counterclockwise  |
 | |                                           | | ( )↻ Clockwise         |
-| +-------------------------------------------+ | [Save]          [Fire] |
+| |                                           | | [Save]          [Fire] |
+| |                                           | | x π e ( ) ^ √ sin cos  |
+| +-------------------------------------------+ | tan abs exp ln  More   |
 | Team 2 fired y = x/2. Team 1 lost a player.   | Teams                  |
 |                                               | [1] Team 1, you   ●●○  |
 |                                               | [2] Team 2        ●●●  |
@@ -353,9 +376,10 @@ status bar (sticky top), board, editor, roster, saved formulas.
 +-----------------------------------------------+------------------------+
 ```
 
-The status bar holds a numbered team swatch, then `#turn` ("Your turn" or "Team 2 is aiming"),
-then `#countdown` ("42 s"), then **Leave game** (reconnection work). Under it a 4 px bar drains
-in the current team's colour (width from the same 250 ms tick). From 10 s down the number turns
+The status bar holds a numbered team swatch, then `#turn` ("Your turn" or "Team 2 is aiming",
+bold, `clamp(1rem, 4vw, 1.25rem)` so "Your turn" stays on one line at 320 px), then `#countdown`
+("42 s"), then **Leave game** (reconnection work). Under it a 4 px bar drains in the current team's
+colour (width from the same 250 ms tick). From 10 s down the number turns
 `--danger` and bold. The last-shot line (`#last-shot`, `aria-live="polite"`) is the text
 alternative for the canvas: "Team 2 fired y = x/2. Team 1 lost a player." It is computed from the
 alive flags before and after the shot. On the disc it names the direction: "Team 2 fired
@@ -368,9 +392,10 @@ part of the game. On a pointer-fine device the formula input gets focus when you
 On touch it does not, because the keyboard would cover the board.
 
 **End.** `#end` moves above `#game` in the DOM and spans the grid. The board stays visible below
-it (ADR 15). The headline is STIX 1.953 rem, with one explanatory line and **Back to lobby**.
-Focus moves to the headline (`tabindex="-1"`). Without a game (Game full, version mismatch
-before start), it stands alone.
+it (ADR 15), with the last-shot line and the roster; the editor (`#shot-form`, so `#fire` too), the
+saved formulas, the timer bar, `#out-note` and Leave game are hidden by CSS. The headline is STIX
+1.953 rem, with one explanatory line and **Back to lobby**. Focus moves to the headline
+(`tabindex="-1"`). Without a game (Game full, version mismatch before start), it stands alone.
 
 ### 7. Formula editor
 
@@ -393,8 +418,9 @@ before start), it stands alone.
   - **Hint** `#formula-hint`, under the helper buttons and named by both inputs' `aria-describedby`:
     "Type pi for π." and, on the disc function only (where `θ` is the variable), "Type theta (or
     th) for θ." `refresh(field, parametric)` shows the second sentence.
-- **Helper buttons**, `role="group"` with the label "Insert", placed between the inputs and the
-  Save/Fire row:
+- **Helper buttons**, `role="group"` with the label "Insert", placed below the Save/Fire row (and
+  the Save row, section 8), so on a phone Fire stays in the first screen above the keyboard. The
+  DOM has the same order, so focus goes input, direction, Save, Fire, then the helpers:
   - Always visible: the mode variable (`x` on XY function, `θ` on disc function, `t` in either
     parametric mode, relabelled by `setMode`), `π`, `e`, `( )`, `^`, `√`, `sin`, `cos`, `tan`,
     `abs`, `exp`, `ln`.
@@ -502,9 +528,10 @@ formula (no sliders) has the same **Insert**.
 
 **List.** Only items for the current field are shown, grouped by mode, newest first. Each row has
 the name (Atkinson), the formula (STIX, `overflow-wrap: anywhere`), **Insert**, and a delete
-button with `aria-label="Delete <name>"`. Delete asks `confirm("Delete “<name>”?")` because it is
-the only destructive action. Names and formulas go in with `textContent` only. The empty state
-says: "Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x)."
+button with `aria-label="Delete <name>"`. Insert and Delete sit beside the name and formula, and
+come before a template's sliders in the DOM, so focus follows the visual order. Delete asks
+`confirm("Delete “<name>”?")` because it is the only destructive action. Names and formulas go
+in with `textContent` only. The empty state says: "Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x)."
 
 **Storage.** `localStorage["graph-fight.formulas"]` =
 `{ v: 1, items: [{ name, field, mode, exprs, sliders: { [letter]: { min, max, step, value } } }] }`.
@@ -585,7 +612,7 @@ text "2 of 3 players left"); and a state word:
 
 | State | Roster | Board | Status bar |
 |---|---|---|---|
-| Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer |
+| Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer; the formula inputs get a 2 px `--mark` border while Fire is enabled |
 | Current, other | "aiming" | ring + grid origin | "Team 2 is aiming" |
 | Waiting | nothing | face looking toward the centre or along its last shot | |
 | Disconnected (reconnection work) | "disconnected", `--ink-soft` | closed eyes | when current: "Team 2 is disconnected. The timer will skip its turn." |
@@ -662,14 +689,14 @@ which is the current engine behaviour, so the existing disc scenarios need no ch
 Changes:
 - The host form gains no second button. The e2e clicks `#host-form button`, so either keep a
   single button or change the test to `#host-form button[type=submit]`.
-- `tests/e2e.mjs` gains `".css": "text/css"` in its MIME map for `static/style.css`.
+- `tests/e2e/helpers.mjs` gains `".css": "text/css"` in its MIME map for `static/style.css`.
 
-Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-field` (`xy`/`disc`) on
+Settled in S1 (`static/index.html`, `static/style.css`): `game.ts` sets `data-field` (`xy`/`disc`) on
 `#game`; CSS uses it for `--ratio` on the canvas and to show the field's notation in the mode labels
 (the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
 `hidden` until a disc game starts (S7). "Seats" is hidden by CSS while
 `#host-seats` is disabled. The start hints and "Waiting for the host to start." are static text that CSS
-shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown. The `#rejoin` line is not
+shows from the state of `#start`. `#quit` is hidden by CSS once `#end` is shown (and the editor too, section 6). The `#rejoin` line is not
 built: ADR 16 rejoins on reload without asking. `Leave game` asks `confirm("Leave the game? Your team
 will be out.")`, so the e2e test accepts dialogs. "Could not start" goes to `#room-error`.
 
@@ -683,7 +710,7 @@ shows live under the preview and disables Insert while it applies. A value typed
 limits on `change` (blur or Enter), not per keystroke. Fire's slider-letter error names every letter: "a is a
 slider letter. ... or type a number." for one, "a and b are slider letters. ... or type numbers." for several.
 
-Settled in S3 (`js/index.ts`): the last-shot line also says "Team N ran out of time." for a timeout, "Team N left the game."
+Settled in S3 (`js/game.ts`): the last-shot line also says "Team N ran out of time." for a timeout, "Team N left the game."
 for a quit, and "fired a formula that failed, so the turn was skipped" for a shot that every peer's engine rejects; on the
 disc it says "counterclockwise" as well as "clockwise". The error line is emptied and refilled 50 ms later, so a repeated
 identical error is announced again; `aria-invalid` is set with the text and removed with it. Editing either input, a new
@@ -695,7 +722,7 @@ When a turn starts that is ours, `#turn-cue` (visually hidden, polite) says "You
 formula input gets focus. `#last-shot` and `#turn` are only written when their text changes, and the status code lives in `js/status.ts`.
 `aria-invalid` marks formula and slider errors only, and only the visible inputs.
 
-Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
+Settled in S7 (`js/game.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
@@ -710,7 +737,7 @@ file as a 1 em `img` with `alt=""` inside the `h1`, so the heading's name stays 
 paper colour, so a 1 px `--grid-major` hairline outlines it. `theme-color` is `--paper` per scheme. No web manifest: the site is not an installable app. e2e scenario AJ checks that every linked icon is served
 from `dist/` as an image.
 
-Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
+Settled in S8 (`js/game.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
 team's seat is away (the countdown beside it already gives the time). Both update when the set of disconnected seats changes. The `#absent` line is gone, since the roster and the status bar carry
 it. The guest-side state is not in the e2e test: the link is down for less than one tick on a quick reconnect, so a test
@@ -722,7 +749,7 @@ still leaves this page, although `quit` is then dropped and the seat stays held 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access
   to Google, the fallbacks apply and nothing breaks.
 - `render.ts` grows: frame-aware grid, faces, labels and the animation prefix. It stays pure
-  drawing with no game state. Gaze is UI state passed in by `index.ts`.
+  drawing with no game state. Gaze is UI state passed in by `game.ts`.
 - ADR 15's fixed canvas sizes are replaced by a backing store that follows the displayed size
   times `devicePixelRatio`. The engine's arena constants are unchanged.
 - On a 390 px phone the faces are about 5 px in radius. Team identity there rests on cap colour
