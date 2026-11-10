@@ -45,8 +45,12 @@ export function owner(start: Teams, left: ReadonlySet<string>, t: number, j: num
 /** An empty team-mode waiting room of `count` sides of `size` seats. */
 export const newLineup = (count: number, size: number): Lineup => ({ size, teams: Array.from({ length: count }, () => []), waiting: [] });
 
-/** Seats `id` on the side with the most open seats, the lowest on a tie; when every side is full, `id` waits. */
+/**
+ * Seats `id` on the side with the most open seats, the lowest on a tie; when every side is full, `id`
+ * waits. Returns `room` itself when `id` is already seated or waiting.
+ */
 export function join(room: Lineup, id: string): Lineup {
+    if (room.waiting.includes(id) || room.teams.some((s) => s.includes(id))) return room;
     const open = room.teams.map((s) => room.size - s.length);
     const t = open.indexOf(Math.max(...open));
     if (open[t] <= 0) return { ...room, waiting: [...room.waiting, id] };

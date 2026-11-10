@@ -54,6 +54,9 @@ for (const id of ["h", "a", "b", "c", "d", "e"]) room = join(room, id);
 assert.deepEqual(room, { size: 2, teams: [["h", "b"], ["a", "c"]], waiting: ["d", "e"] });
 assert.deepEqual(join(join(newLineup(3, 2), "h"), "a").teams, [["h"], ["a"], []]);
 assert.deepEqual(join({ size: 3, teams: [["h", "a"], ["b"]], waiting: [] }, "c").teams, [["h", "a"], ["b", "c"]], "the side with more room");
+// Joining twice (a rejoined room reports peers again) changes nothing.
+assert.equal(join(room, "c"), room, "a seated id");
+assert.equal(join(room, "d"), room, "a waiting id");
 
 // Leaving: the first waiting joiner, in join order, takes the seat that opens.
 room = leave(room, "a");
