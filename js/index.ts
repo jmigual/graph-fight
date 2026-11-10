@@ -1,5 +1,6 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
-import init, { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
+import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level } from "../pkg/index.js";
+import type { BotShot } from "../pkg/index.js";
 import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
@@ -13,6 +14,11 @@ await init();
 const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
 const PLAYER_RADIUS = 0.3;
+const BOT_LEVELS = { easy: Level.Easy, medium: Level.Medium, hard: Level.Hard };
+/** Candidates a bot simulates before yielding to the page: a few milliseconds on a desktop (ADR 21). */
+const BOT_CHUNK = 4;
+/** A bot fires no sooner than this after its turn starts, so the others can follow the game. */
+const BOT_MIN_MS = 1500;
 // Arena constants are compiled into the bundle, so they never travel (ADR 8, 15).
 const ARENAS = {
     xy: { x: 20, y: 10, obstacles: 30, minSize: 0.2, maxSize: 2 },
@@ -145,9 +151,7 @@ function enterRoom(id: string, seat?: Seat) {
     $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
-        onShotRequest(from, shot) {
-            if (play && !play.over && from === play.peers[play.sim.get_current_team_idx()] && shot.turn === play.turn) room?.relay(shot);
-        },
+        onShotRequest: acceptShot,
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
         onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
@@ -287,6 +291,37 @@ function startGame(msg: Start) {
     changed(play, true);
 }
 
+/** Host: relays `shot` if `from` is the current team's seat and the shot is for the current turn (ADR 12). */
+function acceptShot(from: string, shot: Shot) {
+    if (play && !play.over && from === play.peers[play.sim.get_current_team_idx()] && shot.turn === play.turn) room?.relay(shot);
+}
+
+/**
+ * Host: if the current team is a bot's, searches its shot on the bot's own copy of the game, a
+ * chunk at a time, and sends it like a remote request once `BOT_MIN_MS` have passed since the turn
+ * started. It gives up when the game or the turn moves on meanwhile (ADR 21).
+ */
+async function playBot(p: Play) {
+    const id = p.peers[p.sim.get_current_team_idx()];
+    const level = parseBot(id)?.level;
+    if (!level) return;
+    const turn = p.turn;
+    const due = Date.now() + BOT_MIN_MS;
+    const live = () => play === p && !p.over && p.turn === turn;
+    const bot = new Bot(p.sim, BOT_LEVELS[level]);
+    try {
+        let shot: BotShot | undefined;
+        while (!(shot = bot.think(BOT_CHUNK))) {
+            await new Promise((ok) => setTimeout(ok));
+            if (!live()) return;
+        }
+        await new Promise((ok) => setTimeout(ok, due - Date.now()));
+        if (live()) acceptShot(id, { type: "shot", turn, exprs: shot.exprs as Shot["exprs"], cw: shot.cw });
+    } finally {
+        bot.free();
+    }
+}
+
 /** The host owns the turn clock (ADR 12); everyone shows a countdown from the same event. */
 function resetClock(p: Play) {
     clearTimeout(p.clock);
@@ -353,6 +388,7 @@ function changed(p: Play, newTurn: boolean) {
         const mine = p.peers[p.sim.get_current_team_idx()] === me;
         cueTurn(mine);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
+        if (hostId === selfId) void playBot(p);
     }
     refresh(p);
 }

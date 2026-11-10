@@ -42,9 +42,10 @@ const comparable = async (page) => {
  * `seats` is the host's seat count for the disc field (default `n`); `frame` is the shot frame,
  * `map` (default) or `player` (ADR 20), shown in the lobby and the waiting room; `fakeHostClock` and
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
- * `blockStorage` makes the host's localStorage refuse writes.
+ * `blockStorage` makes the host's localStorage refuse writes; `bots` lists the levels of the bots the
+ * host adds before anyone joins (ADR 21); `offline` cuts the pages' network once they have loaded.
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], offline = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -91,6 +92,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         }
         if ((i === 0 && fakeHostClock) || (i === 1 && fakeGuestClock)) await page.clock.install();
         await page.goto(url);
+        if (offline) await page.context().setOffline(true);
         pages.push(page);
     }
     const name = `e2e-${label}-${Math.random().toString(36).slice(2, 8)}`;
@@ -100,13 +102,22 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.click("#host-form button");
+    for (const level of bots) {
+        await host.selectOption("#bot-level", level);
+        await host.click("#add-bot");
+    }
+    if (bots.length) {
+        const total = field === "xy" ? 2 : seats;
+        assert.equal(await host.isDisabled("#add-bot"), bots.length >= total - 1, "bots fill at most all seats but the host's");
+        assert.equal(await host.getByRole("button", { name: `Remove Bot ${bots.length}` }).count(), 1);
+    }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
     const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // With a game listed, the empty-list text gives way to the table.
     for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
-    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n, { timeout: SETUP_MS });
+    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
     for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
     const seatsLine = await text(host, "#room-seats");
@@ -659,6 +670,58 @@ const scenarios = {
         const cw = await aim(true);
         assert.ok(Math.abs(ccw - 0.5) < 0.05, `counter-clockwise turns left (${ccw})`);
         assert.ok(Math.abs(cw + 0.5) < 0.05, `clockwise turns right (${cw})`);
+        return errors;
+    },
+    async S() {
+        // Solo against a Hard bot with the network cut once the page has loaded (ADR 21): the host's
+        // page plays the bot, and the game runs to the end.
+        const { pages, errors } = await startGame(1, "xy", "S", { bots: ["hard"], offline: true });
+        const [host] = pages;
+        assert.equal(await host.evaluate(() => navigator.onLine), false);
+        assert.equal((await host.locator("#roster .id").allInnerTexts())[1], "Bot 1, hard");
+        let waited = Infinity;
+        for (let turn = 0; ; turn++) {
+            await assertSynced(pages, turn);
+            if (await host.isVisible("#end")) break;
+            const ours = JSON.parse(await state(host)).current === 0;
+            const t0 = Date.now();
+            if (ours) {
+                // Steep, so it leaves the field at once
+                await host.check("#mode-explicit");
+                await host.fill("#input-a", "100*x");
+                await host.click("#fire");
+            } else {
+                assert.equal(await text(host, "#turn"), "Team 2 is aiming");
+            }
+            await host.waitForFunction((t) => window.__state().turn > t, turn, { timeout: TURN_WAIT_MS });
+            if (!ours) waited = Math.min(waited, Date.now() - t0);
+        }
+        assert.match(await text(host, "#end-message"), /^(You win|Team 2 wins|Draw)\./);
+        assert.ok(waited >= 1000, `the bot waits before it fires (${waited} ms)`);
+        return errors;
+    },
+    async T() {
+        // An online disc game with a Medium bot in the third seat. The guest reloads mid-game and
+        // gets the bot's shots in the replay; the host keeps playing the bot (ADR 21).
+        const { pages, errors } = await startGame(2, "disc", "T", { seats: 3, bots: ["medium"] });
+        const [host, guest] = pages;
+        for (const page of pages) assert.equal((await page.locator("#roster .id").allInnerTexts())[2], "Bot 1, medium");
+        // Humans fire straight out of the disc, so only the bot can kill and the game lasts.
+        const play = async (turn) => {
+            const { current } = JSON.parse(await state(host));
+            if (current !== 2) return takeTurn(pages, turn, ["t", "0"]);
+            await assertSynced(pages, turn + 1);
+            const { shot } = JSON.parse(await state(guest));
+            assert.equal(shot?.team, 2, "the bot fired");
+        };
+        await assertSynced(pages, 0);
+        for (let turn = 0; turn < 3; turn++) await play(turn);
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 3, null, { timeout: SETUP_MS });
+        await assertSynced(pages, 3);
+        assert.equal((await guest.locator("#roster .id").allInnerTexts())[2], "Bot 1, medium", "the replayed roster names the bot");
+        for (let turn = 3; turn < 6; turn++) await play(turn);
         return errors;
     },
 };
