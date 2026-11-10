@@ -94,12 +94,14 @@ const isK = (v: unknown): v is number => isCount(v, MAX_K) && v > 0;
 
 /**
  * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T ≥ 2` (exactly 2
- * on the XY field), and the game stays within `MAX_CHARACTERS`: `T × S × k`, S the largest side (ADR 27).
+ * on the XY field), and, S being the largest side, `T × S` stays within `MAX_PLAYERS` seats and
+ * `T × S × k` within `MAX_CHARACTERS` (ADR 27).
  */
 function isTeams(teams: unknown, count: number, field: Field, k: number): teams is number[] {
     if (!Array.isArray(teams) || teams.length !== count || !teams.every((t) => isCount(t, count - 1))) return false;
     const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
-    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && sizes.length * Math.max(...sizes) * k <= MAX_CHARACTERS;
+    const seats = sizes.length * Math.max(...sizes);
+    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && seats <= MAX_PLAYERS && seats * k <= MAX_CHARACTERS;
 }
 
 /** True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T ≥ 2` sides of `seats / T` seats, adding up to `players`. */

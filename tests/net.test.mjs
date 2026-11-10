@@ -53,8 +53,7 @@ for (const good of [
     { ...start, peers: ["h", "p", "q"], teams: [1, 1, 0] },
     { ...start, field: "xy", peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1] },
     { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 1, 2, 3, 0, 1, 2, 3], k: 3 },
-    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 },
-    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 2 },
+    { ...start, peers: ["h", "p", "q", "r", "s"], teams: [0, 0, 1, 1, 2], k: 3 },
 ]) assert.deepEqual(parseGameMsg(good), good, JSON.stringify(good));
 for (const bad of [
     { ...start, k: 0 },
@@ -72,10 +71,16 @@ for (const bad of [
     { ...teamStart, teams: [0, 2, 0, 2] },
     { ...teamStart, teams: [0, 0, 0, 0] },
     { ...teamStart, field: "xy", teams: [0, 1, 2, 1] },
+    // T × S over the seat cap (MAX_PLAYERS), with T × S × k within 24 characters.
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 },
+    { ...start, peers: ["h", "p", "q", "r", "s", "t", "u"], teams: [0, 0, 0, 1, 1, 1, 2], k: 1 },
+    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 2 },
+    // T × S × k over 24 characters as well.
     { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 3 },
     { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 3 },
 ]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
 assert.throws(() => outbox().stamp({ ...teamStart, teams: [0, 0, 0, 0] }), Error, "the host's relay refuses what peers would drop");
+assert.throws(() => outbox().stamp({ ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 }), Error, "nor a start over the seat cap");
 
 // Routing: only the host's sequenced broadcasts are delivered; the host also takes bare shot
 // requests from others; nothing else gets through.
