@@ -24,6 +24,7 @@ Amended by 0025: the lobby's Test arena button, the game screen's test mode
 `View.picked`), and `editor.refresh` sets the input labels.
 Amended by 0029: the lobby has an About section `#about` below the host form, with a demo video
 and a GitHub link, and the footer links the repository too.
+Amended by 0026: a header above the screens holds the Help button.
 
 ## Context
 

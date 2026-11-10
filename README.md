@@ -33,6 +33,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 - **Private games.** Listed with a lock and joined with a password, or left out of the lobby and joined through an invite link.
 - **Kick.** The host can remove a guest from the waiting room, or mid-game; that team is out.
 - **Test arena.** An offline sandbox from the lobby: place players and obstacles anywhere, fire from any player and see what the shot hits, as often as you like.
+- **In-app help.** The Help button in the page header explains the coordinates, writing formulas and the sliders.
 - **Reconnection.** A dropped player keeps their seat for a few minutes (the game is given up after 3 minutes) and catches up by replaying the game log.
 - **No server.** Players connect peer-to-peer over WebRTC ([Trystero](https://github.com/dmotz/trystero)) and find each other through a lobby on public [Nostr](https://nostr.com) relays.
 - **Deterministic Rust/WASM engine.** Peers exchange only the seed and formulas; every outcome is computed locally in WebAssembly.
