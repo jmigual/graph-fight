@@ -35,6 +35,11 @@ const MAX_FRAME = 4096;
 
 /** Upper bound on players in a room; also bounds `start.peers`. */
 export const MAX_PLAYERS = 8;
+/**
+ * Most joiners a team-mode `lineup` lists as waiting for a seat (ADR 27). A full mesh of that many
+ * WebRTC peers is already far past what a room handles; the host's `lineup` throws beyond it.
+ */
+export const MAX_WAITING = 32;
 /** Most characters per player a host may choose (ADR 27); a `start` without `k` means this many. */
 const MAX_K = 3;
 /** Most characters in one game: ADR 15 checked placement for 8 teams of 3 (ADR 27). */
@@ -78,8 +83,8 @@ export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, stri
 export type Timeout = { type: "timeout"; turn: number };
 export type Leave = { type: "leave"; peer: string };
 export type GameMsg = Start | Shot | Timeout | Leave;
-/** Team mode's waiting room (ADR 27): the seat ids on each side, at most `size` per side. */
-export type Lineup = { size: number; teams: string[][] };
+/** Team mode's waiting room (ADR 27): the seat ids on each side, at most `size` per side, then the joiners waiting for a seat, in join order. */
+export type Lineup = { size: number; teams: string[][]; waiting: string[] };
 /** What the host broadcasts: `start` is seq 0, every later message is the previous seq + 1. */
 export type Relayed = { seq: number; msg: GameMsg };
 
@@ -136,11 +141,15 @@ export const isHostRun = (id: string) => isBot(id) || isLocal(id);
 /** A seat id as `start.peers` holds it: a short text, and a well-formed id in the bot and local namespaces. */
 const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
 
-/** The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at most `size` seat ids. */
+/**
+ * The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at
+ * most `size` seat ids, and at most `MAX_WAITING` seat ids wait.
+ */
 function parseLineup(v: Record<string, unknown>): Lineup | undefined {
-    const { size, teams } = v;
+    const { size, teams, waiting } = v;
     if (!isCount(size, MAX_PLAYERS) || size < 1 || !Array.isArray(teams) || teams.length < 2 || teams.length * size > MAX_PLAYERS) return undefined;
-    return teams.every((t) => Array.isArray(t) && t.length <= size && t.every(isSeatId)) ? { size, teams } : undefined;
+    if (!Array.isArray(waiting) || waiting.length > MAX_WAITING || !waiting.every(isSeatId)) return undefined;
+    return teams.every((t) => Array.isArray(t) && t.length <= size && t.every(isSeatId)) ? { size, teams, waiting } : undefined;
 }
 
 /**

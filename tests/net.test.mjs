@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
 import { pbkdf2Sync } from "node:crypto";
-import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
+import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -126,8 +126,8 @@ assert.equal(routeIncoming("h", "h", "p", { type: "share" }), undefined, "a shar
 for (const bad of [{ share: true }, { type: "Share" }, "share", { seq: 1, msg: { type: "share" } }]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
 
 // Team mode's waiting room (ADR 27): the sides come from the host only, and only before `start`.
-const lineup = { type: "lineup", size: 2, teams: [["h", "bot:easy:1"], ["local:1"]] };
-assert.deepEqual(routeIncoming("h", "p", "h", lineup), { kind: "lineup", lineup: { size: 2, teams: lineup.teams } });
+const lineup = { type: "lineup", size: 2, teams: [["h", "bot:easy:1"], ["local:1"]], waiting: [] };
+assert.deepEqual(routeIncoming("h", "p", "h", lineup), { kind: "lineup", lineup: { size: 2, teams: lineup.teams, waiting: [] } });
 assert.equal(routeIncoming("h", "p", "h", lineup, true), undefined, "a lineup after start");
 assert.equal(routeIncoming("h", "p", "q", lineup), undefined, "a lineup from a non-host");
 assert.equal(routeIncoming("h", "h", "p", lineup), undefined, "a lineup sent to the host");
@@ -135,7 +135,9 @@ for (const good of [
     { ...lineup, teams: [[], []] },
     { ...lineup, size: 1, teams: Array(MAX_PLAYERS).fill(["p"]) },
     { ...lineup, size: 4, teams: [["a", "b", "c", "d"], []] },
-]) assert.deepEqual(routeIncoming("h", "p", "h", good), { kind: "lineup", lineup: { size: good.size, teams: good.teams } }, JSON.stringify(good));
+    { ...lineup, size: 1, teams: [["h"], ["p"]], waiting: ["q", "r"] },
+    { ...lineup, waiting: Array(MAX_WAITING).fill("w") },
+]) assert.deepEqual(routeIncoming("h", "p", "h", good), { kind: "lineup", lineup: { size: good.size, teams: good.teams, waiting: good.waiting } }, JSON.stringify(good));
 for (const bad of [
     { ...lineup, size: 0 },
     { ...lineup, size: 1.5 },
@@ -150,6 +152,12 @@ for (const bad of [
     { ...lineup, teams: [["h".repeat(65)], []] },
     { ...lineup, teams: [["bot:hard:9"], []] },
     { ...lineup, teams: [["local:0"], []] },
+    { ...lineup, waiting: undefined },
+    { ...lineup, waiting: "q" },
+    { ...lineup, waiting: [7] },
+    { ...lineup, waiting: ["q".repeat(65)] },
+    { ...lineup, waiting: ["bot:hard:9"] },
+    { ...lineup, waiting: Array(MAX_WAITING + 1).fill("w") },
     { seq: 1, msg: lineup },
 ]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
 
