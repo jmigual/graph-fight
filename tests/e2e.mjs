@@ -201,7 +201,7 @@ async function assertBuild(pages, id) {
     const version = id.includes("-dev") ? id : id.split("+")[0];
     for (const page of pages) {
         assert.equal(await text(page, "#build"), `v ${version}`);
-        const link = page.getByRole("link", { name: `Version ${version}, view changelog` });
+        const link = page.getByRole("link", { name: `v ${version}, changelog, opens in a new tab` });
         assert.equal(await link.count(), 1);
         assert.equal(await link.getAttribute("href"), "./changelog.html");
     }
@@ -1366,7 +1366,7 @@ const scenarios = {
         const page = await (await browser.newContext()).newPage();
         page.on("pageerror", (e) => errors.push(`page: ${e}`));
         await page.goto(url);
-        const link = page.getByRole("link", { name: /^Version \S+, view changelog/ });
+        const link = page.getByRole("link", { name: /^v \S+, changelog, opens in a new tab$/ });
         const [log] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
         await log.waitForLoadState();
         assert.equal(new URL(log.url()).pathname, "/changelog.html");
