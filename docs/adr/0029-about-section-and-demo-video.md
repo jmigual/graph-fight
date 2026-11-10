@@ -17,13 +17,15 @@ the open games and the host form, must not have to scroll past it.
   video. The footer links the repository too, next to the version link; both open in a new tab, and
   the footer link's accessible name starts with its visible text ("GitHub, opens in a new tab").
 - The video is `<video muted loop playsinline controls preload="none" poster="./demo-poster.jpg">`
-  with a webm `<source>`. Its text alternative is the description beside it and a caption:
-  `aria-describedby` points to both. `preload="none"` keeps the 400 KB file out of the lobby's load
-  until someone plays it or it scrolls into view.
+  with a webm `<source>`, an `aria-label` as its name and the caption (`aria-describedby`), which
+  also says that the clip opens on the lobby and the waiting room. The description beside it is the
+  text alternative. `preload="none"` keeps the 400 KB webm out of the lobby's load until someone
+  plays it or it scrolls into view; the 50 KB poster loads with the page.
 - `js/about.ts` (imported by `index.ts`, nothing else in it) plays the video when an
-  `IntersectionObserver` reports it on screen and pauses it when it leaves, unless
-  `prefers-reduced-motion: reduce` matches; then it never plays on its own, and the controls and
-  the poster remain. A hidden section never intersects, so nothing plays in a game.
+  `IntersectionObserver` reports it on screen and pauses it when it leaves. A pause the observer
+  did not cause (the viewer's) stands until they press play again. With
+  `prefers-reduced-motion: reduce` it never plays on its own, and the controls and the poster
+  remain. A hidden section never intersects, so nothing plays in a game.
 - `scripts/demo-video.mjs` records the clip: it serves `dist/` as e2e does, hosts a solo XY game
   against an Easy bot with the network cut (as e2e scenario S, ADR 21), types and fires two
   formulas, and writes `static/demo.webm` and `static/demo-poster.jpg` with Playwright's
@@ -38,7 +40,8 @@ the open games and the host form, must not have to scroll past it.
 
 ## Consequences
 
-- `dist/` grows by about 460 KB, fetched only on play or scroll-into-view.
+- `dist/` grows by about 460 KB; only the poster is fetched with the page, the webm on play or
+  scroll-into-view.
 - The clip shows the UI of the day it was recorded and goes stale as the UI changes; the recorder
   makes redoing it one command. The recording is not deterministic (the arena is random), so a
   re-run gives a different clip.
