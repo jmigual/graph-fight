@@ -29,7 +29,9 @@ Amended 2026-11-10 (UI audit): each screen is a centred block, and the game is a
 needs, so the board grows with a wide window (sections 4 and 6). The empty lobby also offers a bot
 to play alone, in a dashed outline, and a hint under "Coordinates" says what each frame means
 (sections 4 and 6). On desktop the board stays in view while the side column scrolls, and each
-saved formula has Insert and Delete beside its name (sections 6 and 8).
+saved formula has Insert and Delete beside its name (sections 6 and 8). The Save/Fire row follows
+the inputs, the error line and the direction, and the helper buttons and hint move below it, so Fire
+sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
 
 ## Context
 
@@ -355,13 +357,13 @@ except in the test arena (ADR 25), where the setup panel under the board must sc
 +-----------------------------------------------+------------------------+
 | [1] Your turn                42 s [Leave game]| (o) y = f(x) ( ) x(t),y(t)
 | ====================------ timer bar          | y = [2*sin(x)        ] |
-| +-------------------------------------------+ | x π e ( ) ^ √ sin cos  |
-| |  graph paper centred on the shooter       | | tan abs exp ln  More   |
-| |  +x -->   obstacles   [2] [2]             | | Formula error ...      |
-| |                                           | | (disc only:)           |
-| |                                           | | (o)↺ Counterclockwise  |
+| +-------------------------------------------+ | Formula error ...      |
+| |  graph paper centred on the shooter       | | (disc only:)           |
+| |  +x -->   obstacles   [2] [2]             | | (o)↺ Counterclockwise  |
 | |                                           | | ( )↻ Clockwise         |
-| +-------------------------------------------+ | [Save]          [Fire] |
+| |                                           | | [Save]          [Fire] |
+| |                                           | | x π e ( ) ^ √ sin cos  |
+| +-------------------------------------------+ | tan abs exp ln  More   |
 | Team 2 fired y = x/2. Team 1 lost a player.   | Teams                  |
 |                                               | [1] Team 1, you   ●●○  |
 |                                               | [2] Team 2        ●●●  |
@@ -409,8 +411,9 @@ before start), it stands alone.
   - **Hint** `#formula-hint`, under the helper buttons and named by both inputs' `aria-describedby`:
     "Type pi for π." and, on the disc function only (where `θ` is the variable), "Type theta (or
     th) for θ." `refresh(field, parametric)` shows the second sentence.
-- **Helper buttons**, `role="group"` with the label "Insert", placed between the inputs and the
-  Save/Fire row:
+- **Helper buttons**, `role="group"` with the label "Insert", placed below the Save/Fire row (and
+  the Save row, section 8), so on a phone Fire stays in the first screen above the keyboard. The
+  DOM has the same order, so focus goes input, direction, Save, Fire, then the helpers:
   - Always visible: the mode variable (`x` on XY function, `θ` on disc function, `t` in either
     parametric mode, relabelled by `setMode`), `π`, `e`, `( )`, `^`, `√`, `sin`, `cos`, `tan`,
     `abs`, `exp`, `ln`.

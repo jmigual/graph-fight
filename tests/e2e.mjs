@@ -1690,6 +1690,15 @@ const scenarios = {
         assert.ok(scrolled.y >= 600, `the page scrolls (${scrolled.y})`);
         assert.ok(scrolled.top >= 0 && scrolled.bottom <= scrolled.height, `the board stays on screen (${scrolled.top}, ${scrolled.bottom})`);
         await host.evaluate(() => scrollTo(0, 0));
+        // Fire comes right after the formula: Tab from the input reaches it before the helper buttons.
+        await host.waitForFunction(() => !document.getElementById("fire").disabled, null, { timeout: TURN_WAIT_MS });
+        await host.focus("#input-a");
+        let reached = "";
+        for (let i = 0; i < 40 && !["fire", "insert-var"].includes(reached); i++) {
+            await host.keyboard.press("Tab");
+            reached = await host.evaluate(() => document.activeElement.id);
+        }
+        assert.equal(reached, "fire", "Tab from the formula reaches Fire before the helper buttons");
         await host.setViewportSize({ width: 1920, height: 1080 });
         assertCentred(await box(host, "#game"), "the game at 1920 px");
         const board = await box(host, "#arena");
