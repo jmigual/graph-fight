@@ -11,6 +11,9 @@ Amended by 0022: the host's waiting room also has `#add-local`, each local playe
 ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue.
 Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
 button per guest team still in, and a kicked page ends with "The host removed you from this game.".
+Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,
+a password game's row has a padlock named "Password required", Join on it opens `#password-dialog`,
+and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`.
 
 ## Context
 

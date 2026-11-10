@@ -7,6 +7,8 @@ Amended by 0022: `start.peers` may hold local players' seats `local:<n>`, which 
 a `start` with a malformed `local:` entry is dropped.
 Amended by 0023: the host also sends a peer `{type: "kick"}` (outside the sequence, accepted only
 from the host), and relays `leave {peer}` for a seat it kicks, as for a quit.
+Amended by 0024: the listing carries `locked` (a password game), a private-link game is not listed,
+and a password or private-link game room is joined with Trystero's `password` option.
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
 uses `graph-fight:lobby:dev` (see "Lobby topic per build").
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.

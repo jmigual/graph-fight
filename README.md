@@ -14,13 +14,16 @@ The host can add local players, who take turns at the host's screen, next to bot
 
 The host can remove a guest from the waiting room, or kick one mid-game; that team is out.
 
+A game can be private: listed with a lock and joined with a password, or left out of the lobby and
+joined through an invite link the host copies.
+
 There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
 Nostr relays lets them find each other.
 
 ## Screenshots
 
 ![Lobby with an open game](docs/img/lobby.png)
-The lobby lists open games found on the Nostr relays.
+The lobby lists open games found on the Nostr relays; the padlock marks a game that needs a password.
 
 ![XY game](docs/img/game-xy.png)
 XY field: the last shot, the roster and the formula editor with its helper buttons.

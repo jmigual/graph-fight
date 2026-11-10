@@ -6,6 +6,7 @@ never absent.
 Amended by 0022: so do local players' seats (`local:<n>`).
 Amended by 0023: the host can revoke a guest's seat; its token then claims nothing, and a rejoin
 with it is answered with a kick.
+Amended by 0024: the stored seat also keeps the room password (`key`) of a private game.
 Amended by 0018: a seated peer whose host link stays down for 25 s rejoins the game room, and
 gives the game up after 3 minutes.
 
