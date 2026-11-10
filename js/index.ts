@@ -5,6 +5,7 @@ import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
 import { BUILD_ID, BUILD_VERSION, DEFAULT_K, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
+import { initArena } from "./arena";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
@@ -42,10 +43,6 @@ const NO_HOST = ["The host can't be reached.", "The game may be gone. Join anoth
 const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
 /** Long and short names of a shot frame, shown after the field (ADR 20). */
 const FRAME_NAMES = { map: ["map-centred", "map"], player: ["player-centred", "player"] };
-const LABELS = {
-    xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
-    disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
-};
 
 /** What a seated peer keeps to rejoin: the room, its private token, its build, its seat id and the room password (ADR 24). */
 type Seat = { hostId: string; token: string; version: string; me: string; key?: string };
@@ -617,7 +614,7 @@ const absentTeams = (p: Play) => (room && !p.over ? room.absent().map((id) => p.
 
 // The board redraws when its size, the pixel ratio, the colour scheme or the fonts change (ADR 17),
 // which also ends a running shot animation on its final frame.
-const redraw = () => play?.view && draw($<HTMLCanvasElement>("arena"), play.view);
+const redraw = () => (play?.view ? draw($<HTMLCanvasElement>("arena"), play.view) : testArena.redraw());
 new ResizeObserver(redraw).observe($("arena"));
 // A query for the current ratio fires once when it changes (another screen, zoom), then re-arms.
 function watchRatio() {
@@ -652,13 +649,10 @@ const clockwise = () => $<HTMLInputElement>("dir-cw").checked;
 document.querySelectorAll("input[name=dir]").forEach((el) => ((el as HTMLInputElement).onchange = () => play && refresh(play)));
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
 const editor = initEditor();
+// The offline test arena (ADR 25) shares the game's board and editor.
+const testArena = initArena(editor, show, ARENAS, PLAYER_RADIUS);
 function setMode() {
-    if (!play) return;
-    editor.refresh(play.field, parametric());
-    const [a, b] = LABELS[play.field][parametric() ? "parametric" : "explicit"];
-    $("label-a").textContent = a;
-    $("label-b").textContent = b ?? "";
-    $("wrap-b").hidden = !parametric();
+    if (play) editor.refresh(play.field, parametric());
 }
 document.querySelectorAll("input[name=mode]").forEach((el) => ((el as HTMLInputElement).onchange = setMode));
 

@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/render.test.mjs
 import assert from "node:assert/strict";
-import { lookAfterShot, lookKey, olderPaths, shotLabel, shotText } from "../js/render.ts";
+import { describeTrial, lookAfterShot, lookKey, olderPaths, pickAt, playerName, shotLabel, shotText, toWorld } from "../js/render.ts";
 
 const line = (from, dx, dy, n = 40) => Array.from({ length: n }, (_, i) => ({ x: from.x + dx * i * 0.05, y: from.y + dy * i * 0.05 }));
 
@@ -42,5 +42,34 @@ const shots = new Map([[lookKey(0, 0), a], [lookKey(0, 1), b], [lookKey(1, 0), c
 assert.deepEqual(olderPaths(shots, arena, c), [a], "the newest and the dead player's are left out");
 assert.deepEqual(olderPaths(shots, arena, null), [a, c], "with no newest shot every living player's path stays");
 assert.deepEqual(olderPaths(new Map(), arena, null), []);
+
+// The test arena (ADR 25).
+// A 800 px board of the XY field (x_max 20, y_max 10): 20 px per unit, y up.
+assert.deepEqual(toWorld(400, 200, 800, 20, 10), { x: 0, y: 0 });
+assert.deepEqual(toWorld(0, 0, 800, 20, 10), { x: -20, y: 10 });
+assert.deepEqual(toWorld(600, 300, 800, 20, 10), { x: 10, y: -5 });
+
+// Picking: the nearest player within its radius plus the slack, then obstacles; players win.
+const teams = [[{ x: -8, y: 0 }], [{ x: 5, y: 0 }, { x: 5, y: 0.8 }]];
+const obstacles = [{ x: 0, y: 0, r: 2 }, { x: 0.5, y: 0, r: 0.5 }, { x: 5, y: 0, r: 1 }];
+assert.deepEqual(pickAt(teams, obstacles, { x: -8.2, y: 0.1 }, 0.3, 0), { player: [0, 0] });
+assert.deepEqual(pickAt(teams, obstacles, { x: 5, y: 0.3 }, 0.3, 0), { player: [1, 0] }, "the nearer of two players");
+assert.deepEqual(pickAt(teams, obstacles, { x: 5, y: 0.6 }, 0.3, 0), { player: [1, 1] });
+assert.deepEqual(pickAt(teams, obstacles, { x: 5.5, y: 0 }, 0.3, 0), { obstacle: 2 }, "an obstacle under no player");
+assert.deepEqual(pickAt(teams, obstacles, { x: -8.5, y: 0 }, 0.3, 0.25), { player: [0, 0] }, "the slack reaches past the edge");
+assert.equal(pickAt(teams, obstacles, { x: -8.5, y: 0 }, 0.3, 0.1), null);
+assert.deepEqual(pickAt(teams, obstacles, { x: 0.6, y: 0 }, 0.3, 0), { obstacle: 1 }, "the obstacle with the nearest centre");
+assert.deepEqual(pickAt(teams, obstacles, { x: -1, y: 1 }, 0.3, 0), { obstacle: 0 });
+assert.equal(pickAt([[], []], [], { x: 0, y: 0 }, 0.3, 1), null);
+
+// Words: who fired what, whom it hit and the obstacles it stopped in.
+assert.equal(playerName(1, 0), "Team 2 player 1");
+assert.equal(describeTrial("xy", [0, 0], ["0"], false, [[1, 0]], []), "Team 1 player 1 fired y = 0. It hit Team 2 player 1.");
+assert.equal(describeTrial("xy", [1, 2], ["t", "2*t"], true, [], [0]), "Team 2 player 3 fired x = t, y = 2*t. It hit no player. It stopped in obstacle 1.");
+assert.equal(
+    describeTrial("disc", [0, 0], ["θ"], true, [[1, 0], [0, 1], [1, 2]], [2, 4]),
+    "Team 1 player 1 fired r = θ, clockwise. It hit Team 2 player 1, Team 1 player 2 and Team 2 player 3. It stopped in obstacles 3 and 5.",
+);
+assert.match(describeTrial("disc", [0, 0], ["-t", "0"], false, [], []), /r = -t, θ = 0, counterclockwise\. It hit no player\.$/);
 
 console.log("render tests ok");

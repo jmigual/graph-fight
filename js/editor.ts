@@ -10,6 +10,11 @@ const NOTATION = {
     xy: { explicit: "y = f(x)", parametric: "x(t), y(t)" },
     disc: { explicit: "r = f(θ)", parametric: "r(t), θ(t)" },
 };
+/** The formula inputs' labels per field and mode. */
+const LABELS = {
+    xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
+    disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
+};
 const OUT_OF_RANGE = `Use a number between -${LIMIT} and ${LIMIT}.`;
 const NOTICE = "Can't save in this browser; saved formulas last until you close the tab.";
 
@@ -220,7 +225,7 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
     return row;
 }
 
-/** Sets up the helper buttons and the saved formulas panel. `refresh` follows the field and mode. */
+/** Sets up the helper buttons and the saved formulas panel. `refresh` follows the field and mode: input labels, the second input, the variable button and the list. */
 export function initEditor(): { refresh(field: Field, parametric: boolean): void } {
     initHelpers();
     initAutoSymbols();
@@ -346,8 +351,13 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
 
     return {
         refresh(f, parametric) {
-            $("insert-var").textContent = VARIABLE[f][parametric ? "parametric" : "explicit"];
+            const m = parametric ? "parametric" : "explicit";
+            $("insert-var").textContent = VARIABLE[f][m];
             $("theta-hint").hidden = !(f === "disc" && !parametric);
+            const [a, b] = LABELS[f][m];
+            $("label-a").textContent = a;
+            $("label-b").textContent = b ?? "";
+            $("wrap-b").hidden = !parametric;
             if (f !== field || !list.hasChildNodes()) {
                 field = f;
                 render();
