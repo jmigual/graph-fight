@@ -125,11 +125,11 @@ pub struct Game {
 impl Game {
     /// Creates a new game instance on the given `field`, with shots drawn in `frame` (ADR 20).
     /// The arena goes from -`x_max` to `x_max` and -`y_max` to `y_max` (for a disc, `x_max` must
-    /// equal `y_max`, the disc radius) and contains `num_obstacles` obstacles with a size between `min_obstacle_size` and
-    /// `max_obstacle_size`. Each team has a number of players
-    /// defined by `players_per_team` with a radius of `player_radius`. The number of teams is
-    /// inferred by the length of `players_per_team`. The `seed` is used to generate the initial
-    /// positions of the obstacles and players.
+    /// equal `y_max`, the disc radius) and contains `num_obstacles` obstacles with a size between
+    /// `min_obstacle_size` and `max_obstacle_size`. Each team has a number of players defined by
+    /// `players_per_team` with a radius of `player_radius`. The number of teams is inferred by the
+    /// length of `players_per_team`. The `seed` is used to generate the initial positions of the
+    /// obstacles and players.
     #[wasm_bindgen(constructor)]
     pub fn new(
         field: Field,
