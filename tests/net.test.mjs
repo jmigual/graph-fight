@@ -1,6 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
+import { pbkdf2Sync } from "node:crypto";
+import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -244,6 +245,13 @@ assert.match(invite, /^#join=h0st&key=.+&v=/);
 assert.deepEqual(parseInvite(invite), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "the key survives URL encoding");
 assert.deepEqual(parseInvite(invite.slice(1)), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "with or without the #");
 assert.match(newToken(), /^[0-9a-f]{32}$/, "a private link's key is 128 random bits");
+
+// A typed password is stretched (ADR 24): PBKDF2-SHA256, 200 000 rounds, salt `graph-fight:game-<hostId>`, 256 bits.
+const stretched = await stretchPassword("open sesame", "h0st");
+assert.equal(stretched, pbkdf2Sync("open sesame", "graph-fight:game-h0st", 200_000, 32, "sha256").toString("hex"));
+assert.equal(await stretchPassword("open sesame", "h0st"), stretched, "the same on every peer");
+assert.notEqual(await stretchPassword("open sesame", "other"), stretched, "salted with the host's room");
+assert.notEqual(await stretchPassword("open sesame!", "h0st"), stretched);
 for (const bad of ["", "#", "#join=h", "#key=k&v=v", "#join=h&key=k", "#join=&key=k&v=v", "#join=h&key=&v=v", `#join=${"h".repeat(65)}&key=k&v=v`, `#join=h&key=${"k".repeat(65)}&v=v`, `#join=h&key=k&v=${"v".repeat(65)}`]) {
     assert.equal(parseInvite(bad), undefined, bad);
 }

@@ -1071,7 +1071,8 @@ const scenarios = {
         const guest = pages[1];
         await assertSynced(pages, 0);
         await takeTurn(pages, 0, ["t", "0"]);
-        await guest.waitForFunction((k) => JSON.parse(sessionStorage.getItem("graph-fight-seat") ?? "{}").key === k, password);
+        // The seat keeps the stretched room password, never the typed one (ADR 24).
+        await guest.waitForFunction(() => /^[0-9a-f]{64}$/.test(JSON.parse(sessionStorage.getItem("graph-fight-seat") ?? "{}").key));
         await guest.reload();
         await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
         await assertSynced(pages, 1);

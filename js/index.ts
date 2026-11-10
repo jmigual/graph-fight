@@ -3,7 +3,7 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId } from "./net";
+import { BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
@@ -162,12 +162,21 @@ hostField.onchange = () => {
 };
 const hostVisibility = $<HTMLSelectElement>("host-visibility");
 hostVisibility.onchange = () => ($<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password");
-$<HTMLFormElement>("host-form").onsubmit = (e) => {
+$<HTMLFormElement>("host-form").onsubmit = async (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
     const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
-    // A password game is listed with a lock; a private link's random key never leaves the link (ADR 24).
-    const password = hostVisibility.value === "link" ? newToken() : hostVisibility.value === "password" ? $<HTMLInputElement>("host-password").value : "";
+    // A password game is listed with a lock, and its typed password is stretched; a private link's
+    // random key is used as it is and never leaves the link (ADR 24).
+    const submit = $<HTMLButtonElement>("host-submit");
+    submit.disabled = true;
+    let password = "";
+    try {
+        if (hostVisibility.value === "link") password = newToken();
+        else if (hostVisibility.value === "password") password = await stretchPassword($<HTMLInputElement>("host-password").value, selfId);
+    } finally {
+        submit.disabled = false;
+    }
     unlisted = hostVisibility.value === "link";
     offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
     enterRoom(selfId, undefined, password);
@@ -181,10 +190,14 @@ function askPassword(id: string) {
     $<HTMLInputElement>("join-password").value = "";
     passwordDialog.showModal();
 }
-$<HTMLFormElement>("password-form").onsubmit = (e) => {
+$<HTMLFormElement>("password-form").onsubmit = async (e) => {
     e.preventDefault();
+    const id = asking;
+    const password = await stretchPassword($<HTMLInputElement>("join-password").value, id);
+    // A second submit while this one stretched, Cancel or leaving the lobby closed the dialog already.
+    if (!passwordDialog.open) return;
     passwordDialog.close();
-    enterRoom(asking, undefined, $<HTMLInputElement>("join-password").value);
+    enterRoom(id, undefined, password);
 };
 $("password-cancel").onclick = () => passwordDialog.close();
 

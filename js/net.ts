@@ -367,8 +367,28 @@ export function outbox() {
     };
 }
 
+const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 /** A private seat token, or a private link's room password (ADR 24): 128 random bits as hex. */
-export const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+export const newToken = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
+
+/** The Trystero room of host `hostId`'s game (ADR 6, 12). */
+const roomId = (hostId: string) => `game-${hostId}`;
+/** PBKDF2-SHA256 rounds for a typed password (ADR 24): about 80 ms on a desktop, a few times that on a phone. */
+const STRETCH_ROUNDS = 200_000;
+
+/**
+ * Turns a password someone typed into the room password of host `hostId`'s game (ADR 24). Trystero
+ * derives its key from one SHA-256 of the password, the app id and the room, the encrypted offers sit
+ * on public relays and the listing names the room, so a weak password could be guessed offline at
+ * the speed of SHA-256. PBKDF2-SHA256 over `STRETCH_ROUNDS` rounds, salted with
+ * `graph-fight:game-<hostId>`, makes each guess that much dearer. Returns 256 bits as hex.
+ */
+export async function stretchPassword(password: string, hostId: string): Promise<string> {
+    const text = new TextEncoder();
+    const base = await crypto.subtle.importKey("raw", text.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const salt = text.encode(`${APP_ID}:${roomId(hostId)}`);
+    return toHex(new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: STRETCH_ROUNDS }, base, 256)));
+}
 
 /**
  * Host only (ADR 16): a private token for each seat in `peers` (`start.peers`) and the peer
@@ -496,7 +516,8 @@ export type Game = {
  * `REJOIN_MS`, then after twice as long each time, and gives up after `HOST_LOST_MS` (ADR 18).
  * Peer ids are announced by the peers themselves during signalling, so a modified client can
  * claim any id; that is accepted under ADR 7's trusted-peers model. A `password` (ADR 24) is
- * Trystero's room password: it encrypts the signalling, so only peers that know it connect.
+ * Trystero's room password: it encrypts the signalling, so only peers that know it connect. A typed
+ * password goes through `stretchPassword` first; a private link's random key is used as it is.
  */
 export function joinGame(hostId: string, handlers: GameHandlers, token?: string, password?: string): Game {
     const isHost = hostId === selfId;
@@ -505,7 +526,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
 
     // room.leave() takes a moment, so events from a room we left or replaced are dropped.
     function open() {
-        const r = joinRoom({ appId: APP_ID, password }, `game-${hostId}`);
+        const r = joinRoom({ appId: APP_ID, password }, roomId(hostId));
         const a = r.makeAction<JsonValue>("msg");
         const live = () => !left && r === room;
         a.onMessage = (data, { peerId }) => {
