@@ -55,9 +55,9 @@ Release process:
 
 - Two peers on different builds are incompatible, including two deploys of one release and a
   release against a dev build; two dev builds of the same commit stay compatible, as before (ADR 12).
-- Forgetting the CHANGELOG entry in a release PR deploys the previous version again, under a new
-  id, and the tag `v<version>` was not checked against the deployed commit; both are now checked
-  in CI (0031).
+- Previously, forgetting the CHANGELOG entry in a release PR deployed the previous version again,
+  under a new id, and nothing checked that the tag `v<version>` sits on the deployed commit; both
+  are now checked in CI (0031).
 - `GRAPH_FIGHT_LOBBY=live` now means "release build", which is why one flag decides topic and
   version.
 - e2e runs against a dev build, so e2e AK and `assertBuild` check `x.y.z-dev+hash` in the footer and

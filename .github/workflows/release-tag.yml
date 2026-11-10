@@ -26,7 +26,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha=$(git rev-parse "$GITHUB_REF_NAME^{commit}")
-          for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&sha=$sha" --jq '.[].id'); do
+          ids=$(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&sha=$sha" --jq '.[].id')
+          for id in $ids; do
             # a later deploy marks this one `inactive`, so any `success` in its history counts
             ok=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --jq 'any(.[]; .state == "success")')
             if [ "$ok" = true ]; then exit 0; fi

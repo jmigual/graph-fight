@@ -31,6 +31,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Check the top CHANGELOG version is not already tagged on another commit
+        run: node scripts/release-check.mjs free
       - run: npm test
       - run: npm run build
         env:
@@ -46,8 +48,6 @@ jobs:
           grep -qF "\"$version+" dist/index.js
           grep -qF "<h2 id=\"v$version\">" dist/changelog.html
           if grep -qF -- '-dev+' dist/index.js; then exit 1; fi
-      - name: Check the top CHANGELOG version is not already tagged on another commit
-        run: node scripts/release-check.mjs free
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

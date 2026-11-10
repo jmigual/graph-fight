@@ -1,7 +1,7 @@
 // Release checks run in CI (ADR 31): a release needs its own CHANGELOG entry, and its tag
 // `v<version>` sits on the deployed commit. The rules are pure; the CLI feeds them from git.
-//   node scripts/release-check.mjs free [sha]   the top version is not tagged on another commit
-//   node scripts/release-check.mjs tag <tag>    the tag is the top version at its commit, on master
+//   node scripts/release-check.mjs free        the top version is not tagged on another commit than HEAD
+//   node scripts/release-check.mjs tag <tag>   the tag is the top version at its commit, on master
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -38,7 +38,7 @@ const localTags = () => {
   const tags = {};
   for (const line of git("for-each-ref", "--format=%(refname:strip=2) %(*objectname) %(objectname)", "refs/tags").split("\n")) {
     const [name, peeled, own] = line.split(" ");
-    if (name) tags[name] = own === undefined ? peeled : peeled || own;
+    if (name) tags[name] = peeled || own;
   }
   return tags;
 };
@@ -49,16 +49,18 @@ function main([command, arg]) {
     // An empty list means the checkout did not fetch tags, which would make the check pass for nothing.
     if (!Object.keys(tags).length) throw new ReleaseCheckError("no-tags", "no tags in the checkout: fetch them (fetch-depth: 0)");
     const version = parseChangelog(readFileSync("CHANGELOG.md", "utf8"))[0].version;
-    checkTagFree(version, tags, arg ?? git("rev-parse", "HEAD"));
+    checkTagFree(version, tags, git("rev-parse", "HEAD"));
   } else if (command === "tag" && arg) {
     checkTagVersion(arg, git("show", `${arg}^{commit}:CHANGELOG.md`));
     try {
       git("merge-base", "--is-ancestor", `${arg}^{commit}`, "refs/remotes/origin/master");
-    } catch {
+    } catch (e) {
+      // Exit status 1 is "not an ancestor"; anything else (a missing ref, say) is a real failure.
+      if (e.status !== 1) throw e;
       throw new ReleaseCheckError("not-on-master", `${arg} is not on master`);
     }
   } else {
-    throw new Error("usage: release-check.mjs free [sha] | tag <tag>");
+    throw new Error("usage: release-check.mjs free | tag <tag>");
   }
 }
 
