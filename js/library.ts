@@ -27,6 +27,25 @@ export type Result<T> = { ok: true; value: T } | { ok: false; error: LibraryErro
 const IDENT = /\p{L}[\p{L}\p{N}]*/gu;
 const SLIDER = /^(?![xte]\d*$)[A-Za-z]\d*$/;
 
+const SYMBOLS = new Map([["theta", "θ"], ["pi", "π"]]);
+
+/**
+ * Replaces each whole identifier `theta` and `pi` with `θ` and `π` and moves `caret` to match, so
+ * `pix` and `theta2` are left alone. A caret inside a replaced word lands after the symbol. `th` is
+ * not replaced: typing `theta` passes through it.
+ */
+export function autoSymbols(text: string, caret: number): { text: string; caret: number } {
+    let moved = caret;
+    const out = text.replace(IDENT, (tok, at: number) => {
+        const symbol = SYMBOLS.get(tok);
+        if (!symbol) return tok;
+        if (caret >= at + tok.length) moved -= tok.length - symbol.length;
+        else if (caret > at) moved -= caret - at - symbol.length;
+        return symbol;
+    });
+    return { text: out, caret: moved };
+}
+
 function sliderTokens(exprs: readonly string[]): { name: string; glued: boolean }[] {
     const out: { name: string; glued: boolean }[] = [];
     for (const text of exprs) {
