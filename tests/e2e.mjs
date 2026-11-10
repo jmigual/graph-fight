@@ -1225,9 +1225,11 @@ const scenarios = {
         for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) <= 57, null, { timeout: 10_000 });
         await host.getByRole("button", { name: "Kick Team 3" }).focus();
         await host.keyboard.press("Enter");
+        // Checked before the bot's shot (1.5 s later) rebuilds the roster again.
+        await host.waitForFunction(() => window.__state().current === 3, null, { timeout: TURN_WAIT_MS });
+        assert.equal(await host.evaluate(() => !!document.activeElement.closest("#roster")), true, "the focus stays in the roster");
         for (const page of rest) await page.waitForFunction(() => window.__state().current === 3, null, { timeout: TURN_WAIT_MS });
         for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) >= 58, null, { timeout: 2000 });
-        assert.equal(await host.evaluate(() => !!document.activeElement.closest("#roster")), true, "the focus stays in the roster");
         await assertSynced(rest, turn + 1);
         assert.equal(JSON.parse(await state(host)).shot?.team, 3, "the bot fired");
         return errors;
