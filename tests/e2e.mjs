@@ -1142,6 +1142,11 @@ const scenarios = {
                 for (const guest of guests) assert.equal(await guest.evaluate(() => location.href), url, "the key is gone from the guest's address bar");
                 // The host lets guests share the link: they get the same one.
                 for (const guest of guests) await guest.waitForFunction((l) => document.getElementById("invite-link").value === l && !document.getElementById("invite").hidden, link);
+                // The link pasted again in the waiting room: the page stays, says why, and drops the key.
+                await guests[1].goto(link);
+                await guests[1].waitForFunction(() => document.getElementById("room-error").textContent !== "");
+                assert.match(await text(guests[1], "#room-error"), /leave this game first/);
+                assert.equal(await guests[1].evaluate(() => location.href), url, "the address bar is clean");
                 // A page whose host form is still stretching its password when it opens the invite joins
                 // that game only: the stretch finishing later must not host a room as well.
                 const racer = await (await browser.newContext()).newPage();
