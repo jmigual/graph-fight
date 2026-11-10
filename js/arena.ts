@@ -13,7 +13,7 @@ export type Extents = { x: number; y: number; obstacles: number; minSize: number
 
 /** A press this close (CSS px) to the edge of a player or obstacle is on it, so small faces can be tapped. */
 const SLACK_PX = 10;
-/** Moving this far (CSS px) turns a press on a player into a drag. */
+/** Moving this far (CSS px) with a mouse or pen turns a press into a drag; a finger needs `SLACK_PX`. */
 const DRAG_PX = 4;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -169,31 +169,39 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         const box = canvas.getBoundingClientRect();
         return toWorld(e.clientX - box.left, e.clientY - box.top, box.width, arenas[field].x, arenas[field].y);
     };
-    let press: { pick: Pick | null; x: number; y: number; dragging: boolean; refused: boolean } | null = null;
+    // A press follows one pointer. `moved` is set once it goes `threshold` px from where it started,
+    // larger for a finger: then it is a drag (on a player) or a swipe, never a click.
+    type Press = { id: number; pick: Pick | null; x: number; y: number; threshold: number; moved: boolean; refused: boolean };
+    let press: Press | null = null;
+    const ours = (e: PointerEvent) => press?.id === e.pointerId;
+    const far = (p: Press, e: PointerEvent) => p.moved || Math.hypot(e.clientX - p.x, e.clientY - p.y) >= p.threshold;
     canvas.addEventListener("pointerdown", (e) => {
         if (!active || !e.isPrimary) return;
         const slack = (SLACK_PX * 2 * arenas[field].x) / canvas.clientWidth;
         const pick = pickAt(teams, obstacles, worldAt(e), radius, slack);
-        press = { pick, x: e.clientX, y: e.clientY, dragging: false, refused: false };
+        press = { id: e.pointerId, pick, x: e.clientX, y: e.clientY, threshold: e.pointerType === "touch" ? SLACK_PX : DRAG_PX, moved: false, refused: false };
         canvas.setPointerCapture(e.pointerId);
     });
     canvas.addEventListener("pointermove", (e) => {
-        if (!press?.pick || !("player" in press.pick)) return;
-        if (!press.dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_PX) return;
-        press.dragging = true;
+        if (!press || !ours(e) || !far(press, e)) return;
+        press.moved = true;
+        if (!press.pick || !("player" in press.pick)) return;
         press.refused = !move(press.pick.player, worldAt(e));
         if (!press.refused) render();
     });
     canvas.addEventListener("pointerup", (e) => {
+        if (!press || !ours(e)) return;
         const p = press;
         press = null;
-        if (!active || !p) return;
-        if (p.dragging) {
+        if (!active) return;
+        if (far(p, e)) {
             if (p.refused && p.pick && "player" in p.pick) move(p.pick.player, worldAt(e), "Can't move it there.");
         } else if (p.pick) select(p.pick);
         else place(worldAt(e));
     });
-    canvas.addEventListener("pointercancel", () => (press = null));
+    canvas.addEventListener("pointercancel", (e) => {
+        if (ours(e)) press = null;
+    });
     // Delete or Backspace removes the selection after a click on the board, where the focus is on the page.
     document.addEventListener("keydown", (e) => {
         if (!active || (e.key !== "Delete" && e.key !== "Backspace") || e.target !== document.body) return;
