@@ -499,17 +499,20 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         showError(unfilled);
         return;
     }
-    p.pending = true;
     try {
         // The shooter checks locally, so a bad formula never costs the turn (ADR 14).
         if (exprs.length === 1) p.sim.check(exprs[0]);
         else p.sim.check_param(exprs[0], exprs[1]);
+        p.pending = true;
+        // The host applies its own shot inside `shoot`, and that refresh starts the pen. A redraw
+        // after it would end the animation on its final frame, so only Fire is disabled here.
+        $<HTMLButtonElement>("fire").disabled = true;
         room.shoot({ type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() });
     } catch (err) {
         p.pending = false;
         showError(String(err));
+        refresh(p);
     }
-    refresh(p);
 };
 
 setInterval(() => {

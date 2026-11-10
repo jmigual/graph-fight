@@ -728,6 +728,38 @@ const scenarios = {
         for (let turn = 3; turn < 6; turn++) await play(turn);
         return errors;
     },
+    async U() {
+        // The host's own shot is drawn with the pen like everyone else's: a redraw of the unchanged
+        // shot after Fire (the shot is applied synchronously on the host) must not cut the animation.
+        const { pages, errors } = await startGame(2, "xy", "U");
+        const [host] = pages;
+        assert.equal(await host.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), false);
+        await assertSynced(pages, 0);
+        // The first shooter is random: let the guest go first if it is up.
+        if (!(await host.isEnabled("#fire"))) await takeTurn(pages, 0, ["x"]);
+        const { turn } = JSON.parse(await state(host));
+        await host.check("#mode-explicit");
+        await host.fill("#input-a", "0");
+        await host.click("#fire");
+        // The canvas at four instants: the pen is still moving 150 and 300 ms after Fire, and rests at the end.
+        const frames = await host.evaluate(async () => {
+            const canvas = document.getElementById("arena");
+            const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+            const out = [canvas.toDataURL()];
+            await wait(150);
+            out.push(canvas.toDataURL());
+            await wait(150);
+            out.push(canvas.toDataURL());
+            await wait(1500);
+            out.push(canvas.toDataURL());
+            return out;
+        });
+        assert.notEqual(frames[0], frames[1], "the pen is still drawing 150 ms after Fire");
+        assert.notEqual(frames[1], frames[2], "and 300 ms after Fire");
+        assert.notEqual(frames[2], frames[3], "the final frame replaces the pen");
+        await assertSynced(pages, turn + 1);
+        return errors;
+    },
 };
 
 let failed = 0;
