@@ -34,7 +34,7 @@ export function ourWin(seat: string, hotSeat: boolean) {
     const name = sharedName(seat, hotSeat);
     return name ? `${name} wins.` : "You win.";
 }
-const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
+export const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
 
 /** Writes only a changed text, since some screen readers announce a live region on every write, even of the same text. */
@@ -92,13 +92,16 @@ export type Status = {
     hostDown: boolean;
     /** The current shooter's seat is disconnected. */
     away: boolean;
+    /** Team mode (ADR 27): a team has several seats, so the shooter's is named after its team. */
+    teams: boolean;
 };
 
 /** Status bar, tab title and team colour: the host link, a disconnected shooter, or whose turn it is. */
-export function renderStatus({ over, team, seat, mine, hotSeat, hostDown, away }: Status) {
+export function renderStatus({ over, team, seat, mine, hotSeat, hostDown, away, teams }: Status) {
     $("game").style.setProperty("--team", over ? "" : teamColour(team));
     setText($("turn-swatch"), over ? "" : String(team + 1));
-    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat, hotSeat) : `Team ${team + 1} is aiming`;
+    const who = teams ? `Team ${team + 1}: ${seatName(seat)}` : `Team ${team + 1}`;
+    const words = hostDown ? "Reconnecting to the host…" : away ? `${who} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat, hotSeat) : `${who} is aiming`;
     setText($("turn"), over ? "" : words);
     $("turn").classList.toggle("quiet", !over && hostDown);
     $("timer").hidden = over;
@@ -124,13 +127,8 @@ export function describeTurn(field: Field, team: number, msg: Shot | Timeout, fi
  * that is still in gets a Kick button (ADR 23).
  */
 export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean, kick?: (team: number) => void) {
-    // The list is rebuilt on every change: keep the keyboard on the button it was on or, when that
-    // one is gone (its team was kicked), on the next Kick button, or on the list.
-    const buttons = () => [...$("roster").querySelectorAll<HTMLElement>("button")];
-    const at = buttons().indexOf(document.activeElement as HTMLElement);
-    const focused = at < 0 ? null : document.activeElement?.getAttribute("aria-label");
-    $("roster").replaceChildren(
-        ...arena.teams.map((t, ti) => {
+    replaceRoster(
+        arena.teams.map((t, ti) => {
             const li = document.createElement("li");
             li.style.setProperty("--team", teamColour(ti));
             const add = (cls: string, text: string) => {
@@ -162,6 +160,17 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             return li;
         }),
     );
+}
+
+/**
+ * Puts `items` in the roster. The list is rebuilt on every change: keep the keyboard on the button it
+ * was on or, when that one is gone (its team or seat was kicked), on the next Kick button, or on the list.
+ */
+export function replaceRoster(items: HTMLElement[]) {
+    const buttons = () => [...$("roster").querySelectorAll<HTMLElement>("button")];
+    const at = buttons().indexOf(document.activeElement as HTMLElement);
+    const focused = at < 0 ? null : document.activeElement?.getAttribute("aria-label");
+    $("roster").replaceChildren(...items);
     if (at < 0) return;
     const after = buttons();
     (after.find((b) => b.getAttribute("aria-label") === focused) ?? after[at] ?? after[at - 1] ?? $("roster")).focus();

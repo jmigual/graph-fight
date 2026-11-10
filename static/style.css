@@ -345,6 +345,9 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 #roster .pips { margin-left: auto; letter-spacing: 0.15em; color: var(--team); }
 #roster li.current .state { color: var(--ink); font-weight: 700; }
 #roster li.out .team { text-decoration: line-through; }
+/* Team mode (ADR 27): a side's seats, one per line under the side. */
+#roster .seats { flex-basis: 100%; list-style: none; margin: 0; padding: 0 0 0 1.75rem; }
+#roster .seats li { padding: 0.125rem 0; }
 #out-note { font-weight: 700; }
 
 /* Save row and saved formulas */

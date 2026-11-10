@@ -3,7 +3,7 @@ import { BUILD_ID, inviteFragment, isHostRun, joinGame, parseBot, parseLocal, se
 import type { Announce, Game as Room } from "./net";
 import { $, show } from "./dom";
 import { FIELD_NAMES, FRAME_NAMES, games, lobby, passwordDialog } from "./lobby";
-import { acceptShot, clearEnded, dropGame, end, ended, onMessage, play, refresh, testArena } from "./game";
+import { acceptShot, clearEnded, dropGame, end, ended, leaveQuestion, onMessage, play, refresh, testArena } from "./game";
 import { clearError, seatName, setLive, short, showError, TITLE } from "./status";
 
 /** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
@@ -228,7 +228,7 @@ export function toLobby() {
 }
 $("leave").onclick = $("back").onclick = toLobby;
 $("quit").onclick = () => {
-    if (!confirm("Leave the game? Your team will be out.")) return;
+    if (!confirm(leaveQuestion())) return;
     room?.quit();
     toLobby();
 };

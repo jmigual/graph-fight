@@ -2,13 +2,13 @@
 
 Status: Accepted (2026-11-10). Amends 0012 (`start`, lobby listing, two out-of-sequence messages),
 0015 (the announce carries `teams` and `k`; the 3 characters per team are `DEFAULT_K`), 0016
-(`leave` of a seat) and 0021 (bots are seated on a team).
+(`leave` of a seat), 0017 (roster, status bar, out note, Leave game, end copy), 0021 (bots are seated
+on a team) and 0023 (a kick in a team hands the seat's characters over).
 
 Amendments still to come: the protocol and the pure rules land first; each later commit that changes
 a behaviour adds its "Amended by 0027" line to that ADR and 0027 to its index row. Those are 0015
-(host form, seating, Start rule, characters per player), 0017 (host form, waiting room, roster,
-status bar, end copy), 0022 (local players are seated on a team) and 0023 (a kick in a team hands
-the seat's characters over).
+(host form, seating, Start rule, characters per player), 0017 (host form and waiting room, added to
+its 0027 line) and 0022 (local players are seated on a team).
 
 ## Context
 

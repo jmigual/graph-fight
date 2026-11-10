@@ -38,6 +38,12 @@ last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide
 under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
 bar (sections 4 and 6). The Test arena button (ADR 25) sits in "Open games", under the list, and
 on a phone the test arena's editor follows the board, before the setup panel (section 6).
+Amended by 0027: in team mode the roster has one entry per side with its pips, then its seats, each
+with "you", "aiming", "disconnected" or "left"; the status bar and turn cue name the seat ("Team 2:
+abc123 is aiming"); a seat whose characters are all dead reads "Your players are out. Team 1 plays
+on."; a guest's Leave game asks "Leave the game? Your teammates take over your players." while its
+side has a seat still in; the end screen reads "Your team wins." on the winning side, otherwise
+"Team 2 wins." with its seats named (sections 10 and 11).
 
 ## Context
 

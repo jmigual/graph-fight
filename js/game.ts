@@ -13,6 +13,7 @@ import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setText, showError } from "./status";
 import { charactersPerSide, owner, seatsOf, sideOf } from "./teams";
+import { renderSides } from "./teams-view";
 import { dropSeat, HOST_LEFT, hostId, me, room, SEAT_KEY } from "./room";
 
 const TURN_MS = 60_000;
@@ -53,6 +54,8 @@ type Play = {
     shots: Map<string, LastShot>;
     /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
+    /** The disconnected seats as last drawn, so a change redraws the board and the roster. */
+    away?: string;
     /**
      * Turn starts so far: the start, each shot and timeout, and each leave that passes the turn on.
      * Unlike `turn`, it moves when a quit or a kick hands the turn to the next team; a replay counts
@@ -273,19 +276,41 @@ export function refresh(p: Play) {
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    renderStatus({ over: p.over, team, seat, mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && absentSeats(p).includes(seat) });
+    const away = absentSeats(p);
+    p.away = String(away);
+    renderStatus({ over: p.over, team, seat, mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && away.includes(seat), teams: !!p.teams });
     setText($("last-shot"), p.note);
-    // The editor goes once every character played here is dead.
+    // The editor goes once every character played here is dead; in team mode the side may play on (ADR 27).
     const out = !p.over && view.arena.teams.every((t, ti) => t.players.every((pl, j) => !pl.alive || !playsHere(owner(p, p.left, ti, j) ?? "")));
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
-    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, hostId === selfId && !p.over ? (team) => kickTeam(p, team) : undefined);
+    const ours = sideOf(p, me);
+    const on = !!p.teams && ours !== undefined && view.arena.teams[ours].players.some((pl) => pl.alive);
+    setText($("out-note"), on ? `Your players are out. Team ${ours + 1} plays on.` : OUT_NOTE);
+    const host = hostId === selfId && !p.over;
+    if (p.teams) renderSides({ arena: view.arena, start: p, left: p.left, me, current: view.current, shooter: seat, absent: away, mine }, host ? (id) => kickSeat(p, id) : undefined);
+    else renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, host ? (team) => kickTeam(p, team) : undefined);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
 }
 
 /** Host: once confirmed, removes the guest playing `team`; the team is out as after a quit (ADR 23). */
 function kickTeam(p: Play, team: number) {
     if (confirm(`Kick Team ${team + 1}? Their team will be out.`)) room?.kick(p.peers[team]);
+}
+
+/** Host, team mode: once confirmed, removes the guest in `seat`; its teammates take over its players, or its side is out (ADR 23, 27). */
+function kickSeat(p: Play, seat: string) {
+    const team = sideOf(p, seat) ?? 0;
+    const last = seatsOf(p, team).every((s) => s === seat || p.left.has(s));
+    if (confirm(`Kick ${seatName(seat)}? ${last ? "Their team will be out." : "Their teammates take over their players."}`)) room?.kick(seat);
+}
+
+/** What Leave game asks: a guest whose side has a seat still in hands it its players (ADR 27). */
+export function leaveQuestion() {
+    const p = play;
+    const team = p ? sideOf(p, me) : undefined;
+    const heirs = !!p?.teams && hostId !== selfId && team !== undefined && seatsOf(p, team).some((s) => s !== me && !p.left.has(s));
+    return heirs ? "Leave the game? Your teammates take over your players." : "Leave the game? Your team will be out.";
 }
 
 /** We are a guest and our link to the host is down (ADR 16): the board is frozen until the replay arrives. */
@@ -337,6 +362,8 @@ export function end(headline: string, detail = "") {
 for (const id of ["input-a", "input-b"]) $(id).addEventListener("input", clearError);
 
 const clockwise = () => $<HTMLInputElement>("dir-cw").checked;
+/** The out note of a free-for-all, as the page has it. */
+const OUT_NOTE = $("out-note").textContent ?? "";
 document.querySelectorAll("input[name=dir]").forEach((el) => ((el as HTMLInputElement).onchange = () => play && refresh(play)));
 const parametric = () => $<HTMLInputElement>("mode-parametric").checked;
 const editor = initEditor();
@@ -386,7 +413,7 @@ setInterval(() => {
     $("countdown").textContent = p && !p.over ? String(Math.ceil(left / 1000)) : "";
     $("timer").classList.toggle("low", !!p && !p.over && left <= 10_000);
     $("timer-fill").style.width = `${(100 * left) / TURN_MS}%`;
-    if (p?.view && String(absentTeams(p)) !== String(p.view.absent)) refresh(p);
+    if (p?.view && String(absentSeats(p)) !== p.away) refresh(p);
 }, 250);
 
 // Read-only hook for the end-to-end tests: the state every peer must agree on (`me` is ours: our
