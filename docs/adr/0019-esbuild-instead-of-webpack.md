@@ -17,7 +17,7 @@ externref wasm in ADR 13.
   `index_bg.wasm` into `dist/`, and bundles `js/index.ts` and `trystero` into `dist/index.js` as
   ESM (target es2022, minified). `define` sets `__BUILD_VERSION__` as `DefinePlugin` did: the
   short commit hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` outside a git checkout (ADR 12).
-- `js/index.ts` runs `await init()`. The web-target glue fetches `index_bg.wasm` relative to
+- `js/wasm.ts`, the first import of `js/index.ts`, runs `await init()`. The web-target glue fetches `index_bg.wasm` relative to
   `import.meta.url`, so it works from the domain root (ADR 10) and from the e2e static server.
   `static/index.html` loads the bundle with `<script type="module">`.
 - `npm run build` = `build:wasm`, then `tsc --noEmit -p .`, then `scripts/build.mjs`. esbuild

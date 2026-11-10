@@ -18,8 +18,8 @@ Code moved as it was; only the seams are new.
   connection (`lobby`), `games`, the host form and the join-password dialog. `js/room.ts` has the
   room session and waiting room. `js/game.ts` has the turn loop, shots, bots, restore, the shot
   memory, the end screen, the arena constants, the editor and test arena wiring, and `__state`.
-  `js/index.ts` only boots: `await init()`, the footer version, the invite link, `hashchange` and
-  the stored-seat rejoin.
+  `js/wasm.ts` runs `await init()`. `js/index.ts` only boots: it imports `./wasm` first, then sets
+  the footer version and handles the invite link, `hashchange` and the stored-seat rejoin.
 - **State has one owner, read elsewhere through live `export let` bindings.** `room.ts` owns
   `room`, `hostId`, `me`, `offer`, `unlisted`, `shareInvite`, `roomKey`, `connected`, `bots`,
   `locals`, `roomInfo` and the seat key. `game.ts` owns `play`, `ended` and `restored`. `lobby.ts`
@@ -37,10 +37,13 @@ Code moved as it was; only the seams are new.
   only declares functions and constants, registers DOM handlers, or opens the lobby connection
   (whose first callback is asynchronous); nothing there reads a binding of a module that has not
   run yet. A new module must keep it so: no top-level read of an imported `let`.
-- **Wasm init timing.** Imported modules run before `index.ts`'s `await init()`, so the handlers
-  and the lobby connection now start while the wasm still loads, not after. Nothing at load calls
-  the engine (`Level` is a plain object; `Game` and `Bot` are built on events), so a click in
-  that window cannot reach uninitialised wasm. Keep it that way, or move `init()` first.
+- **Wasm init comes first.** Imported modules run before the importer's own body, so an `await
+  init()` left in `index.ts` ran after every handler and the lobby connection had gone live; a
+  click on Test arena then opened it with no engine. `js/wasm.ts` (`await init()`) is the first
+  import of `index.ts`, and the bundle runs the modules in import order, so none of the others
+  runs, and no handler is live, before the wasm has loaded. Keep it the first import. e2e AN holds
+  `index_bg.wasm` back, checks that Test arena does nothing and the footer stays empty, then
+  releases it and checks the arena opens.
 - **e2e.** `tests/e2e/helpers.mjs` has the static server, the browser and the helpers
   (`startGame`, `assertBuild`, `watchFrames`, ...); `tests/e2e/{core,net,bots,local,editor,ui,arena,build}.mjs`
   each export a `scenarios` object by feature; `tests/e2e.mjs` is the runner and `npm run e2e`
