@@ -363,12 +363,12 @@
         <h4 id="help-variables">The variable</h4>
         <ul>
           <li>XY plane, <code>y = f(x)</code>: the variable is <code>x</code>.</li>
-          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. Typing <code>theta</code> in the box turns it into θ as you type, and <code>th</code> and <code>theta</code> are also accepted as typed text for θ.</li>
+          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. You can type <code>θ</code>, <code>theta</code> or <code>th</code>. The box turns a typed <code>theta</code> into θ as you type; <code>th</code> is accepted as it is.</li>
           <li>Parametric, on either field: the variable is <code>t</code> in both boxes, <code>x(t)</code> and <code>y(t)</code> or <code>r(t)</code> and <code>θ(t)</code>.</li>
           <li>Any other name is an error ("Unknown name 'y'"); <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
         </ul>
         <h4 id="help-constants">Constants and functions</h4>
-        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Typing <code>pi</code> in the box turns it into π as you type, as on Desmos; the π button inserts it too.</p>
+        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Both <code>pi</code> and <code>π</code> are accepted. The box turns a typed <code>pi</code> into π as you type, as on Desmos, and the π button inserts it.</p>
         <p>Functions, always with parentheses, as in <code>sin(x)</code>; angles are in radians and <code>ln</code> is the natural logarithm:</p>
         <p id="help-functions"><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> <code>sinh</code> <code>cosh</code> <code>tanh</code> <code>sqrt</code> <code>abs</code> <code>exp</code> <code>ln</code> <code>log10</code> <code>floor</code> <code>ceil</code></p>
         <h4 id="help-operators">Operators and precedence</h4>
@@ -484,7 +484,7 @@
         <h3>Formula tools</h3>
         <h4 id="help-helpers">Helper buttons</h4>
         <ul>
-          <li>The row of buttons under the formula boxes types for you, into the box you used last. The first button is the variable of the current mode (<code>x</code>, <code>θ</code> or <code>t</code>). The π button types <code>pi</code>, √ types <code>sqrt(</code>, and the rest type their own name.</li>
+          <li>The row of buttons under the formula boxes types for you, into the box you used last. The first button is the variable of the current mode (<code>x</code>, <code>θ</code> or <code>t</code>). The π button inserts π, √ types <code>sqrt(</code>, and the rest type their own name.</li>
           <li>The buttons for <code>( )</code>, √ and the functions wrap the text you have selected, as in <code>sin(</code> selection <code>)</code>. With nothing selected they type the pair of parentheses and put the cursor between them. <strong>More</strong> opens the rest of the functions.</li>
           <li>The pair of options above the formula boxes switches between a function (<code>y = f(x)</code> or <code>r = f(θ)</code>) and a parametric shot. On the disc, Direction picks Counterclockwise or Clockwise (see <a href="#help-coordinates">Coordinates</a>); it is shown on the disc only and starts at Counterclockwise in every game.</li>
         </ul>
@@ -556,7 +556,17 @@
 
       <section id="help-arena">
         <h3>Test arena</h3>
-        <p>A practice board for trying formulas on your own.</p>
+        <p>The test arena is a practice board for trying formulas on your own: press Test arena in the lobby, and Back to lobby leaves it. It works offline and sends nothing, and the setup is not saved.</p>
+        <ul>
+          <li><strong>Field and coordinates:</strong> pick them as in the host form. Changing the field starts again with an empty board; changing the coordinates keeps what you placed.</li>
+          <li><strong>Placing:</strong> choose Player or Obstacle under Place, then click or tap an empty spot on the board. A player gets the team chosen under Team: 2 teams on the XY plane, up to 8 on the disc. An obstacle gets the radius set by the slider, 0.2 to 2. A player must be fully inside the field and may not overlap another player or an obstacle; otherwise nothing changes and a message says why.</li>
+          <li><strong>Dragging:</strong> drag a player to move it; it only moves through valid spots, and letting go on an invalid one says why. Dragging also selects it.</li>
+          <li><strong>Selecting:</strong> clicking a player selects it and makes it the one that fires; clicking an obstacle selects the obstacle only. The On the board list does the same from the keyboard, with one button per player and obstacle.</li>
+          <li><strong>Position:</strong> the <code>x</code> and <code>y</code> fields give exact spots. Place at x, y puts what Place chooses there, and Move selected to x, y moves the selection. Choosing something fills the fields with its position.</li>
+          <li><strong>Removing:</strong> Delete or Backspace removes the selected item, as does Remove selected. Clear paths wipes the drawn shots.</li>
+          <li><strong>Obstacles are optional:</strong> the arena starts empty, with none, which is a fine place to test. Random obstacles fills it with the number and sizes of a real game, and Clear obstacles removes them all.</li>
+          <li><strong>Firing:</strong> a shot can be fired from any player, of any team, with the normal formula boxes and Fire: choose the player first. The path is drawn and every player it hit gets a ring, but nobody is out and obstacles keep no craters, so you can repeat the same shot. Changing the setup clears the old paths.</li>
+        </ul>
       </section>
 
       <section id="help-reconnect">
@@ -566,6 +576,7 @@
           <li>If a guest's link to the host stays down, the page leaves and rejoins the game room by itself, and gives up with "Host unreachable." after 3 minutes.</li>
           <li>A guest who closes the tab looks like a dropped connection, so the team stays in until the game ends. Use Leave game to leave.</li>
           <li>The host is different: if the host reloads or closes the tab, the game ends for everyone.</li>
+          <li>The footer shows the version of the game, such as v 0.5.0, and links to the changelog, which opens in a new tab so a running game is not disturbed. Development builds show a longer id.</li>
           <li>All players must run the same build of the game. A game from another build is listed as "Different version. Reload the page.", and a game that finds a different build ends with "Different version.": reload the page, then join again.</li>
         </ul>
       </section>

@@ -37,7 +37,8 @@ explains how the map-centred shot is computed and how to use the sliders, reacha
   the parser's and `js/starters.json`, and every `#help-…` link to have a target. It cannot check the prose of the
   coordinates section, which was written from `shot.rs` and ADR 20. e2e `Help` covers the button,
   a deep link, Escape, no horizontal scroll at 390 px, and opening the help mid-game.
-- **Test arena.** `#help-arena` is a placeholder, one sentence, for the test arena's own help.
+- **Test arena.** `#help-arena` describes the arena of ADR 25: opening it, placing, dragging and selecting,
+  the Position fields, obstacles, and firing from any player.
 
 Rejected:
 - A separate `help.html`: it leaves the game page, or needs a second tab; a dialog is one click away
