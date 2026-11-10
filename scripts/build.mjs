@@ -9,6 +9,7 @@ import { build, context } from "esbuild";
 import { changelogHtml, parseChangelog } from "./changelog.mjs";
 import { lobbyTopic } from "./lobby-topic.mjs";
 import { buildId, buildVersion } from "./version.mjs";
+import { versionMedia } from "./versioned-media.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = resolve(root, "dist");
@@ -38,6 +39,7 @@ const serve = process.argv.includes("--serve");
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(resolve(root, "static"), dist, { recursive: true });
+writeFileSync(resolve(dist, "index.html"), versionMedia(readFileSync(resolve(dist, "index.html"), "utf8"), dist));
 const copyWasm = () => cpSync(resolve(root, "pkg/index_bg.wasm"), resolve(dist, "index_bg.wasm"));
 copyWasm();
 writeFileSync(resolve(dist, "changelog.html"), changelogHtml(changelog));
