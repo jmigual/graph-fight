@@ -65,6 +65,7 @@ for (const formula of ["3*sin(x/2)", "x/3 + sin(x)"]) {
     poster ??= await page.screenshot({ type: "jpeg", quality: 70 });
 }
 await pause(page, 1500);
+if (!poster) throw new Error("The game ended before our first shot, so there is no poster frame. Run it again.");
 
 const video = page.video();
 await context.close();
