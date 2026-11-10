@@ -70,9 +70,10 @@ export function watchFrames(page) {
  * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name, errors)`
  * runs in the waiting room once everyone has joined, before the host clicks Start; `visibility` is
  * `public` (default), `password` (guests join from the lobby with `password`) or `link` (guests open
- * the host's invite link) (ADR 24); `share` ticks "Guests can share the invite link".
+ * the host's invite link) (ADR 24); `share` ticks "Guests can share the invite link"; `characters` picks
+ * the characters per player (ADR 27).
  */
-export async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "", share = false } = {}) {
+export async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "", share = false, characters } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -123,6 +124,7 @@ export async function startGame(n, field, label, { seats = n, frame = "map", fak
     if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.selectOption("#host-visibility", visibility);
     if (share) await host.check("#host-share");
+    if (characters) await host.selectOption("#host-characters", String(characters));
     if (visibility === "password") {
         // The password is masked until its Show toggle is pressed (ADR 24).
         assert.equal(await host.getAttribute("#host-password", "type"), "password");
