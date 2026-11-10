@@ -1,6 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { isBot, lobbyBook, MAX_PLAYERS, outbox, parseBot, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
+import { pbkdf2Sync } from "node:crypto";
+import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -70,6 +71,19 @@ assert.equal(routeIncoming("h", "p", "q", { type: "quit" }), undefined, "a quit 
 for (const bad of [{ type: "rejoin" }, { type: "rejoin", token: 7 }, { type: "rejoin", token: "t".repeat(65) }]) {
     assert.equal(routeIncoming("h", "h", "p", bad), undefined, JSON.stringify(bad));
 }
+
+// A kick (ADR 23) only counts from the host; nobody else can remove a peer, and the host takes no kick request.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "kick" }), { kind: "kicked" });
+assert.equal(routeIncoming("h", "p", "q", { type: "kick" }), undefined, "a kick from a non-host");
+assert.equal(routeIncoming("h", "h", "p", { type: "kick" }), undefined, "a kick sent to the host");
+assert.equal(routeIncoming("h", "p", "h", { seq: 1, msg: { type: "kick" } }), undefined, "a kick is not a relayed game message");
+for (const bad of [{ kick: true }, { type: "Kick" }, "kick"]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
+// Permission to share the invite link (ADR 24) also comes from the host only.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "share" }), { kind: "share" });
+assert.equal(routeIncoming("h", "p", "q", { type: "share" }), undefined, "a share from a non-host");
+assert.equal(routeIncoming("h", "h", "p", { type: "share" }), undefined, "a share sent to the host");
+for (const bad of [{ share: true }, { type: "Share" }, "share", { seq: 1, msg: { type: "share" } }]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
 
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
@@ -144,6 +158,22 @@ assert.deepEqual(withBots.absent(() => false), ["p"], "bots are never absent");
 assert.equal(withBots.rejoin(withBots.tokens[1], "p2"), true);
 assert.equal(withBots.seatOf("p2"), "p");
 
+// Revoking a seat (ADR 23): the token stops working, the seat has no holder and is never absent.
+const kicked = seatBook(["h", "p", "q", "bot:hard:1"]);
+const kickedToken = kicked.tokens[1];
+assert.equal(kicked.rejoin(kickedToken, "p2"), true);
+assert.equal(kicked.revoke("p"), "p2", "returns the peer holding the seat now");
+assert.equal(kicked.seatOf("p2"), undefined);
+assert.equal(kicked.revoked(kickedToken), true);
+assert.equal(kicked.rejoin(kickedToken, "p3"), false, "a revoked token claims nothing");
+assert.equal(kicked.seatOf("p3"), undefined);
+assert.deepEqual(kicked.absent(() => false), ["q"], "a revoked seat is not absent");
+assert.equal(kicked.revoke("p"), undefined, "a seat is revoked once");
+for (const seat of ["h", "bot:hard:1", "x"]) assert.equal(kicked.revoke(seat), undefined, `${seat} cannot be revoked`);
+assert.equal(kicked.revoked(""), false, "the empty token is never revoked");
+assert.equal(kicked.revoked(kicked.tokens[2]), false);
+assert.equal(kicked.seatOf("q"), "q", "other seats are untouched");
+
 // Bot ids: `bot:<level>:<n>`, n from 1 to 7, in `start.peers`; any other `bot:` entry drops the start.
 assert.deepEqual(parseBot("bot:hard:1"), { level: "hard", n: 1 });
 assert.deepEqual(parseBot("bot:easy:7"), { level: "easy", n: 7 });
@@ -155,6 +185,29 @@ for (const bad of ["bot:", "bot:hard:0", "bot:hard:8", "bot:expert:1", "bot:Hard
     assert.equal(parseBot(bad), undefined, bad);
     assert.equal(parseGameMsg({ ...start, peers: ["h", bad] }), undefined, bad);
 }
+
+// Local players (ADR 22): `local:<n>`, n from 1 to 7, in `start.peers`; any other `local:` entry drops the start.
+assert.equal(parseLocal("local:1"), 1);
+assert.equal(parseLocal("local:7"), 7);
+assert.equal(parseLocal("p"), undefined);
+assert.equal(parseLocal("bot:hard:1"), undefined);
+assert.equal(isLocal("p"), false);
+assert.equal(isLocal("local:x"), true);
+assert.deepEqual([isHostRun("bot:hard:1"), isHostRun("local:2"), isHostRun("p")], [true, true, false]);
+const mixed = { ...start, peers: ["h", "p", "local:1", "local:2", "bot:easy:1"] };
+assert.deepEqual(parseGameMsg(mixed), mixed);
+for (const bad of ["local:", "local:0", "local:8", "local:12", "local:1 ", "Local:1", "local:one", "local:1:1"]) {
+    assert.equal(parseLocal(bad), undefined, bad);
+    if (bad.startsWith("local:")) assert.equal(parseGameMsg({ ...start, peers: ["h", bad] }), undefined, bad);
+}
+
+// Local seats, like bot seats: no token, no holder, never absent; a peer calling itself a local player gets nothing.
+const withLocals = seatBook(["h", "p", "local:1", "bot:hard:1"]);
+assert.deepEqual(withLocals.tokens.map((t) => t !== ""), [false, true, false, false], "only the human guest gets a token");
+assert.equal(withLocals.seatOf("local:1"), undefined, "a peer announcing a local id holds no seat");
+assert.equal(withLocals.rejoin("", "local:1"), false);
+assert.equal(withLocals.seatOf("local:1"), undefined, "the empty token claims no local seat");
+assert.deepEqual(withLocals.absent(() => false), ["p"], "local players are never absent");
 
 // Version gate: a start from another build is not delivered; other messages pass.
 const seen = [];
@@ -168,9 +221,10 @@ gated(parseGameMsg(oldStart));
 assert.deepEqual(seen, ["start", "mismatch:v0", "shot", "mismatch:v0"]);
 
 // Lobby listings: shape and size caps.
-const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2 };
+const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false };
 assert.deepEqual(parseListing(listing, "v1"), listing);
 assert.deepEqual(parseListing({ ...listing, frame: "player" }, "v1"), { ...listing, frame: "player" });
+assert.deepEqual(parseListing({ ...listing, locked: true }, "v1"), { ...listing, locked: true }, "a password game (ADR 24)");
 assert.ok(parseListing({ ...listing, name: "n".repeat(64), players: MAX_PLAYERS, seats: MAX_PLAYERS }, "v1"), "at the caps");
 for (const bad of [
     null, {}, { ...listing, id: 1 }, { ...listing, field: "q" }, { ...listing, frame: "q" }, { ...listing, frame: undefined }, { ...listing, players: "1" }, { ...listing, seats: -1 },
@@ -180,8 +234,34 @@ for (const bad of [
     { ...listing, version: "v".repeat(65) },
     { ...listing, players: MAX_PLAYERS + 1 },
     { ...listing, seats: MAX_PLAYERS + 1 },
+    { ...listing, locked: undefined },
+    { ...listing, locked: "true" },
+    { ...listing, locked: 1 },
+    { ...listing, locked: null },
 ]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
 assert.equal(parseListing({ ...listing, version: "v0", frame: "q" }, "v1"), undefined, "a frame that is there must be valid");
+assert.equal(parseListing({ ...listing, version: "v0", locked: "yes" }, "v1"), undefined, "a locked flag that is there must be a boolean");
+// A build before ADR 24 sends no `locked`: it reads as unlocked, and is only listed as another version.
+const { locked: _locked, ...unflagged } = listing;
+assert.deepEqual(parseListing({ ...unflagged, version: "v0" }, "v1"), { ...listing, version: "v0" });
+
+// Invite links (ADR 24): the fragment names the host, the room password and the build.
+const invite = inviteFragment("h0st", "s3cret &=#");
+assert.match(invite, /^#join=h0st&key=.+&v=/);
+assert.deepEqual(parseInvite(invite), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "the key survives URL encoding");
+assert.deepEqual(parseInvite(invite.slice(1)), { hostId: "h0st", key: "s3cret &=#", version: "dev" }, "with or without the #");
+assert.match(newToken(), /^[0-9a-f]{32}$/, "a private link's key is 128 random bits");
+
+// A typed password is stretched (ADR 24): PBKDF2-SHA256, 200 000 rounds, salt `graph-fight:game-<hostId>`, 256 bits.
+const stretched = await stretchPassword("open sesame", "h0st");
+assert.equal(stretched, pbkdf2Sync("open sesame", "graph-fight:game-h0st", 200_000, 32, "sha256").toString("hex"));
+assert.equal(await stretchPassword("open sesame", "h0st"), stretched, "the same on every peer");
+assert.notEqual(await stretchPassword("open sesame", "other"), stretched, "salted with the host's room");
+assert.notEqual(await stretchPassword("open sesame!", "h0st"), stretched);
+assert.equal(await stretchPassword("caf\u00e9", "h0st"), await stretchPassword("cafe\u0301", "h0st"), "a composed and a decomposed é give the same key");
+for (const bad of ["", "#", "#join=h", "#key=k&v=v", "#join=h&key=k", "#join=&key=k&v=v", "#join=h&key=&v=v", `#join=${"h".repeat(65)}&key=k&v=v`, `#join=h&key=${"k".repeat(65)}&v=v`, `#join=h&key=k&v=${"v".repeat(65)}`]) {
+    assert.equal(parseInvite(bad), undefined, bad);
+}
 
 // Lobby book: refresh, own game, malformed, expiry, withdraw, size bound.
 const book = lobbyBook("me", "v1", 10_000);
@@ -190,8 +270,8 @@ assert.equal(book.apply("k1", listing, 3000), false, "refresh without change");
 assert.equal(book.apply("k1", { ...listing, players: 2 }, 4000), true, "changed");
 assert.equal(book.apply("k2", { ...listing, id: "g", version: "v0" }, 4000), true);
 assert.deepEqual(book.list().map((g) => [g.id, g.compatible]), [["h", true], ["g", false]], "version filter");
-// A build before ADR 20 announces no frame: it is listed as another version, not dropped.
-const { frame: __, ...oldListing } = listing;
+// A build before ADR 20 announces no frame (nor `locked`): it is listed as another version, not dropped.
+const { frame: __, locked: ___, ...oldListing } = listing;
 assert.equal(book.apply("k4", { ...oldListing, id: "old", version: "v0" }, 4000), true);
 assert.deepEqual(book.list().find((g) => g.id === "old")?.compatible, false);
 assert.equal(book.apply("k5", { ...oldListing, id: "bad" }, 4000), false, "our own version must send a frame");

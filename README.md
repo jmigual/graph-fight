@@ -1,43 +1,102 @@
+<div align="center">
+
+<img src="static/favicon.svg" alt="" width="80" height="80">
+
 # Graph Fight
 
-A worms-like game where players use formulas to attack each other. Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html)
+**Shoot your friends with math.** A worms-like game where every shot is a formula.
+Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 
-Each shot is a formula path:
+[![Play now](https://img.shields.io/badge/%E2%96%B6%20Play%20now-graph--fight.marceigual.eu-2ea44f?style=for-the-badge)](https://graph-fight.marceigual.eu)
 
-- XY field (2 players): `y = f(x)` or parametric `x(t)`, `y(t)`.
-- Polar disc field (2-8 players): `r = f(θ)` or parametric `r(t)`, `θ(t)`.
+[![Build](https://img.shields.io/github/actions/workflow/status/jmigual/graph-fight/pages.yml?branch=master&label=build)](https://github.com/jmigual/graph-fight/actions/workflows/pages.yml)
+[![Release](https://img.shields.io/github/v/tag/jmigual/graph-fight?label=release&sort=semver)](https://github.com/jmigual/graph-fight/tags)
+[![Live site](https://img.shields.io/website?url=https%3A%2F%2Fgraph-fight.marceigual.eu&label=live%20site)](https://graph-fight.marceigual.eu)
+[![License: MIT](https://img.shields.io/github/license/jmigual/graph-fight)](LICENSE.md)
 
-The host picks the coordinates: centred on the map, like Graphwar (the default), or on the player
-who shoots. Either way a shot starts at the player.
+![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)
 
-There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
-Nostr relays lets them find each other.
+<img src="docs/img/game-xy.png" alt="XY game with the formula editor" width="760">
 
-## Screenshots
+</div>
 
-![Lobby with an open game](docs/img/lobby.png)
-The lobby lists open games found on the Nostr relays.
+## ✨ Features
 
-![XY game](docs/img/game-xy.png)
-XY field: the last shot, the roster and the formula editor with its helper buttons.
+- **Two fields.** XY field (2 players, `y = f(x)`) or polar disc (2-8 players, `r = f(θ)`).
+- **Explicit or parametric formulas.** `y = f(x)`, or `x(t)`, `y(t)`; on the disc `r = f(θ)`, or `r(t)`, `θ(t)`.
+- **Your choice of coordinates.** Map-centred like Graphwar (the default), or centred on the player who shoots. Either way a shot starts at the player.
+- **Formula editor.** Helper buttons, saved formulas, templates with Desmos-like sliders, and typing `theta` or `pi` gives `θ` or `π`.
+- **Bots** at three levels: Easy, Medium and Hard.
+- **Local players.** Hot-seat players take turns at the host's screen, next to bots and remote guests.
+- **Private games.** Listed with a lock and joined with a password, or left out of the lobby and joined through an invite link.
+- **Kick.** The host can remove a guest from the waiting room, or mid-game; that team is out.
+- **Reconnection.** A dropped player keeps their seat for a few minutes (the game is given up after 3 minutes) and catches up by replaying the game log.
+- **No server.** Players connect peer-to-peer over WebRTC ([Trystero](https://github.com/dmotz/trystero)) and find each other through a lobby on public [Nostr](https://nostr.com) relays.
+- **Deterministic Rust/WASM engine.** Peers exchange only the seed and formulas; every outcome is computed locally in WebAssembly.
 
-![Polar disc game](docs/img/game-disc.png)
-Polar disc field with 4 players (dark theme); the last shot was fired clockwise.
+## 🎮 How to play
 
-![Saved formulas](docs/img/formulas.png)
-Saved formulas: a template with its sliders open.
+1. Open the [live site](https://graph-fight.marceigual.eu), then host a game or join one from the lobby.
+2. The host picks the field, the coordinates, who plays (guests, bots, local players) and whether the game is private.
+3. On your turn, type a formula. The curve starts at your character and flies until it hits a player (they die), an obstacle (it leaves a crater), or the edge of the field.
+4. Last team standing wins; if every team falls on the same shot, the game is a draw.
+
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/img/lobby.png" alt="Lobby with an open game"><br>Lobby: open games found on the Nostr relays; the padlock marks a game that needs a password.</td>
+    <td align="center"><img src="docs/img/game-xy.png" alt="XY game"><br>XY field: the last shot, the roster and the formula editor with its helper buttons.</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/img/game-disc.png" alt="Polar disc game"><br>Polar disc field with 4 players (dark theme); the last shot was fired clockwise.</td>
+    <td align="center"><img src="docs/img/formulas.png" alt="Saved formulas"><br>Saved formulas: a template with its sliders open.</td>
+  </tr>
+</table>
+
+<details>
+<summary>On a phone</summary>
 
 <img src="docs/img/phone.png" alt="Game on a phone" width="300">
 
 The same game on a 390 px wide phone screen.
 
-## Prerequisites
+</details>
+
+## 🧱 How it works
+
+```mermaid
+flowchart LR
+    subgraph A [Host browser]
+        TSA[TypeScript client] <--> WA[Rust/WASM engine]
+    end
+    subgraph B [Guest browser]
+        TSB[TypeScript client] <--> WB[Rust/WASM engine]
+    end
+    subgraph C [Another guest]
+        TSC[TypeScript client] <--> WC[Rust/WASM engine]
+    end
+    TSA <-. lobby and signalling .-> N[(Nostr relays)]
+    TSB <-. lobby and signalling .-> N
+    TSC <-. lobby and signalling .-> N
+    TSA <== WebRTC, host relays turns ==> TSB
+    TSA <== WebRTC, host relays turns ==> TSC
+```
+
+Each browser runs the same WASM engine. The host sequences and relays every message and owns the
+turn clock; guests send formulas, and every peer replays the same game from the shared seed. The game room is a full mesh, but only
+the host's messages count. Bots and local players run on the host's page.
+Design decisions are recorded as ADRs (see [Design decisions](#-design-decisions)).
+
+## 🛠️ Development
+
+Prerequisites:
 
 - [Rust](https://www.rust-lang.org/tools/install) with the `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
 - [Node.js](https://nodejs.org/) 22
-
-## Usage
 
 ```bash
 npm ci
@@ -52,12 +111,18 @@ Run `npx playwright install chromium` once before the first `npm run e2e`.
 
 Local builds (`npm start`, `npm run build`, `npm run e2e`) use a separate dev lobby; only the deploy workflow announces on the live one (`GRAPH_FIGHT_LOBBY=live`).
 
-## Deployment
+### Deployment
 
-`.github/workflows/pages.yml` tests, builds and deploys `dist/` to GitHub Pages on every push to
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) tests, builds and deploys `dist/` to GitHub Pages on every push to
 `master`. The site is served at https://graph-fight.marceigual.eu. DNS and Pages settings are
 described in [docs/adr/0010](docs/adr/0010-hosting-github-pages-custom-domain.md).
 
-## Design
+Releases are listed in [CHANGELOG.md](CHANGELOG.md), the source of the footer version and the changelog page; adding the entry is how a release is made ([docs/adr/0028](docs/adr/0028-release-versions-and-changelog.md)).
 
-Design decisions: [docs/adr/README.md](docs/adr/README.md) (index of all ADRs; start there).
+## 📐 Design decisions
+
+Decisions are recorded as ADRs: [docs/adr/README.md](docs/adr/README.md) (index of all ADRs; start there).
+
+## 📄 License
+
+Released under the [MIT License](LICENSE.md).

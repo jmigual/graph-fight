@@ -1,7 +1,7 @@
 // The game screen's words: status bar, roster, last-shot text and the error line (ADR 17, sections 6, 10, 11).
 // DOM only; it holds no game state, so index.ts passes in what it knows.
 import type { Arena } from "../pkg/index.js";
-import { parseBot } from "./net";
+import { isHostRun, parseBot, parseLocal } from "./net";
 import type { Field, Shot, Timeout } from "./net";
 import { shotText } from "./render";
 
@@ -12,10 +12,27 @@ const LIVE_DELAY_MS = 50;
 const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 
 export const short = (id: string) => id.slice(0, 6);
-/** What a seat is called: "Bot 1, hard" for a bot (ADR 21), a human's short id otherwise. */
+/** What a seat is called: "Bot 1, hard" for a bot (ADR 21), "Local 1" for a local player (ADR 22), a human's short id otherwise. */
 export function seatName(id: string) {
     const bot = parseBot(id);
-    return bot ? `Bot ${bot.n}, ${bot.level}` : short(id);
+    const local = parseLocal(id);
+    return bot ? `Bot ${bot.n}, ${bot.level}` : local ? `Local ${local}` : short(id);
+}
+/**
+ * Who plays a seat on this page, when people share the screen (ADR 22): "Local 2" for a local
+ * player, and "Host" for the host's own seat in a `hotSeat` game (one with local players).
+ * Undefined means the one person at the page: "you".
+ */
+const sharedName = (seat: string, hotSeat: boolean) => (parseLocal(seat) ? seatName(seat) : hotSeat ? "Host" : undefined);
+/** The turn of a seat this page plays: "Your turn", or "Local 2's turn" and "Host's turn" at a shared screen. */
+const ourTurn = (seat: string, hotSeat: boolean) => {
+    const name = sharedName(seat, hotSeat);
+    return name ? `${name}'s turn` : "Your turn";
+};
+/** The headline when a seat this page plays wins: "You win.", or "Local 2 wins." and "Host wins." at a shared screen. */
+export function ourWin(seat: string, hotSeat: boolean) {
+    const name = sharedName(seat, hotSeat);
+    return name ? `${name} wins.` : "You win.";
 }
 const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
@@ -57,16 +74,20 @@ export function showError(message: string, invalid = true) {
     setLive($("error"), message, () => invalid && formulaInputs().forEach((input) => input.setAttribute("aria-invalid", "true")));
 }
 
-/** Says "Your turn" to screen readers when `mine`, once per turn start. */
-export function cueTurn(mine: boolean) {
-    setLive($("turn-cue"), mine ? "Your turn" : "");
+/** Says "Your turn" (or "Local 2's turn", "Host's turn") to screen readers when this page plays `seat`, once per turn start; null says nothing. */
+export function cueTurn(seat: string | null, hotSeat: boolean) {
+    setLive($("turn-cue"), seat === null ? "" : ourTurn(seat, hotSeat));
 }
 
 export type Status = {
     over: boolean;
     team: number;
-    /** The current shooter is ours. */
+    /** The current team's seat id. */
+    seat: string;
+    /** The current shooter plays on this page: ours, or on the host a local player (ADR 22). */
     mine: boolean;
+    /** We host a game with local players, so several people share this screen (ADR 22). */
+    hotSeat: boolean;
     /** We are a guest and our link to the host is down (ADR 16). */
     hostDown: boolean;
     /** The current shooter's seat is disconnected. */
@@ -74,14 +95,14 @@ export type Status = {
 };
 
 /** Status bar, tab title and team colour: the host link, a disconnected shooter, or whose turn it is. */
-export function renderStatus({ over, team, mine, hostDown, away }: Status) {
+export function renderStatus({ over, team, seat, mine, hotSeat, hostDown, away }: Status) {
     $("game").style.setProperty("--team", over ? "" : teamColour(team));
     setText($("turn-swatch"), over ? "" : String(team + 1));
-    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? "Your turn" : `Team ${team + 1} is aiming`;
+    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat, hotSeat) : `Team ${team + 1} is aiming`;
     setText($("turn"), over ? "" : words);
     $("turn").classList.toggle("quiet", !over && hostDown);
     $("timer").hidden = over;
-    document.title = mine && !over && !hostDown ? `Your turn | ${TITLE}` : TITLE;
+    document.title = mine && !over && !hostDown ? `${ourTurn(seat, hotSeat)} | ${TITLE}` : TITLE;
 }
 
 /** The board's text alternative for a shot or timeout: who fired what, and who lost players. */
@@ -97,8 +118,17 @@ export function describeTurn(field: Field, team: number, msg: Shot | Timeout, fi
     return text;
 }
 
-/** The roster: one row per team, with players left and what the team is doing (ADR 17, section 10). */
-export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[]) {
+/**
+ * The roster: one row per team, with players left and what the team is doing (ADR 17, section 10).
+ * `mine`: the current team plays on this page. With `kick` (the host, in a game), each guest's team
+ * that is still in gets a Kick button (ADR 23).
+ */
+export function renderRoster(arena: Arena, peers: string[], me: string, current: number | null, absent: number[], mine: boolean, kick?: (team: number) => void) {
+    // The list is rebuilt on every change: keep the keyboard on the button it was on or, when that
+    // one is gone (its team was kicked), on the next Kick button, or on the list.
+    const buttons = () => [...$("roster").querySelectorAll<HTMLElement>("button")];
+    const at = buttons().indexOf(document.activeElement as HTMLElement);
+    const focused = at < 0 ? null : document.activeElement?.getAttribute("aria-label");
     $("roster").replaceChildren(
         ...arena.teams.map((t, ti) => {
             const li = document.createElement("li");
@@ -119,9 +149,20 @@ export function renderRoster(arena: Arena, peers: string[], me: string, current:
             const pips = add("pips", "●".repeat(left) + "○".repeat(t.players.length - left));
             pips.setAttribute("role", "img");
             pips.setAttribute("aria-label", `${left} of ${t.players.length} players left`);
+            if (kick && ti > 0 && !isHostRun(peers[ti]) && left > 0) {
+                const button = li.appendChild(document.createElement("button"));
+                button.type = "button";
+                button.className = "secondary";
+                button.textContent = "Kick";
+                button.setAttribute("aria-label", `Kick Team ${ti + 1}`);
+                button.onclick = () => kick(ti);
+            }
             li.classList.toggle("out", left === 0);
-            li.classList.toggle("current", current === ti && peers[ti] === me);
+            li.classList.toggle("current", current === ti && mine);
             return li;
         }),
     );
+    if (at < 0) return;
+    const after = buttons();
+    (after.find((b) => b.getAttribute("aria-label") === focused) ?? after[at] ?? after[at - 1] ?? $("roster")).focus();
 }

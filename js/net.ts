@@ -6,9 +6,12 @@ import type { JsonValue } from "trystero";
 export { selfId };
 
 // Replaced by esbuild's `define` (scripts/build.mjs); undefined when run outside a bundle (tests).
+declare const __BUILD_ID__: string;
 declare const __BUILD_VERSION__: string;
 declare const __LOBBY_TOPIC__: string;
-/** Identifies this build; peers on another build cannot play together. */
+/** Identifies this build exactly (ADR 28); peers on another build cannot play together. */
+export const BUILD_ID = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
+/** What the footer shows: the release version, or the whole id of a dev build. Never compared. */
 export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : "dev";
 
 const APP_ID = "graph-fight";
@@ -51,8 +54,8 @@ export type BotLevel = "easy" | "medium" | "hard";
 /** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
 export type Frame = "map" | "player";
 
-/** What a host advertises in the lobby. */
-export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number };
+/** What a host advertises in the lobby; `locked` games need a password to join (ADR 24). */
+export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean };
 /** The lobby wire format: `id` is the host's peer id and names the game room. */
 export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
@@ -86,18 +89,33 @@ export function parseBot(id: string): { level: BotLevel; n: number } | undefined
     return m ? { level: m[1] as BotLevel, n: Number(m[2]) } : undefined;
 }
 
+/** A local (hot-seat) player's seat id in `start.peers` (ADR 22); like a bot's, no peer can have one. */
+const LOCAL_ID = /^local:([1-7])$/;
+/** True for an id in the local-player namespace, well-formed or not. */
+export const isLocal = (id: string) => id.startsWith("local:");
+
+/** The number of a local player's seat id, or undefined for any other. */
+export function parseLocal(id: string): number | undefined {
+    const m = LOCAL_ID.exec(id);
+    return m ? Number(m[1]) : undefined;
+}
+
+/** A seat the host's page plays, a bot's or a local player's: the seat book never binds it to a peer (ADR 21, 22). */
+export const isHostRun = (id: string) => isBot(id) || isLocal(id);
+
 /**
  * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
  * turn it away as another version instead of it being dropped. A `start` seat that begins with
- * `bot:` must be a well-formed bot id (ADR 21).
+ * `bot:` must be a well-formed bot id (ADR 21), and one that begins with `local:` a well-formed
+ * local player's id (ADR 22).
  */
 export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)))) {
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p)))) {
                 return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version };
             }
             return undefined;
@@ -117,9 +135,10 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12, 16). A payload from the host must be a
- * sequenced broadcast or our private seat token `{seat}`; the host additionally takes a bare
- * `shot`, `rejoin {token}` or `quit` from other peers as a request; everything else is dropped.
+ * Decides what to do with a game-room payload (ADR 12, 16, 23, 24). A payload from the host must be
+ * a sequenced broadcast, our private seat token `{seat}`, `{type: "kick"}`, which removes us from
+ * the game, or `{type: "share"}`, which lets us share the invite link; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
+ * as a request; everything else is dropped.
  */
 export function routeIncoming(
     hostId: string,
@@ -129,12 +148,16 @@ export function routeIncoming(
 ):
     | { kind: "relayed"; seq: number; msg: GameMsg }
     | { kind: "seat"; token: string }
+    | { kind: "kicked" }
+    | { kind: "share" }
     | { kind: "request"; shot: Shot }
     | { kind: "rejoin"; token: string }
     | { kind: "quit" }
     | undefined {
     if (from === hostId) {
         if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
+        if (isObj(data) && data.type === "kick") return { kind: "kicked" };
+        if (isObj(data) && data.type === "share") return { kind: "share" };
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
@@ -170,16 +193,31 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
 
 /**
  * Returns the listing if `v` has the right shape and sizes, otherwise undefined. A listing from
- * another build than `version` may lack `frame` (builds before ADR 20); it reads as `map` and is
- * only ever shown as incompatible (ADR 12).
+ * another build than `version` may lack `frame` (builds before ADR 20) or `locked` (before ADR 24);
+ * they read as `map` and unlocked, and it is only ever shown as incompatible (ADR 12).
  */
 export function parseListing(v: unknown, version: string): Listing | undefined {
     if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
         return undefined;
     }
-    const frame = v.frame === undefined && v.version !== version ? "map" : v.frame;
-    if (!isFrame(frame)) return undefined;
-    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats };
+    const old = v.version !== version;
+    const frame = v.frame === undefined && old ? "map" : v.frame;
+    const locked = v.locked === undefined && old ? false : v.locked;
+    if (!isFrame(frame) || typeof locked !== "boolean") return undefined;
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked };
+}
+
+/** An invite link's fragment (ADR 24): the host's id, the room password and our build. */
+export const inviteFragment = (hostId: string, key: string) => `#${new URLSearchParams({ join: hostId, key, v: BUILD_ID })}`;
+
+/**
+ * Reads an invite link's fragment (ADR 24). The link is untrusted input: undefined unless it names
+ * a host and a key, and carries a build version, each at most `MAX_TEXT` long.
+ */
+export function parseInvite(hash: string): { hostId: string; key: string; version: string } | undefined {
+    const p = new URLSearchParams(hash.replace(/^#/, ""));
+    const [hostId, key, version] = [p.get("join"), p.get("key"), p.get("v")];
+    return hostId && key && isText(hostId) && isText(key) && isText(version) ? { hostId, key, version } : undefined;
 }
 
 /**
@@ -242,7 +280,7 @@ export type Lobby = {
  * receives the full list of open games whenever it changes.
  */
 export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
-    const book = lobbyBook(selfId, BUILD_VERSION);
+    const book = lobbyBook(selfId, BUILD_ID);
     const sockets = new Set<WebSocket>();
     let mine: Announce | null = null;
     let closed = false;
@@ -278,7 +316,7 @@ export function joinLobby(onChange: (games: OpenGame[]) => void): Lobby {
     // A lost announcement is replaced by the next one, so failures are only logged.
     const logFailure = (err: unknown) => console.warn("lobby publish failed", err);
     function announceMine(to?: Iterable<WebSocket>) {
-        if (mine) publish({ ...mine, id: selfId, version: BUILD_VERSION }, to).catch(logFailure);
+        if (mine) publish({ ...mine, id: selfId, version: BUILD_ID }, to).catch(logFailure);
     }
 
     LOBBY_RELAYS.forEach((url) => connect(url));
@@ -334,22 +372,61 @@ export function outbox() {
     };
 }
 
-/** A private seat token: 128 random bits as hex. */
-const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+/** A private seat token, or a private link's room password (ADR 24): 128 random bits as hex. */
+export const newToken = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
+
+/** The Trystero room of host `hostId`'s game (ADR 6, 12). */
+const roomId = (hostId: string) => `game-${hostId}`;
+/** PBKDF2-SHA256 rounds for a typed password (ADR 24): about 80 ms on a desktop, a few times that on a phone. */
+const STRETCH_ROUNDS = 200_000;
+
+/**
+ * Turns a password someone typed into the room password of host `hostId`'s game (ADR 24). Trystero
+ * derives its key from one SHA-256 of the password, the app id and the room, the encrypted offers sit
+ * on public relays and the listing names the room, so a weak password could be guessed offline at
+ * the speed of SHA-256. PBKDF2-SHA256 over `STRETCH_ROUNDS` rounds, salted with
+ * `graph-fight:game-<hostId>`, makes each guess that much dearer. Returns 256 bits as hex.
+ */
+export async function stretchPassword(password: string, hostId: string): Promise<string> {
+    const text = new TextEncoder();
+    // NFC, so an é typed as one code point or as e and a combining accent gives the same key.
+    const base = await crypto.subtle.importKey("raw", text.encode(password.normalize("NFC")), "PBKDF2", false, ["deriveBits"]);
+    const salt = text.encode(`${APP_ID}:${roomId(hostId)}`);
+    return toHex(new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: STRETCH_ROUNDS }, base, 256)));
+}
 
 /**
  * Host only (ADR 16): a private token for each seat in `peers` (`start.peers`) and the peer
- * currently holding each seat. The host's own seat, 0, and bot seats (ADR 21) have no token
- * (`""`), so nobody can claim them; a bot seat has no holder either, since the host plays it.
+ * currently holding each seat. The host's own seat, 0, and the seats the host plays, bots' (ADR 21)
+ * and local players' (ADR 22), have no token (`""`), so nobody can claim them; a host-run seat has
+ * no holder either.
  */
 export function seatBook(peers: string[]) {
-    const tokens = peers.map((p, i) => (i && !isBot(p) ? newToken() : ""));
-    const holders = peers.map((p) => (isBot(p) ? undefined : p));
+    const tokens = peers.map((p, i) => (i && !isHostRun(p) ? newToken() : ""));
+    const holders = peers.map((p) => (isHostRun(p) ? undefined : p));
+    const revoked = new Set<string>();
     return {
         tokens: tokens as readonly string[],
+        /**
+         * Takes a guest's seat away for good (ADR 23): its token stops working and the seat has no
+         * holder. Returns the peer that held it, or undefined for the host's seat, a host-run seat,
+         * an unknown one or one already revoked.
+         */
+        revoke(seat: string): string | undefined {
+            const i = peers.indexOf(seat);
+            if (i <= 0 || !tokens[i]) return undefined;
+            const holder = holders[i];
+            revoked.add(tokens[i]);
+            tokens[i] = "";
+            holders[i] = undefined;
+            return holder;
+        },
+        /** True for the token of a revoked seat. */
+        revoked: (token: string) => revoked.has(token),
         /** Moves the seat whose token is exactly `token` to `peer`; false for an unknown token. */
         rejoin(token: string, peer: string): boolean {
-            // The host's and the bots' seats share the empty token.
+            // The host's and the host-run seats share the empty token.
             if (!token) return false;
             const i = tokens.indexOf(token);
             if (i > 0) holders[i] = peer;
@@ -360,7 +437,7 @@ export function seatBook(peers: string[]) {
             const i = holders.indexOf(peer);
             return i < 0 ? undefined : peers[i];
         },
-        /** Seat ids, other than the host's and the bots', whose holder is not `connected`. */
+        /** Seat ids, other than the host's and the host-run ones, whose holder is not `connected`. */
         absent: (connected: (peer: string) => boolean) => peers.filter((_, i) => i > 0 && holders[i] !== undefined && !connected(holders[i])),
     };
 }
@@ -383,6 +460,16 @@ export type GameHandlers = {
     onVersionMismatch(hostVersion: string): void;
     /** We missed a broadcast and hold no seat token to ask for a replay, so we left the room. */
     onDesync(): void;
+    /** The host removed us from the game (ADR 23); we left the room. */
+    onKicked(): void;
+    /** The host lets us share its invite link (ADR 24). */
+    onShare?(): void;
+    /**
+     * We joined without a seat and the host link never came up, even after joining the room again
+     * once (ADR 24): 3 × `REJOIN_MS` in all. With a password, a wrong one looks the same as a host
+     * that is gone, since no link is ever made. We left the room.
+     */
+    onUnreachable(): void;
     /**
      * We hold a seat and our link to the host has been down for `HOST_LOST_MS` (ADR 18). The host
      * keeps the game in memory only, so it cannot come back to it; we left the room.
@@ -414,6 +501,16 @@ export type Game = {
      */
     quit(): void;
     /**
+     * Host only: remove a guest (ADR 23). Before `start`, `seat` is the guest's peer id; in a game it
+     * is a guest's seat id, whose token then stops working, and `leave {peer: seat}` is relayed, which
+     * eliminates the team as a quit does. The peer is sent `{type: "kick"}`, and its id is ignored
+     * from then on in this room (told again if it comes back). A rejoin with the revoked token gets
+     * the same answer.
+     */
+    kick(seat: string): void;
+    /** Host only: tell `peer` it may share the invite link (ADR 24). Sent outside the sequence, like a kick. */
+    share(peer: string): void;
+    /**
      * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
      * not connected; on another peer, the host while its link is down.
      */
@@ -428,16 +525,18 @@ export type Game = {
  * back or when it sees a gap (ADR 16). While that link stays down it rejoins the room after
  * `REJOIN_MS`, then after twice as long each time, and gives up after `HOST_LOST_MS` (ADR 18).
  * Peer ids are announced by the peers themselves during signalling, so a modified client can
- * claim any id; that is accepted under ADR 7's trusted-peers model.
+ * claim any id; that is accepted under ADR 7's trusted-peers model. A `password` (ADR 24) is
+ * Trystero's room password: it encrypts the signalling, so only peers that know it connect. A typed
+ * password goes through `stretchPassword` first; a private link's random key is used as it is.
  */
-export function joinGame(hostId: string, handlers: GameHandlers, token?: string): Game {
+export function joinGame(hostId: string, handlers: GameHandlers, token?: string, password?: string): Game {
     const isHost = hostId === selfId;
     let left = false;
     let seats: ReturnType<typeof seatBook> | undefined;
 
     // room.leave() takes a moment, so events from a room we left or replaced are dropped.
     function open() {
-        const r = joinRoom({ appId: APP_ID }, `game-${hostId}`);
+        const r = joinRoom({ appId: APP_ID, password }, roomId(hostId));
         const a = r.makeAction<JsonValue>("msg");
         const live = () => !left && r === room;
         a.onMessage = (data, { peerId }) => {
@@ -475,17 +574,33 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
             leave();
             return handlers.onHostLost();
         }
-        void room.leave();
-        [room, action] = open();
+        renew();
         wait *= 2;
         schedule();
+    }
+    /** Leaves the room and joins it again, with fresh signalling state (ADR 18). */
+    function renew() {
+        void room.leave();
+        [room, action] = open();
     }
     // After a reload the host link is not up yet.
     watch();
 
+    // A guest that has not reached the host yet, as the watchdog does, joins the room again after
+    // REJOIN_MS, then gives up after twice that: a slow relay gets a second chance, while a host that
+    // is gone or, with a password, a wrong one never makes a link (ADR 24).
+    let joinTimer =
+        isHost || token
+            ? undefined
+            : setTimeout(() => {
+                  renew();
+                  joinTimer = setTimeout(() => (leave(), handlers.onUnreachable()), 2 * REJOIN_MS);
+              }, REJOIN_MS);
+
     function leave() {
         left = true;
         clearTimeout(watchdog);
+        clearTimeout(joinTimer);
         void room.leave();
     }
 
@@ -509,7 +624,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         action.send(out.stamp(msg)).catch(handlers.onSendError);
         if (msg.type === "start") {
             const book = (seats = seatBook(msg.peers));
-            // Each token goes to its own seat only, never broadcast; the host's and bots' seats have none.
+            // Each token goes to its own seat only, never broadcast; the host's and host-run seats have none.
             msg.peers.forEach((peer, i) => book.tokens[i] && action.send({ seat: book.tokens[i] }, { target: peer }).catch(handlers.onSendError));
         }
         deliverLocal(msg);
@@ -535,8 +650,17 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         action.send({ type: "rejoin", token: seatToken }, { target: hostId }).catch(handlers.onSendError);
     }
 
+    // Host only: peer ids removed from this game (ADR 23). Trystero ids last one page load, so a
+    // reload comes back under a new id; only a rejoin with the revoked token is recognised then.
+    const banned = new Set<string>();
+    function ban(peer: string) {
+        banned.add(peer);
+        // A lost kick only leaves the peer waiting; it is told again whenever it comes back.
+        action.send({ type: "kick" }, { target: peer }).catch((err) => console.warn("kick send failed", err));
+    }
+
     const accept = sequencer(
-        versionGate(BUILD_VERSION, handlers.onMessage, (hostVersion) => {
+        versionGate(BUILD_ID, handlers.onMessage, (hostVersion) => {
             leave();
             handlers.onVersionMismatch(hostVersion);
         }),
@@ -548,16 +672,23 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     );
 
     function onData(data: JsonValue, peerId: string) {
+        if (banned.has(peerId)) return;
         const routed = routeIncoming(hostId, selfId, peerId, data);
         if (routed?.kind === "relayed") {
             accept(routed.seq, routed.msg);
         } else if (routed?.kind === "seat") {
             token = routed.token;
             handlers.onSeat?.(token);
+        } else if (routed?.kind === "kicked") {
+            leave();
+            handlers.onKicked();
+        } else if (routed?.kind === "share") {
+            handlers.onShare?.();
         } else if (routed && seats) {
             // Requests count only from the peer holding a seat now, and act for that seat.
             if (routed.kind === "rejoin") {
-                if (seats.rejoin(routed.token, peerId)) replay(peerId);
+                if (seats.revoked(routed.token)) ban(peerId);
+                else if (seats.rejoin(routed.token, peerId)) replay(peerId);
                 return;
             }
             const seat = seats.seatOf(peerId);
@@ -566,7 +697,11 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         }
     }
     function onPeerJoin(id: string) {
-        if (id === hostId) clearTimeout(watchdog);
+        if (banned.has(id)) return ban(id);
+        if (id === hostId) {
+            clearTimeout(watchdog);
+            clearTimeout(joinTimer);
+        }
         if (id === hostId && token) rejoin(token);
         // A seated peer back under the same id may have missed the last broadcasts, which it
         // would otherwise only notice at the next one (ADR 16).
@@ -591,6 +726,19 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
             } else if (token && hostConnected()) {
                 action.send({ type: "quit" }, { target: hostId }).catch(handlers.onSendError);
             }
+        },
+        kick(seat) {
+            if (!isHost) throw new Error("only the host kicks");
+            if (!seats) return ban(seat);
+            const holder = seats.revoke(seat);
+            if (holder === undefined) return;
+            ban(holder);
+            relay({ type: "leave", peer: seat });
+        },
+        share(peer) {
+            if (!isHost) throw new Error("only the host shares its invite");
+            // A lost one only hides the link from that guest.
+            action.send({ type: "share" }, { target: peer }).catch((err) => console.warn("share send failed", err));
         },
         absent() {
             if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];

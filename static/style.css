@@ -75,6 +75,11 @@ main {
 }
 
 footer { padding: 0 var(--gutter) 1rem; color: var(--ink-soft); font-size: 0.8rem; overflow-wrap: anywhere; }
+footer a { color: inherit; }
+
+a { color: var(--mark); }
+.changelog h1 { margin-bottom: 1.5rem; }
+.changelog time { font: 400 1rem/1.5 var(--font-ui); color: var(--ink-soft); }
 
 noscript { display: block; padding: 1rem var(--gutter); }
 
@@ -106,7 +111,7 @@ button, input, select {
     min-height: var(--control-h);
 }
 
-input:is([type=text], [type=number], :not([type])), select {
+input:is([type=text], [type=password], [type=number], :not([type])), select {
     background: var(--paper);
     border: 1px solid var(--ink-soft);
     border-radius: 4px;
@@ -160,6 +165,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* Lobby */
 
 .masthead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.5rem; margin-bottom: 1.5rem; }
+.masthead .logo { width: 1em; height: 1em; margin-right: 0.2em; vertical-align: -0.15em; border: 1px solid var(--grid-major); border-radius: 22%; }
 .masthead .tagline { flex: 0 0 100%; max-width: none; margin: 0; }
 .title-curve { width: 15rem; max-width: 100%; height: auto; overflow: visible; }
 .title-curve path {
@@ -192,13 +198,33 @@ td[colspan] { text-align: left; }
 /* Untrusted text (game names, formulas) may break anywhere; labels and buttons may not. */
 #games td:not(:last-child), #room-players, #turn, #end-message, #last-shot, #saved-list { overflow-wrap: anywhere; }
 .muted { color: var(--ink-soft); }
+/* A padlock after a password game's name (ADR 24), drawn in the text colour. */
+.lock {
+    display: inline-block;
+    width: 0.875em;
+    height: 1em;
+    margin-left: 0.375rem;
+    vertical-align: -0.125em;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M3 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm2 0h4V5a2 2 0 0 0-4 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.field:has(#host-password:disabled), .field:has(#host-share:disabled) { display: none; }
+.field.check { display: flex; align-items: center; gap: 0.5rem; }
+/* A password field with its Show toggle (ADR 24). */
+.secret { display: flex; gap: 0.5rem; }
+.secret input { flex: 1; min-width: 0; }
+dialog { background: var(--paper); color: var(--ink); border: 1px solid var(--ink-soft); border-radius: 4px; padding: 1.5rem; }
+dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+dialog h2 { margin-top: 0; }
 
 /* Waiting room and end screen */
 
 #room-players { list-style: none; padding: 0; }
 #room-players li { padding: 0.125rem 0; }
 #room-players button { margin-left: 0.75rem; }
-#bots { margin-bottom: 1rem; }
+#bots, #invite { margin-bottom: 1rem; }
+#invite { align-items: end; }
+#invite .field { margin-bottom: 0; flex: 1 1 18rem; }
 #guest-hint { display: none; }
 #start[hidden] ~ #guest-hint { display: inline; }
 #start:not(:disabled) ~ #start-hint, #start[hidden] ~ #start-hint { display: none; }

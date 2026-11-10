@@ -3,12 +3,12 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
+import { BUILD_ID, BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
-import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setText, short, showError, TITLE } from "./status";
+import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";
 
 // Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
 await init();
@@ -31,7 +31,14 @@ const ARENAS = {
 /** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
 const SEAT_KEY = "graph-fight-seat";
 const MISMATCH = ["Different version.", "Reload the page, then join again."] as const;
+/** An invite from another build: the fragment is already gone, so the link has to be opened again. */
+const INVITE_MISMATCH = ["Different version.", "Reload the page, then open the invite link again."] as const;
+/** An invite opened while this page is in a game or a waiting room (ADR 24). */
+const BUSY = "Finish or leave this game first, then open the invite link again.";
 const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
+const REMOVED = ["The host removed you from this game.", "Join another game from the lobby."] as const;
+const UNREACHABLE = ["Wrong password, or the host can't be reached.", "Check the password or the link with the host, then join again."] as const;
+const NO_HOST = ["The host can't be reached.", "The game may be gone. Join another one from the lobby."] as const;
 /** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
 const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
 /** Long and short names of a shot frame, shown after the field (ADR 20). */
@@ -41,11 +48,13 @@ const LABELS = {
     disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
 };
 
-/** What a seated peer keeps to rejoin: the room, its private token, its build and its seat id. */
-type Seat = { hostId: string; token: string; version: string; me: string };
+/** What a seated peer keeps to rejoin: the room, its private token, its build, its seat id and the room password (ADR 24). */
+type Seat = { hostId: string; token: string; version: string; me: string; key?: string };
 
 type Play = {
     sim: Sim;
+    /** The game's `start.seed`, which tells two games of one host apart. */
+    seed: string;
     field: Field;
     frame: Frame;
     /** `peers[i]` plays team `i`. */
@@ -61,6 +70,12 @@ type Play = {
     shots: Map<string, LastShot>;
     /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
+    /**
+     * Turn starts so far: the start, each shot and timeout, and each leave that passes the turn on.
+     * Unlike `turn`, it moves when a quit or a kick hands the turn to the next team; a replay counts
+     * the same starts again in the same order.
+     */
+    starts: number;
     /** Our shot is sent and not yet applied. */
     pending: boolean;
     over: boolean;
@@ -72,7 +87,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const SECTIONS = ["lobby", "room", "game", "end"];
 const show = (...names: string[]) => SECTIONS.forEach((s) => ($(s).hidden = !names.includes(s)));
 $("build").textContent = `v ${BUILD_VERSION}`;
-$("build").setAttribute("aria-label", `Build version ${BUILD_VERSION}`);
+$("build").setAttribute("aria-label", `v ${BUILD_VERSION}, changelog, opens in a new tab`);
 
 // One lobby connection for the page's lifetime; the host withdraws its listing once the game starts.
 const lobby = joinLobby(renderLobby);
@@ -82,17 +97,29 @@ let hostId = "";
 let me = selfId;
 /** What we advertise while hosting a game that has not started. */
 let offer: Announce | null = null;
+/** Host: a private-link game, which is never announced (ADR 24). */
+let unlisted = false;
+/** Host: guests may share the invite link; a guest: the host said we may (ADR 24). */
+let shareInvite = false;
+/** The room password of the game we host or joined, "" for a public one (ADR 24). */
+let roomKey = "";
 let connected: string[] = [];
 /** Host: the bot seat ids added in the waiting room, in the order they were added (ADR 21). */
 let bots: string[] = [];
+/** Host: the local players' seat ids added in the waiting room, in the order they were added (ADR 22). */
+let locals: string[] = [];
 let play: Play | null = null;
 /** The open games the lobby last listed, and the offer of the room we are in (ADR 17, section 6). */
 let games: OpenGame[] = [];
 let roomInfo: Announce | undefined;
 /** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
 let ended = false;
-/** The last turn whose start ran `restore`, kept across `startGame`: a rejoin replays turns we already lived, and must not overwrite what we typed since. */
-let restored = { host: "", turn: -1 };
+/**
+ * The game (its `start.seed`) and the last turn start (`Play.starts`) that ran `restore`, kept across
+ * `startGame`: a rejoin replays the same `start` and turns we already lived, and must not overwrite
+ * what we typed since. Another game, even from the same host, starts afresh.
+ */
+let restored = { seed: "", starts: 0 };
 
 function renderLobby(list: OpenGame[]) {
     games = list;
@@ -106,7 +133,13 @@ function renderLobby(list: OpenGame[]) {
                 td.textContent = text;
                 return td;
             };
-            cell(g.name);
+            const name = cell(g.name);
+            if (g.locked) {
+                const lock = name.appendChild(document.createElement("span"));
+                lock.className = "lock";
+                lock.setAttribute("role", "img");
+                lock.setAttribute("aria-label", "Password required");
+            }
             if (g.compatible) {
                 const [long, short] = FIELD_NAMES[g.field].map((name, i) => `${name}, ${FRAME_NAMES[g.frame][i]}`);
                 const field = cell("");
@@ -120,7 +153,7 @@ function renderLobby(list: OpenGame[]) {
                 const join = document.createElement("button");
                 join.textContent = full ? "Full" : "Join";
                 join.disabled = full;
-                join.onclick = () => enterRoom(g.id);
+                join.onclick = () => (g.locked ? askPassword(g.id) : enterRoom(g.id));
                 cell("").append(join);
             } else {
                 tr.className = "muted";
@@ -139,19 +172,77 @@ hostField.onchange = () => {
     hostSeats.disabled = hostField.value === "xy";
     if (hostSeats.disabled) hostSeats.value = "2";
 };
-$<HTMLFormElement>("host-form").onsubmit = (e) => {
+const hostVisibility = $<HTMLSelectElement>("host-visibility");
+hostVisibility.onchange = () => {
+    $<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password";
+    $<HTMLInputElement>("host-share").disabled = hostVisibility.value === "public";
+};
+$<HTMLFormElement>("host-form").onsubmit = async (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
     const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
-    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value) };
-    enterRoom(selfId);
+    // A password game is listed with a lock, and its typed password is stretched; a private link's
+    // random key is used as it is and never leaves the link (ADR 24).
+    const submit = $<HTMLButtonElement>("host-submit");
+    submit.disabled = true;
+    let password = "";
+    try {
+        if (hostVisibility.value === "link") password = newToken();
+        else if (hostVisibility.value === "password") password = await stretchPassword($<HTMLInputElement>("host-password").value, selfId);
+    } finally {
+        submit.disabled = false;
+    }
+    // While the password stretched, Join or a pasted invite may have entered another room.
+    if (room || $("lobby").hidden) return forget("host-password");
+    unlisted = hostVisibility.value === "link";
+    shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
+    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
+    forget("host-password");
+    enterRoom(selfId, undefined, password);
 };
 
-function enterRoom(id: string, seat?: Seat) {
+// Password fields are masked; their Show toggle (aria-pressed) reveals the text (ADR 24).
+const reveal = (button: HTMLButtonElement, shown: boolean) => {
+    $<HTMLInputElement>(button.getAttribute("aria-controls") ?? "").type = shown ? "text" : "password";
+    button.setAttribute("aria-pressed", String(shown));
+};
+document.querySelectorAll<HTMLButtonElement>("button.reveal").forEach((button) => (button.onclick = () => reveal(button, button.getAttribute("aria-pressed") !== "true")));
+/** Empties a password field and masks it again, so a typed password does not stay on the page once used. */
+function forget(id: string) {
+    $<HTMLInputElement>(id).value = "";
+    reveal(document.querySelector<HTMLButtonElement>(`button.reveal[aria-controls="${id}"]`)!, false);
+}
+
+const passwordDialog = $<HTMLDialogElement>("password-dialog");
+/** The game whose password the dialog asks for. */
+let asking = "";
+function askPassword(id: string) {
+    asking = id;
+    passwordDialog.showModal();
+}
+// However the dialog closes (Join, Cancel, Escape, leaving the lobby), the typed password goes.
+passwordDialog.addEventListener("close", () => forget("join-password"));
+$<HTMLFormElement>("password-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const id = asking;
+    const password = await stretchPassword($<HTMLInputElement>("join-password").value, id);
+    // A second submit while this one stretched, Cancel or leaving the lobby closed the dialog already.
+    if (!passwordDialog.open) return;
+    passwordDialog.close();
+    enterRoom(id, undefined, password);
+};
+$("password-cancel").onclick = () => passwordDialog.close();
+
+/** Joins room `id`: our own when hosting, from a stored `seat` after a reload, with the room `password` of a private game (ADR 24). */
+function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     hostId = id;
+    roomKey = password;
+    // The host's choice was made in the form; a guest waits to be told.
+    if (id !== selfId) shareInvite = false;
     me = seat?.me ?? selfId;
     connected = [];
     bots = [];
+    locals = [];
     ended = false;
     roomInfo = id === selfId ? offer ?? undefined : games.find((g) => g.id === id);
     clearError();
@@ -159,11 +250,15 @@ function enterRoom(id: string, seat?: Seat) {
     $("room-title").textContent = roomInfo?.name || "Waiting room";
     $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${FRAME_NAMES[roomInfo.frame][0]}, ${roomInfo.seats} seats` : "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
+    $<HTMLInputElement>("invite-link").value = roomKey ? `${location.origin}${location.pathname}${inviteFragment(id, roomKey)}` : "";
+    $("copy-status").textContent = "";
     room = joinGame(id, {
         onMessage,
         onShotRequest: acceptShot,
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
+        onKicked: () => end(...REMOVED),
+        onUnreachable: () => (roomKey ? end(...UNREACHABLE) : end(...NO_HOST)),
         onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
@@ -171,13 +266,19 @@ function enterRoom(id: string, seat?: Seat) {
             if (play) refresh(play);
         },
         onSeat(token) {
-            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
+            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_ID, me, key: roomKey } satisfies Seat));
         },
         onPeerJoin(peer) {
-            // A peer announcing a bot id is never seated (ADR 21).
-            if (isBot(peer)) return;
+            // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
+            if (isHostRun(peer)) return;
             // A rejoined room (ADR 18) reports peers we already had.
             if (!connected.includes(peer)) connected.push(peer);
+            // Before the game starts, the host lets each guest share its invite link if it chose so (ADR 24).
+            if (offer && shareInvite) room?.share(peer);
+            roomChanged();
+        },
+        onShare() {
+            shareInvite = true;
             roomChanged();
         },
         onPeerLeave(peer) {
@@ -188,7 +289,7 @@ function enterRoom(id: string, seat?: Seat) {
             if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end(...HOST_LEFT);
             else roomChanged();
         },
-    }, seat?.token);
+    }, seat?.token, roomKey || undefined);
     roomChanged();
     show("room");
 }
@@ -201,41 +302,78 @@ function roomChanged() {
         li.textContent = text;
         return li;
     };
+    // A row with a Remove button named after `name`, which runs `remove`.
+    const removable = (text: string, name: string, remove: () => void, fallback: string) => {
+        const li = item(text);
+        const button = li.appendChild(document.createElement("button"));
+        button.type = "button";
+        button.className = "secondary";
+        button.textContent = "Remove";
+        button.setAttribute("aria-label", `Remove ${name}`);
+        button.onclick = () => {
+            const at = [...$("room-players").querySelectorAll("button")].indexOf(button);
+            remove();
+            roomChanged();
+            // The list was rebuilt: keep the keyboard on the next Remove, or on `fallback`.
+            ($("room-players").querySelectorAll("button")[at] ?? $(fallback)).focus();
+        };
+        return li;
+    };
     $("room-players").replaceChildren(
-        ...all.map((id) => item(short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : ""))),
-        ...bots.map((id) => {
-            const li = item(seatName(id));
-            const remove = li.appendChild(document.createElement("button"));
-            remove.type = "button";
-            remove.className = "secondary";
-            remove.textContent = "Remove";
-            remove.setAttribute("aria-label", `Remove Bot ${parseBot(id)?.n}`);
-            remove.onclick = () => {
-                const at = bots.indexOf(id);
-                bots = bots.filter((b) => b !== id);
-                roomChanged();
-                // The list was rebuilt: keep the keyboard on the next bot's Remove, or on Add bot.
-                ($("room-players").querySelectorAll("button")[at] ?? $("add-bot")).focus();
+        ...all.map((id) => {
+            const text = short(id) + (id === selfId ? " (you)" : "") + (id === hostId ? " (host)" : "");
+            // The host can remove a guest; it is told, and its id is ignored from then on (ADR 23).
+            const kick = () => {
+                room?.kick(id);
+                connected = connected.filter((p) => p !== id);
             };
-            return li;
+            return offer && id !== selfId ? removable(text, short(id), kick, "add-local") : item(text);
         }),
+        ...locals.map((id) => removable(seatName(id), seatName(id), () => (locals = locals.filter((l) => l !== id)), "add-local")),
+        ...bots.map((id) => removable(seatName(id), `Bot ${parseBot(id)?.n}`, () => (bots = bots.filter((b) => b !== id)), "add-bot")),
     );
-    // Bots keep their seats; humans beyond the rest wait out the game (ADR 21).
-    const players = all.length + bots.length;
+    // Bots and local players keep their seats; humans beyond the rest wait out the game (ADR 21, 22).
+    const hostRun = bots.length + locals.length;
+    const players = all.length + hostRun;
     const open = roomInfo ? roomInfo.seats - players : 0;
-    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats - bots.length} to join play.` : "";
+    $("room-seats").textContent = open > 0 ? `${open} ${open === 1 ? "seat" : "seats"} open` : roomInfo && offer && open < 0 ? `More players than seats: the first ${roomInfo.seats - hostRun} to join play.` : "";
     $("start").hidden = !offer;
     $<HTMLButtonElement>("start").disabled = players < 2;
     $("bots").hidden = !offer;
-    $<HTMLButtonElement>("add-bot").disabled = !offer || bots.length >= offer.seats - 1;
-    if (offer) lobby.announce({ ...offer, players });
+    for (const id of ["add-bot", "add-local"]) $<HTMLButtonElement>(id).disabled = !offer || hostRun >= offer.seats - 1;
+    $("invite").hidden = !roomKey || !(offer || shareInvite);
+    if (offer && !unlisted) lobby.announce({ ...offer, players });
 }
 
+$("copy-link").onclick = () => {
+    const field = $<HTMLInputElement>("invite-link");
+    // The clipboard needs a secure context and the page's focus; otherwise the link is selected to copy by hand.
+    Promise.resolve()
+        .then(() => navigator.clipboard.writeText(field.value))
+        .then(
+            () => setLive($("copy-status"), "Link copied."),
+            () => {
+                field.focus();
+                field.select();
+                setLive($("copy-status"), "Copy the selected link.");
+            },
+        );
+};
+
+/** The lowest seat number from 1 to 7 not in `taken`. */
+const freeNumber = (taken: (number | undefined)[]) => [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
+const roomForHostRun = () => !!offer && bots.length + locals.length < offer.seats - 1;
+
 $("add-bot").onclick = () => {
-    const taken = bots.map((id) => parseBot(id)?.n);
-    const n = [1, 2, 3, 4, 5, 6, 7].find((k) => !taken.includes(k));
-    if (!offer || n === undefined || bots.length >= offer.seats - 1) return;
+    const n = freeNumber(bots.map((id) => parseBot(id)?.n));
+    if (n === undefined || !roomForHostRun()) return;
     bots.push(`bot:${$<HTMLSelectElement>("bot-level").value}:${n}`);
+    roomChanged();
+};
+$("add-local").onclick = () => {
+    const n = freeNumber(locals.map(parseLocal));
+    if (n === undefined || !roomForHostRun()) return;
+    locals.push(`local:${n}`);
     roomChanged();
 };
 
@@ -244,8 +382,8 @@ $("start").onclick = () => {
     const seed = crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     try {
         // Delivered to our own onMessage, which starts the game.
-        const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length), ...bots];
-        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_VERSION });
+        const peers = [selfId, ...connected.slice(0, offer.seats - 1 - bots.length - locals.length), ...locals, ...bots];
+        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers, version: BUILD_ID });
     } catch (err) {
         $("room-error").textContent = `Could not start: ${err}.`;
         return;
@@ -255,6 +393,8 @@ $("start").onclick = () => {
 };
 
 function toLobby() {
+    // A join dialog left open would sit in the hidden lobby and could still join a room.
+    passwordDialog.close();
     sessionStorage.removeItem(SEAT_KEY);
     room?.leave();
     room = null;
@@ -298,7 +438,7 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), pending: false, over: false, deadline: 0 };
+    play = { sim, seed: msg.seed, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -418,19 +558,23 @@ function restore(shot: LastShot) {
 /** After any applied message: end the game if it is decided, otherwise (on a new turn) restart the clock. */
 function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
-    if (winner !== undefined) return end(p.peers[winner] === me ? "You win." : `Team ${winner + 1} wins.`);
+    if (winner !== undefined) {
+        const id = p.peers[winner];
+        return end(playsHere(id) ? ourWin(id, hotSeat(p)) : `Team ${winner + 1} wins.`);
+    }
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw.", "Nobody is left.");
     if (newTurn) {
+        p.starts++;
         clearError();
         resetClock(p);
-        // Our turn starts: say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17).
+        // Our turn starts (or a local player's): say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17, 22).
         const team = p.sim.get_current_team_idx();
-        const mine = p.peers[team] === me;
-        cueTurn(mine);
-        // Our character's last formula comes back; one that has not fired leaves the editor as it is.
+        const mine = playsHere(p.peers[team]);
+        cueTurn(mine ? p.peers[team] : null, hotSeat(p));
+        // Our character's last formula comes back (each local player's own, since characters are per team); one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
-        const fresh = hostId !== restored.host || p.turn > restored.turn;
-        if (fresh) restored = { host: hostId, turn: p.turn };
+        const fresh = p.seed !== restored.seed || p.starts > restored.starts;
+        if (fresh) restored = { seed: p.seed, starts: p.starts };
         if (last && fresh) restore(last);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
         if (hostId === selfId) void playBot(p);
@@ -438,21 +582,32 @@ function changed(p: Play, newTurn: boolean) {
     refresh(p);
 }
 
+/** This page plays seat `id`: it is ours, or we host and it is a local player's (ADR 22). */
+const playsHere = (id: string) => id === me || (hostId === selfId && isLocal(id));
+/** We host a game with local players: several people share this screen, so the host's own turn is named too (ADR 22). */
+const hotSeat = (p: Play) => hostId === selfId && p.peers.some(isLocal);
+
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
-    const mine = p.peers[team] === me;
+    const mine = playsHere(p.peers[team]);
     const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, shots: new Map(p.shots), looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    renderStatus({ over: p.over, team, mine, hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
+    renderStatus({ over: p.over, team, seat: p.peers[team], mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
     setText($("last-shot"), p.note);
-    const out = !p.over && view.arena.teams[p.peers.indexOf(me)]?.players.every((pl) => !pl.alive);
+    // The editor goes once every team played here is out.
+    const out = !p.over && p.peers.every((id, t) => !playsHere(id) || view.arena.teams[t].players.every((pl) => !pl.alive));
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
-    renderRoster(view.arena, p.peers, me, view.current, view.absent);
+    renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, hostId === selfId && !p.over ? (team) => kickTeam(p, team) : undefined);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
+}
+
+/** Host: once confirmed, removes the guest playing `team`; the team is out as after a quit (ADR 23). */
+function kickTeam(p: Play, team: number) {
+    if (confirm(`Kick Team ${team + 1}? Their team will be out.`)) room?.kick(p.peers[team]);
 }
 
 /** We are a guest and our link to the host is down (ADR 16): the board is frozen until the replay arrives. */
@@ -477,7 +632,7 @@ function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
-    cueTurn(false);
+    cueTurn(null, false);
     if (play) {
         play.over = true;
         clearTimeout(play.clock);
@@ -529,7 +684,11 @@ $<HTMLFormElement>("shot-form").onsubmit = (e) => {
         // The host applies its own shot inside `shoot`, and that refresh starts the pen. A redraw
         // after it would end the animation on its final frame, so only Fire is disabled here.
         $<HTMLButtonElement>("fire").disabled = true;
-        room.shoot({ type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() });
+        const shot: Shot = { type: "shot", turn: p.turn, exprs, cw: p.field === "disc" && clockwise() };
+        // A local player's shot goes through the same check as a remote request, for its own seat (ADR 22).
+        const seat = p.peers[p.sim.get_current_team_idx()];
+        if (isLocal(seat)) acceptShot(seat, shot);
+        else room.shoot(shot);
     } catch (err) {
         p.pending = false;
         showError(String(err));
@@ -551,10 +710,39 @@ setInterval(() => {
 (window as unknown as { __state: () => unknown }).__state = () =>
     play && { turn: play.turn, current: play.sim.get_current_team_idx(), me: play.peers.indexOf(me), arena: play.sim.arena(), shot: play.shot, faint: olderPaths(play.shots, play.sim.arena(), play.shot).length };
 
-// After a reload, rejoin the game we hold a seat in (ADR 16).
+/**
+ * Joins the game an invite link names (ADR 24), and first takes the link out of the address bar so
+ * a screenshot or a shared URL does not show the key. Returns false when the address holds none.
+ */
+function openInvite() {
+    const invite = parseInvite(location.hash);
+    if (!invite) return false;
+    history.replaceState(null, "", location.pathname + location.search);
+    if (invite.version === BUILD_ID) enterRoom(invite.hostId, undefined, invite.key);
+    else end(...INVITE_MISMATCH);
+    return true;
+}
+// A link pasted into this tab changes only the fragment, which does not reload the page.
+addEventListener("hashchange", () => {
+    if (!parseInvite(location.hash)) return;
+    if (room && !ended) {
+        // This page stays where it is. The key still goes from the address bar, or a reload would
+        // follow the link instead of rejoining our seat (ADR 16).
+        history.replaceState(null, "", location.pathname + location.search);
+        if (play) showError(BUSY, false);
+        else $("room-error").textContent = BUSY;
+        return;
+    }
+    toLobby();
+    // The last game's end must not swallow this one's (a version mismatch ends at once).
+    ended = false;
+    openInvite();
+});
+
+// After a reload, rejoin the game we hold a seat in (ADR 16); an invite opened in this tab wins over it.
 const saved = sessionStorage.getItem(SEAT_KEY);
-if (saved) {
+if (!openInvite() && saved) {
     const seat = JSON.parse(saved) as Seat;
-    if (seat.version === BUILD_VERSION) enterRoom(seat.hostId, seat);
+    if (seat.version === BUILD_ID) enterRoom(seat.hostId, seat);
     else end(...MISMATCH);
 }

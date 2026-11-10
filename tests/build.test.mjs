@@ -25,4 +25,11 @@ for (const [define, live] of [
     assert.equal(js.includes(quoted(LIVE_TOPIC)), live, `live topic present: ${live}`);
     assert.equal(js.includes(quoted(DEV_TOPIC)), true, "dev topic is the net.ts fallback");
 }
+
+// Compatibility uses the exact build id, never the display version (ADR 28): the invite link carries
+// `__BUILD_ID__` even when `__BUILD_VERSION__` is the same for two builds.
+const net = await import(`data:text/javascript;base64,${Buffer.from(await bundled({ __BUILD_ID__: quoted("0.4.0+abc1234"), __BUILD_VERSION__: quoted("0.4.0") })).toString("base64")}`);
+assert.equal(net.BUILD_ID, "0.4.0+abc1234");
+assert.equal(net.BUILD_VERSION, "0.4.0");
+assert.equal(new URLSearchParams(net.inviteFragment("h", "k").slice(1)).get("v"), "0.4.0+abc1234");
 console.log("build tests passed");

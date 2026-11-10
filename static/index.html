@@ -4,7 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#EEF4EF" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#22332D" media="(prefers-color-scheme: dark)">
     <title>Graph fight!</title>
+    <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&amp;family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&amp;display=swap">
@@ -16,7 +21,7 @@
     <main>
       <section id="lobby">
         <header class="masthead">
-          <h1>Graph fight!</h1>
+          <h1><img class="logo" src="./favicon.svg" alt="" width="32" height="32">Graph fight!</h1>
           <svg class="title-curve" viewBox="0 0 240 40" aria-hidden="true">
             <path pathLength="1" d="M10 30 C 60 -12, 120 52, 230 10"/>
             <circle cx="10" cy="30" r="5" class="dot-1"/>
@@ -32,6 +37,20 @@
               <thead><tr><th>Game</th><th>Field</th><th>Players</th><th><span class="sr-only">Join</span></th></tr></thead>
               <tbody id="games"></tbody>
             </table>
+            <dialog id="password-dialog" aria-labelledby="password-heading">
+              <form id="password-form">
+                <h2 id="password-heading">Join with a password</h2>
+                <div class="field">
+                  <label for="join-password">Password</label>
+                  <div class="secret"><input id="join-password" type="password" maxlength="64" autocomplete="off" spellcheck="false" required>
+                    <button type="button" class="secondary reveal" aria-controls="join-password" aria-pressed="false" aria-label="Show password">Show</button></div>
+                </div>
+                <div class="actions">
+                  <button type="submit" class="primary">Join</button>
+                  <button id="password-cancel" type="button" class="secondary">Cancel</button>
+                </div>
+              </form>
+            </dialog>
           </section>
           <section aria-labelledby="host-game">
             <h2 id="host-game">Host a game</h2>
@@ -50,7 +69,20 @@
                 </select>
               </label>
               <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
-              <button type="submit" class="primary">Host game</button>
+              <label class="field"><span>Visibility</span>
+                <select id="host-visibility">
+                  <option value="public">Public</option>
+                  <option value="password">Password</option>
+                  <option value="link">Private link</option>
+                </select>
+              </label>
+              <div class="field">
+                <label for="host-password">Password</label>
+                <div class="secret"><input id="host-password" type="password" maxlength="64" autocomplete="off" spellcheck="false" required disabled>
+                  <button type="button" class="secondary reveal" aria-controls="host-password" aria-pressed="false" aria-label="Show password">Show</button></div>
+              </div>
+              <label class="field check"><input id="host-share" type="checkbox" disabled> Guests can share the invite link</label>
+              <button id="host-submit" type="submit" class="primary">Host game</button>
             </form>
           </section>
         </div>
@@ -62,6 +94,11 @@
         <p id="room-status"></p>
         <ul id="room-players"></ul>
         <p id="room-seats" class="hint"></p>
+        <div id="invite" class="actions" hidden>
+          <label class="field"><span>Invite link</span><input id="invite-link" readonly spellcheck="false"></label>
+          <button id="copy-link" type="button" class="secondary">Copy invite link</button>
+          <span id="copy-status" class="hint" role="status"></span>
+        </div>
         <div id="bots" class="actions" hidden>
           <label for="bot-level">Bot level</label>
           <select id="bot-level">
@@ -70,6 +107,7 @@
             <option value="hard">Hard</option>
           </select>
           <button id="add-bot" type="button" class="secondary">Add bot</button>
+          <button id="add-local" type="button" class="secondary">Add local player</button>
         </div>
         <p id="room-error" class="error" role="alert"></p>
         <div class="actions">
@@ -176,7 +214,7 @@
 
           <section aria-labelledby="roster-heading">
             <h2 id="roster-heading">Teams</h2>
-            <ol id="roster"></ol>
+            <ol id="roster" tabindex="-1"></ol>
           </section>
 
           <section id="saved" aria-labelledby="saved-heading">
@@ -188,7 +226,7 @@
         </div>
       </section>
     </main>
-    <footer id="build"></footer>
+    <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a></footer>
 
     <script type="module" src="./index.js"></script>
   </body>

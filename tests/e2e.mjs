@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
 /** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */
@@ -38,30 +38,47 @@ const comparable = async (page) => {
 };
 
 /**
+ * Counts `page`'s game-room subscriptions (Nostr REQs other than the lobby's) in `page.subscriptions`:
+ * joining a room sends them. A subscription is counted once by its id, since some relays make
+ * Trystero send the same REQ again. Also keeps the Nostr events the page publishes (lobby listings
+ * and signalling) in `page.published`, and the build version its last lobby announcement carried in
+ * `page.announced`.
+ */
+function watchFrames(page) {
+    const ids = new Set();
+    page.subscriptions = 0;
+    page.published = [];
+    page.on("websocket", (ws) =>
+        ws.on("framesent", (f) => {
+            const frame = String(f.payload);
+            // The host's lobby announcement carries the version the lobby checks (ADR 12).
+            const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
+            if (announced) page.announced = announced[1];
+            if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions = ids.add(JSON.parse(frame)[1]).size;
+            if (frame.startsWith('["EVENT"')) page.published.push(frame);
+        }),
+    );
+}
+
+/**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
  * `seats` is the host's seat count for the disc field (default `n`); `frame` is the shot frame,
  * `map` (default) or `player` (ADR 20), shown in the lobby and the waiting room; `fakeHostClock` and
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
  * `blockStorage` makes the host's localStorage refuse writes; `bots` lists the levels of the bots the
- * host adds before anyone joins (ADR 21); `offline` cuts the pages' network once they have loaded.
+ * host adds before anyone joins (ADR 21); `locals` is the number of local players it adds before them
+ * (ADR 22); `offline` cuts the pages' network once they have loaded; `beforeStart(pages, name, errors)`
+ * runs in the waiting room once everyone has joined, before the host clicks Start; `visibility` is
+ * `public` (default), `password` (guests join from the lobby with `password`) or `link` (guests open
+ * the host's invite link) (ADR 24); `share` ticks "Guests can share the invite link".
  */
-async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], offline = false } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false, bots = [], locals = 0, offline = false, beforeStart, visibility = "public", password = "", share = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
-        const page = await (await browser.newContext()).newPage();
+        const page = await (await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] })).newPage();
         page.on("pageerror", (e) => errors.push(`page ${i}: ${e}`));
-        // Counts game-room subscriptions (Nostr REQs other than the lobby's): joining a room sends them.
-        page.subscriptions = 0;
-        page.on("websocket", (ws) =>
-            ws.on("framesent", (f) => {
-                const frame = String(f.payload);
-                // The host's lobby announcement carries the version the lobby checks (ADR 12).
-                const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
-                if (announced) page.announced = announced[1];
-                if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
-            }),
-        );
+        watchFrames(page);
         // Leave game asks for confirmation (ADR 17): record the message, then accept unless told to dismiss.
         page.dialogs = [];
         page.on("dialog", (d) => {
@@ -104,7 +121,14 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.selectOption("#host-field", field);
     await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
-    await host.click("#host-form button");
+    await host.selectOption("#host-visibility", visibility);
+    if (share) await host.check("#host-share");
+    if (visibility === "password") {
+        // The password is masked until its Show toggle is pressed (ADR 24).
+        assert.equal(await host.getAttribute("#host-password", "type"), "password");
+        await host.fill("#host-password", password);
+    }
+    await host.click("#host-form button[type=submit]");
     for (const level of bots) {
         await host.selectOption("#bot-level", level);
         await host.click("#add-bot");
@@ -118,31 +142,68 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         await host.click("#add-bot");
         assert.equal(await host.getByRole("button", { name: `Remove Bot ${bots.length}` }).count(), 1);
     }
+    for (let i = 0; i < locals; i++) await host.click("#add-local");
+    if (locals) {
+        // Local players are listed before the bots: removing the last one moves the focus to the first bot's Remove, or to Add local player.
+        await host.getByRole("button", { name: `Remove Local ${locals}` }).click();
+        assert.equal(await host.evaluate(() => document.activeElement.getAttribute("aria-label") ?? document.activeElement.id), bots.length ? "Remove Bot 1" : "add-local");
+        await host.click("#add-local");
+        assert.equal(await host.getByRole("button", { name: `Remove Local ${locals}` }).count(), 1);
+    }
+    // A private-link game is not listed: its guests open the invite link (ADR 24). The first one loads
+    // it, as from a new tab; the next one pastes it into its open lobby, which only changes the fragment.
+    const listed = visibility === "link" ? [] : guests;
+    // A private-link host announces nothing; its invite link carries the build version instead.
+    const version = host.announced ?? (visibility === "link" ? new URLSearchParams((await host.inputValue("#invite-link")).split("#")[1]).get("v") : undefined);
+    for (const [i, guest] of guests.filter((g) => !listed.includes(g)).entries()) {
+        if (i % 2 === 0) await guest.goto("about:blank");
+        await guest.goto(await host.inputValue("#invite-link"));
+    }
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
-    const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
+    const rows = listed.map((guest) => guest.locator("#games tr", { hasText: name }));
+    const joins = rows.map((row) => row.getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // The footer shows the version the host announced, on the lobby screen...
-    await assertBuild(pages, host.announced);
+    await assertBuild(pages, host.announced ?? version);
+    // The listing counts the bots and local players (ADR 21, 22), and marks a password game (ADR 24).
+    if (listed.length && (bots.length || locals)) await rows[0].filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
+    for (const row of rows) assert.equal(await row.getByRole("img", { name: "Password required" }).count(), visibility === "password" ? 1 : 0);
     // With a game listed, the empty-list text gives way to the table.
-    for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
-    await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
-    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length, { timeout: SETUP_MS });
-    for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
-    for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
+    for (const guest of listed) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
+    await Promise.all(
+        joins.map(async (join, i) => {
+            await join.click({ timeout: 5000 });
+            if (visibility !== "password") return;
+            await listed[i].fill("#join-password", password);
+            await listed[i].press("#join-password", "Enter");
+        }),
+    );
+    await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n + bots.length + locals, { timeout: SETUP_MS });
+    // A guest that came by link has no listing to take the name and field from.
+    for (const page of visibility === "link" ? [host] : pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
+    for (const page of visibility === "link" ? [host] : pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
+    if (beforeStart) await beforeStart(pages, name, errors);
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
     // ...and on the game screen.
-    await assertBuild(pages, host.announced);
+    await assertBuild(pages, host.announced ?? version);
     return { pages, errors, seatsLine };
 }
 
-/** Every page's `#build` footer shows the announced build version with an accessible name (ADR 17). */
-async function assertBuild(pages, version) {
-    assert.ok(version, "the host announced a version");
+/**
+ * Every page's `#build` footer link shows the build the host announced and names the changelog it opens
+ * (ADR 17, 28). The announced id is `x.y.z+<hash>` (release) or `x.y.z-dev+<hash>` (dev, what e2e runs
+ * against); the footer shows the plain version for a release and the whole id for a dev build.
+ */
+async function assertBuild(pages, id) {
+    assert.match(id ?? "", /^\d+\.\d+\.\d+(-dev)?\+\w+$/, "the host announced a build id");
+    const version = id.includes("-dev") ? id : id.split("+")[0];
     for (const page of pages) {
         assert.equal(await text(page, "#build"), `v ${version}`);
-        assert.equal(await page.getByLabel(`Build version ${version}`).count(), 1);
+        const link = page.getByRole("link", { name: `v ${version}, changelog, opens in a new tab` });
+        assert.equal(await link.count(), 1);
+        assert.equal(await link.getAttribute("href"), "./changelog.html");
     }
 }
 
@@ -198,6 +259,20 @@ async function assertRejected(pages, turn, expr) {
 }
 
 const text = (page, sel) => page.locator(sel).innerText();
+
+/**
+ * Fast-forwards the fake clock of a page that is joining a game it cannot reach (ADR 24): after 25 s
+ * it joins the room again and keeps waiting, and 50 s later it ends.
+ */
+async function assertGivesUp(page) {
+    const before = page.subscriptions;
+    await page.clock.fastForward("00:26");
+    await page.waitForTimeout(2000); // real time for the second join to reach the relays
+    assert.ok(page.subscriptions > before, "the page joined the room again");
+    assert.equal(await page.isVisible("#end"), false, "and still waits");
+    await page.clock.fastForward("00:50");
+    await page.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+}
 
 const scenarios = {
     async A() {
@@ -359,7 +434,7 @@ const scenarios = {
         assert.equal(await text(restored, "#room-status"), "Rejoining…");
         const hostAgain = async () => {
             await host.fill("#host-name", `e2e-H-${Math.random().toString(36).slice(2, 8)}`);
-            await host.click("#host-form button");
+            await host.click("#host-form button[type=submit]");
         };
         const twoPlayers = () => host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
         await hostAgain();
@@ -752,30 +827,51 @@ const scenarios = {
         const [host] = pages;
         assert.equal(await host.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), false);
         await assertSynced(pages, 0);
+        // The board's fonts are in first: their arrival redraws the board, which ends a running pen (ADR 17).
+        await host.evaluate(() => Promise.all(['italic 14px "STIX Two Text"', '700 11px "Atkinson Hyperlegible Next"', '16px "Atkinson Hyperlegible Next"'].map((f) => document.fonts.load(f))).then(() => document.fonts.ready));
         // The first shooter is random: let the guest go first if it is up.
         if (!(await host.isEnabled("#fire"))) await takeTurn(pages, 0, ["x"]);
-        const { turn } = JSON.parse(await state(host));
-        await host.check("#mode-explicit");
-        await host.fill("#input-a", "0");
-        // The canvas at four instants: the pen is still moving 150 and 300 ms after Fire, and rests at the end.
-        // Fire is clicked in the same evaluate, so no round trip sits before the first frame.
-        const frames = await host.evaluate(async () => {
-            const canvas = document.getElementById("arena");
-            const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
-            document.getElementById("fire").click();
-            const out = [canvas.toDataURL()];
-            await wait(150);
-            out.push(canvas.toDataURL());
-            await wait(150);
-            out.push(canvas.toDataURL());
-            await wait(1500);
-            out.push(canvas.toDataURL());
-            return out;
-        });
-        assert.notEqual(frames[0], frames[1], "the pen is still drawing 150 ms after Fire");
-        assert.notEqual(frames[1], frames[2], "and 300 ms after Fire");
-        assert.notEqual(frames[2], frames[3], "the final frame replaces the pen");
-        await assertSynced(pages, turn + 1);
+        // Lines in several directions, in case an obstacle sits right in front of the shooter.
+        const lines = ["0", "0.3*x", "(-0.3)*x", "0.15*x", "(-0.15)*x", "0.6*x", "(-0.6)*x", "0.05*x"];
+        for (let attempt = 0; ; attempt++) {
+            const { turn } = JSON.parse(await state(host));
+            await host.check("#mode-explicit");
+            await host.fill("#input-a", lines[attempt]);
+            // The canvas on every animation frame from Fire, for 2 s (a pen takes at most 1.4 s) and then
+            // until it has not changed for 10 frames. The pen's first frames can look the same while it
+            // is still under the shooter's face, so stillness alone does not end the sampling. Fire is
+            // clicked in the same evaluate, so no round trip sits before the first frame.
+            const changes = await host.evaluate(async () => {
+                const canvas = document.getElementById("arena");
+                const frame = () => new Promise((ok) => requestAnimationFrame(ok));
+                const start = performance.now();
+                document.getElementById("fire").click();
+                const seen = [{ at: 0, image: canvas.toDataURL() }];
+                for (let still = 0; (still < 10 || performance.now() - start < 2000) && performance.now() - start < 5000; ) {
+                    await frame();
+                    const image = canvas.toDataURL();
+                    if (image === seen.at(-1).image) {
+                        still++;
+                    } else {
+                        still = 0;
+                        seen.push({ at: performance.now() - start, image });
+                    }
+                }
+                return seen.map(({ at }) => at);
+            });
+            await assertSynced(pages, turn + 1);
+            // A shot that hits something at once draws too little to watch: try again on the host's next turn.
+            const points = JSON.parse(await state(host)).shot.points.length;
+            if (points < 40 && attempt < lines.length - 1) {
+                await takeTurn(pages, turn + 1, ["100*x"]);
+                continue;
+            }
+            assert.ok(points >= 40, `a shot long enough to watch (${points} points)`);
+            // The first image is the pen's first frame, drawn inside Fire; the last is the final frame.
+            assert.ok(changes.length - 2 >= 3, `the pen drew at least 3 frames (${changes.length - 2})`);
+            assert.ok(changes.at(-1) >= 600, `the final frame came at least 600 ms after Fire (${Math.round(changes.at(-1))} ms)`);
+            break;
+        }
         return errors;
     },
     async V() {
@@ -857,6 +953,365 @@ const scenarios = {
         assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
         return errors;
     },
+    async X() {
+        // Hot seat (ADR 22): the host and a local player take turns in one page, played to the end. The
+        // status bar, title and cue name whose turn it is, and each character gets its own last formula back.
+        const { pages, errors } = await startGame(1, "xy", "X", { locals: 1 });
+        const [host] = pages;
+        assert.equal((await host.locator("#roster .id").allInnerTexts())[1], "Local 1");
+        const memory = new Map();
+        let restored = 0;
+        for (let turn = 0; ; turn++) {
+            await assertSynced(pages, turn);
+            if (await host.isVisible("#end")) break;
+            assert.ok(turn < 100, "the game ends");
+            const { current, arena } = JSON.parse(await state(host));
+            const words = current === 1 ? "Local 1's turn" : "Host's turn";
+            assert.equal(await text(host, "#turn"), words);
+            assert.equal(await host.title(), `${words} | Graph fight!`);
+            await host.waitForFunction((w) => document.getElementById("turn-cue").textContent === w, words);
+            assert.equal(await host.evaluate(() => document.activeElement.id), "input-a", "the formula has focus on every turn played here");
+            const key = `${current}:${arena.teams[current].currentPlayer}`;
+            if (memory.has(key)) {
+                assert.equal(await host.inputValue("#input-a"), memory.get(key), `turn ${turn}: character ${key} gets its own formula back`);
+                restored++;
+            }
+            // The first round, one shot per character, leaves the field at once (steep), so every character
+            // has a formula to get back while the game still runs. Then a straight line through the shooter
+            // and the nearest living enemy: y = k x in the map frame is offset to pass through the shooter
+            // (ADR 20). Obstacles in the way are dug out shot by shot.
+            const { pos } = arena.teams[current].players[arena.teams[current].currentPlayer].shape;
+            const targets = arena.teams[1 - current].players.filter((pl) => pl.alive).map((pl) => pl.shape.pos);
+            const target = targets.sort((a, b) => Math.hypot(a.x - pos.x, a.y - pos.y) - Math.hypot(b.x - pos.x, b.y - pos.y))[0];
+            const formula = turn < 6 ? `${100 + turn}*x` : `(${((target.y - pos.y) / (target.x - pos.x)).toFixed(6)})*x`;
+            await host.check("#mode-explicit");
+            await host.fill("#input-a", formula);
+            await host.click("#fire");
+            memory.set(key, formula);
+            await host.waitForFunction((t) => window.__state().turn > t, turn, { timeout: TURN_WAIT_MS });
+        }
+        assert.match(await text(host, "#end-message"), /^(Host wins|Local 1 wins|Draw)\./);
+        assert.ok(restored >= 2, `formulas were restored on later turns (${restored})`);
+        return errors;
+    },
+    async Y() {
+        // A local player, a bot and a guest in one disc game (ADR 21, 22). The guest sees the local
+        // player's turn as any other team's; humans fire straight out of the disc so the game lasts.
+        const { pages, errors } = await startGame(2, "disc", "Y", { seats: 4, bots: ["medium"], locals: 1 });
+        const [host, guest] = pages;
+        for (const page of pages) assert.deepEqual((await page.locator("#roster .id").allInnerTexts()).slice(2), ["Local 1", "Bot 1, medium"]);
+        await assertSynced(pages, 0);
+        let localTurns = 0;
+        for (let turn = 0; turn < 8; turn++) {
+            const { current } = JSON.parse(await state(host));
+            if (current === 3) {
+                await assertSynced(pages, turn + 1);
+                assert.equal(JSON.parse(await state(guest)).shot?.team, 3, "the bot fired");
+                continue;
+            }
+            if (current === 2) {
+                localTurns++;
+                assert.equal(await text(host, "#turn"), "Local 1's turn");
+                assert.equal(await text(guest, "#turn"), "Team 3 is aiming");
+                assert.equal(await guest.isDisabled("#fire"), true);
+            }
+            await takeTurn(pages, turn, ["t", "0"]);
+        }
+        assert.ok(localTurns >= 1, "the local player had a turn");
+        return errors;
+    },
+    async Z() {
+        // The host removes a guest in the waiting room (ADR 23): the guest is told, and joining again
+        // under the same peer id is ignored. The game starts without it.
+        let removed;
+        const { pages, errors } = await startGame(3, "disc", "Z", {
+            seats: 4,
+            beforeStart: async ([host, ...guests], name) => {
+                removed = guests[0];
+                const [id, next] = await Promise.all(guests.map(async (g) => (await g.locator("#room-players li", { hasText: "(you)" }).innerText()).split(" ")[0]));
+                // Guests join in any order: Remove the one listed first, so the focus has a next Remove to go to.
+                const first = (await host.locator("#room-players li >> nth=1").innerText()).startsWith(id);
+                if (!first) removed = guests[1];
+                await host.getByRole("button", { name: `Remove ${first ? id : next}` }).click();
+                assert.equal(await host.evaluate(() => document.activeElement.getAttribute("aria-label")), `Remove ${first ? next : id}`, "the focus moves to the next Remove");
+                assert.equal(await host.locator("#room-players li").count(), 2);
+                await removed.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+                assert.match(await text(removed, "#end-message"), /removed you/i);
+                await removed.click("#back");
+                await removed.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+                await removed.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+                assert.match(await text(removed, "#end-message"), /removed you/i, "a removed peer joining again is told again");
+                await host.waitForTimeout(3000);
+                assert.equal(await host.locator("#room-players li").count(), 2, "and the host does not list it");
+            },
+        });
+        const players = pages.filter((page) => page !== removed);
+        assert.equal(await removed.evaluate(() => window.__state()), null, "the removed page has no game");
+        await assertSynced(players, 0);
+        await takeTurn(players, 0, ["t", "0"]);
+        return errors;
+    },
+    async AA() {
+        // The host kicks a guest mid-game (ADR 23): its team is out as after a quit, its page ends, and
+        // neither a reload nor a reload that restores its old seat token gets it back.
+        const { pages, errors } = await startGame(3, "disc", "AA");
+        const [host, kicked, other] = pages;
+        await assertSynced(pages, 0);
+        await kicked.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        const seat = await kicked.evaluate(() => sessionStorage.getItem("graph-fight-seat"));
+        const team = JSON.parse(await state(kicked)).me;
+        assert.equal(await other.locator("#roster button").count(), 0, "only the host can kick");
+        assert.equal(await host.locator("#roster li >> nth=0").getByRole("button").count(), 0, "the host does not kick itself");
+        await host.getByRole("button", { name: `Kick Team ${team + 1}` }).click();
+        assert.match(host.dialogs.at(-1), /Kick Team/);
+        await kicked.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        assert.match(await text(kicked, "#end-message"), /removed you/i);
+        const rest = [host, other];
+        for (const page of rest) await page.waitForFunction((t) => window.__state().arena.teams[t].players.every((p) => !p.alive), team, { timeout: TURN_WAIT_MS });
+        assert.equal(await host.getByRole("button", { name: `Kick Team ${team + 1}` }).count(), 0, "an out team has no Kick");
+        await kicked.reload();
+        await kicked.waitForSelector("#lobby:not([hidden])");
+        assert.equal(await kicked.evaluate(() => window.__state()), null, "the ended game left no seat to rejoin");
+        // A tab that kept the seat token: the host knows it was revoked and says so.
+        await kicked.evaluate((s) => sessionStorage.setItem("graph-fight-seat", s), seat);
+        await kicked.reload();
+        await kicked.waitForSelector("#end:not([hidden])", { timeout: SETUP_MS });
+        assert.match(await text(kicked, "#end-message"), /removed you/i);
+        assert.equal(await kicked.evaluate(() => window.__state()), null, "the revoked seat gets no replay");
+        const { turn } = JSON.parse(await state(host));
+        await assertSynced(rest, turn);
+        await takeTurn(rest, turn, ["t", "0"]);
+        return errors;
+    },
+    async AB() {
+        // A password game (ADR 24): listed with a lock and joined with the password. A wrong password
+        // never connects; the page joins the room again once, then ends. A reload rejoins with the stored password.
+        const password = "open sesame";
+        const { pages, errors } = await startGame(2, "disc", "AB", {
+            seats: 3,
+            visibility: "password",
+            password,
+            beforeStart: async ([host, guest], name, errors) => {
+                const wrong = await (await browser.newContext()).newPage();
+                wrong.on("pageerror", (e) => errors.push(`wrong: ${e}`));
+                watchFrames(wrong);
+                await wrong.clock.install();
+                await wrong.goto(url);
+                await wrong.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+                // The dialog's field is masked; Show reveals it and says so with aria-pressed.
+                assert.equal(await wrong.getAttribute("#join-password", "type"), "password");
+                const show = wrong.locator("#password-dialog").getByRole("button", { name: "Show password" });
+                await show.click();
+                assert.deepEqual([await wrong.getAttribute("#join-password", "type"), await show.getAttribute("aria-pressed")], ["text", "true"]);
+                await wrong.fill("#join-password", `${password}!`);
+                await wrong.press("#join-password", "Enter");
+                // The closed dialog keeps no password, and is masked again.
+                await wrong.waitForFunction(() => !document.getElementById("password-dialog").open);
+                assert.deepEqual([await wrong.inputValue("#join-password"), await wrong.getAttribute("#join-password", "type")], ["", "password"]);
+                await wrong.waitForTimeout(3000); // real time for the signalling to meet and fail
+                await assertGivesUp(wrong);
+                assert.match(await text(wrong, "#end-message"), /wrong password/i);
+                assert.equal(await host.locator("#room-players li").count(), 2, "the wrong password never connected");
+                assert.equal(await guest.isHidden("#invite"), true, "the host did not let guests share the link");
+            },
+        });
+        const guest = pages[1];
+        assert.equal(await pages[0].inputValue("#host-password"), "", "the host's form keeps no password");
+        await assertSynced(pages, 0);
+        await takeTurn(pages, 0, ["t", "0"]);
+        // The seat keeps the stretched room password, never the typed one (ADR 24).
+        await guest.waitForFunction(() => /^[0-9a-f]{64}$/.test(JSON.parse(sessionStorage.getItem("graph-fight-seat") ?? "{}").key));
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
+        await assertSynced(pages, 1);
+        await takeTurn(pages, 1, ["t", "0"]);
+        return errors;
+    },
+    async AC() {
+        // A private-link game (ADR 24) is never announced. The host copies the invite link, which
+        // carries a 128-bit key in the fragment; the guests join through it, and their address bars drop the key.
+        let link;
+        const { pages, errors } = await startGame(3, "disc", "AC", {
+            visibility: "link",
+            share: true,
+            beforeStart: async ([host, ...guests], name) => {
+                const observer = await (await browser.newContext()).newPage();
+                await observer.goto(url);
+                await observer.waitForTimeout(7000); // more than two announce periods
+                assert.equal(await observer.locator("#games tr", { hasText: name }).count(), 0, "a lobby page does not list it");
+                assert.equal(host.published.some((f) => f.includes(name)), false, "the host never announced it");
+                link = await host.inputValue("#invite-link");
+                assert.ok(link.startsWith(`${url}#join=`), link);
+                assert.match(link, /&key=[0-9a-f]{32}&v=/);
+                await host.click("#copy-link");
+                assert.equal(await host.evaluate(() => navigator.clipboard.readText()), link);
+                await host.waitForFunction(() => document.getElementById("copy-status").textContent !== "");
+                for (const guest of guests) assert.equal(await guest.evaluate(() => location.href), url, "the key is gone from the guest's address bar");
+                // The host lets guests share the link: they get the same one.
+                for (const guest of guests) await guest.waitForFunction((l) => document.getElementById("invite-link").value === l && !document.getElementById("invite").hidden, link);
+                // The link pasted again in the waiting room: the page stays, says why, and drops the key.
+                await guests[1].goto(link);
+                await guests[1].waitForFunction(() => document.getElementById("room-error").textContent !== "");
+                assert.match(await text(guests[1], "#room-error"), /leave this game first/);
+                assert.equal(await guests[1].evaluate(() => location.href), url, "the address bar is clean");
+                // A page whose host form is still stretching its password when it opens the invite joins
+                // that game only: the stretch finishing later must not host a room as well.
+                const racer = await (await browser.newContext()).newPage();
+                watchFrames(racer);
+                await racer.addInitScript(() => {
+                    const derive = SubtleCrypto.prototype.deriveBits;
+                    SubtleCrypto.prototype.deriveBits = function (...args) {
+                        return new Promise((ok) => setTimeout(ok, 3000)).then(() => derive.apply(this, args));
+                    };
+                });
+                await racer.goto(url);
+                const racerName = `e2e-AC-racer-${Math.random().toString(36).slice(2, 8)}`;
+                await racer.fill("#host-name", racerName);
+                await racer.selectOption("#host-visibility", "password");
+                await racer.fill("#host-password", "slow");
+                await racer.click("#host-form button[type=submit]");
+                await racer.goto(link);
+                // It reaches the invite's waiting room: the host and both guests, and itself.
+                const players = () => racer.evaluate(() => document.querySelectorAll("#room-players li").length);
+                await racer.waitForFunction(() => document.querySelectorAll("#room-players li").length === 4, null, { timeout: SETUP_MS });
+                await racer.waitForTimeout(4000); // past the slowed stretch
+                assert.equal(await players(), 4, "the page is still in the invite's waiting room");
+                assert.equal(await racer.isHidden("#start"), true, "as a guest");
+                assert.equal(racer.published.some((f) => f.includes(racerName)), false, "and announces no game of its own");
+                await racer.close();
+                await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 3, null, { timeout: SETUP_MS });
+            },
+        });
+        await assertSynced(pages, 0);
+        await takeTurn(pages, 0, ["t", "0"]);
+        // A link pasted mid-game: the page stays in its game and says why, the key leaves the address
+        // bar, and a reload rejoins the seat instead of following the link (ADR 16, 24).
+        const guest = pages[1];
+        const { me } = JSON.parse(await state(guest));
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.goto(link);
+        await guest.waitForFunction(() => document.getElementById("error").textContent !== "");
+        assert.match(await text(guest, "#error"), /leave this game first/);
+        assert.equal(await guest.evaluate(() => location.href), url, "the address bar is clean");
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
+        assert.equal(JSON.parse(await state(guest)).me, me, "the reload rejoined the same seat");
+        await assertSynced(pages, 1);
+        await takeTurn(pages, 1, ["t", "0"]);
+        return errors;
+    },
+    async AD() {
+        // A guest quits on its turn and a local player is next (ADR 22): the turn number stays, but the
+        // local player's turn has started, so its character's last formula comes back in the host's editor.
+        const { pages, errors } = await startGame(2, "disc", "AD", { seats: 3, locals: 1 });
+        const [host, guest] = pages;
+        // Everyone fires straight out of the disc; the local player's formulas differ from the host's.
+        const memory = new Map();
+        let turn = 0;
+        await assertSynced(pages, 0);
+        for (;;) {
+            const { current, arena } = JSON.parse(await state(host));
+            if (current === 1 && memory.has(`2:${arena.teams[2].currentPlayer}`)) break;
+            assert.ok(turn < 30, "the local player's next character has fired");
+            const exprs = current === 2 ? ["t", `0.0${turn}`] : ["t", "0"];
+            if (current === 2) memory.set(`2:${arena.teams[2].currentPlayer}`, exprs[1]);
+            await takeTurn(pages, turn++, exprs);
+        }
+        const { arena } = JSON.parse(await state(host));
+        const expected = memory.get(`2:${arena.teams[2].currentPlayer}`);
+        assert.equal(await host.inputValue("#input-b"), "0", "the host's own formula is in the editor");
+        await guest.click("#quit");
+        await host.waitForFunction(() => window.__state().current === 2, null, { timeout: TURN_WAIT_MS });
+        assert.equal(JSON.parse(await state(host)).turn, turn, "a quit uses no turn number");
+        assert.equal(await host.inputValue("#input-b"), expected, "the local player's formula is back");
+        return errors;
+    },
+    async AE() {
+        // The host kicks the current shooter, and a bot is next (ADR 23): the turn passes on every page,
+        // the countdown starts again, the bot fires, and the keyboard stays in the roster.
+        const { pages, errors } = await startGame(3, "disc", "AE", { seats: 4, bots: ["medium"] });
+        const [host] = pages;
+        const teams = await Promise.all(pages.map(async (page) => JSON.parse(await state(page)).me));
+        const kicked = pages[teams.indexOf(2)];
+        const rest = pages.filter((page) => page !== kicked);
+        await assertSynced(pages, 0);
+        let turn = 0;
+        for (let { current } = JSON.parse(await state(host)); current !== 2; { current } = JSON.parse(await state(host))) {
+            assert.ok(turn < 12, "team 3 gets a turn");
+            if (current === 3) await assertSynced(pages, turn + 1);
+            else await takeTurn(pages, turn, ["t", "0"]);
+            turn++;
+        }
+        for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) <= 57, null, { timeout: 10_000 });
+        await host.getByRole("button", { name: "Kick Team 3" }).focus();
+        await host.keyboard.press("Enter");
+        // Checked before the bot's shot (1.5 s later) rebuilds the roster again.
+        await host.waitForFunction(() => window.__state().current === 3, null, { timeout: TURN_WAIT_MS });
+        assert.equal(await host.evaluate(() => !!document.activeElement.closest("#roster")), true, "the focus stays in the roster");
+        for (const page of rest) await page.waitForFunction(() => window.__state().current === 3, null, { timeout: TURN_WAIT_MS });
+        for (const page of rest) await page.waitForFunction(() => Number(document.getElementById("countdown").textContent) >= 58, null, { timeout: 2000 });
+        await assertSynced(rest, turn + 1);
+        assert.equal(JSON.parse(await state(host)).shot?.team, 3, "the bot fired");
+        return errors;
+    },
+    async AF() {
+        // A public game whose host page died without withdrawing stays listed for a few seconds. A guest
+        // that joins it then joins the room again once, and ends saying the host can't be reached (ADR 24).
+        const errors = [];
+        const [host, guest] = await Promise.all([0, 1].map(async () => (await browser.newContext()).newPage()));
+        for (const page of [host, guest]) page.on("pageerror", (e) => errors.push(`${e}`));
+        watchFrames(guest);
+        await guest.clock.install();
+        for (const page of [host, guest]) await page.goto(url);
+        const name = `e2e-AF-${Math.random().toString(36).slice(2, 8)}`;
+        await host.fill("#host-name", name);
+        await host.click("#host-form button[type=submit]");
+        const join = guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false });
+        await join.waitFor({ timeout: SETUP_MS });
+        await host.close();
+        await join.click();
+        await assertGivesUp(guest);
+        assert.match(await text(guest, "#end-message"), /can't be reached/);
+        assert.doesNotMatch(await text(guest, "#end-message"), /password/i, "a public game asks for no password");
+        return errors;
+    },
+    async AG() {
+        // The editor memory starts afresh in the host's next game (ADR 17, section 7): after a long first
+        // game, a character's formula still comes back on its second turn of the second one.
+        const { pages, errors } = await startGame(2, "xy", "AG");
+        const [host, guest] = pages;
+        await assertSynced(pages, 0);
+        // Steep shots leave the field at once, so nobody is hit.
+        for (let turn = 0; turn < 8; turn++) await takeTurn(pages, turn, [`${200 + turn}*x`]);
+        await guest.click("#quit");
+        await host.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        await host.click("#back");
+        const name = `e2e-AG-${Math.random().toString(36).slice(2, 8)}`;
+        await host.fill("#host-name", name);
+        await host.click("#host-form button[type=submit]");
+        await guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+        await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
+        await host.click("#start");
+        await assertSynced(pages, 0);
+        const memory = new Map();
+        let restored = 0;
+        for (let turn = 0; turn < 8; turn++) {
+            const page = await shooter(pages);
+            const { current, arena } = JSON.parse(await state(page));
+            const key = `${current}:${arena.teams[current].currentPlayer}`;
+            if (memory.has(key)) {
+                assert.equal(await page.inputValue("#input-a"), memory.get(key), `turn ${turn}: character ${key} gets its formula back in the second game`);
+                restored++;
+            }
+            memory.set(key, `${100 + turn}*x`);
+            await page.check("#mode-explicit");
+            await page.fill("#input-a", memory.get(key));
+            await page.click("#fire");
+            await assertSynced(pages, turn + 1);
+        }
+        assert.equal(restored, 2, "both teams' first characters came back");
+        return errors;
+    },
     async AH() {
         // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
         // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.
@@ -882,6 +1337,44 @@ const scenarios = {
         await typeAndFire("1000*theta", "1000*θ", 0);
         await typeAndFire("1000*th", "1000*th", 1);
         await typeAndFire("1000*pi*th", "1000*π*th", 2);
+        return errors;
+    },
+    async AJ() {
+        // Every icon the page links is in dist/ and served as an image, and the PNGs have their sizes (ADR 17).
+        const page = await (await browser.newContext()).newPage();
+        await page.goto(url);
+        const hrefs = await page.$$eval('link[rel~="icon"], link[rel="apple-touch-icon"]', (links) => links.map((l) => l.href));
+        assert.equal(hrefs.length, 3, "SVG, PNG fallback and touch icon");
+        for (const href of hrefs) {
+            const res = await page.request.get(href);
+            assert.equal(res.ok(), true, href);
+            assert.match(res.headers()["content-type"], /^image\//, href);
+        }
+        const width = (file) => page.evaluate(async (src) => {
+            const img = new Image();
+            img.src = src;
+            await img.decode();
+            return img.naturalWidth;
+        }, file);
+        assert.equal(await width("favicon-32.png"), 32);
+        assert.equal(await width("apple-touch-icon.png"), 180);
+        return [];
+    },
+    async AK() {
+        // The footer version opens the changelog in a new tab, newest version first, with a way back (ADR 28).
+        const errors = [];
+        const page = await (await browser.newContext()).newPage();
+        page.on("pageerror", (e) => errors.push(`page: ${e}`));
+        await page.goto(url);
+        const link = page.getByRole("link", { name: /^v \S+, changelog, opens in a new tab$/ });
+        const [log] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+        await log.waitForLoadState();
+        assert.equal(new URL(log.url()).pathname, "/changelog.html");
+        const shown = (await log.locator("main h2").allInnerTexts()).map((t) => t.split(" ")[0]);
+        assert.deepEqual(shown.filter((v) => ["0.1.0", "0.2.0", "0.3.0"].includes(v)), ["0.3.0", "0.2.0", "0.1.0"]);
+        assert.equal(await log.getByRole("heading", { level: 1 }).innerText(), "Changelog");
+        await log.getByRole("link", { name: "Back to the game" }).click();
+        await log.waitForSelector("#build");
         return errors;
     },
 };

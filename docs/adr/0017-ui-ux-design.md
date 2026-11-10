@@ -6,6 +6,19 @@ and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the
 bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
 staying on the board and refilling the editor. Amended 2026-11-10: the formula inputs turn the
 whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
+Amended by 0028: the footer version is a link to `changelog.html` (section 7).
+Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
+`#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
+ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue
+("Host's turn" for the host's own when there are local players); `restore` runs once per turn start
+in each game, which a quit or kick of the current shooter also makes (section 7).
+Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
+button per guest team still in, and a kicked page ends with "The host removed you from this game.".
+Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,
+a password game's row has a padlock named "Password required", Join on it opens `#password-dialog`
+(masked `#join-password` with a Show toggle, as `#host-password` has),
+and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`; a guest's does
+too when the host ticked "Guests can share the invite link" `#host-share`.
 
 ## Context
 
@@ -419,9 +432,13 @@ before start), it stands alone.
     `restore` puts that character's last shot in the editor: the mode radio, both expressions (the
     second is emptied for an explicit shot) and the CW/CCW radio (hidden on XY). A character that
     has not fired leaves the editor as it is, so it may hold the previous shooter's text, but one
-    that has fired never gets another's. `restore` runs only for a turn later than the last one it
-    ran for with this host (module state that outlives `startGame`): a rejoin replays turns we
-    already lived, and must not overwrite what we typed since. A reload starts fresh, so it restores.
+    that has fired never gets another's. `restore` runs only for a turn start later than the last
+    one it ran for in this game (module state that outlives `startGame`, keyed by the game's
+    `start.seed`): a rejoin replays the same `start` and turns we already lived, and must not
+    overwrite what we typed since. Turn starts are the start, each shot and timeout, and each `leave`
+    that passes the turn on, so the next team's formula also comes back after a quit or a kick
+    (ADR 22, 23); a replay counts them again in the same order. Another game, even from the same
+    host, has another seed and starts afresh. A reload starts fresh, so it restores.
 
 ### 8. Saved formulas and templates
 
@@ -676,7 +693,16 @@ Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game 
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
-Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
+Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer>` outside the screens holds `<a id="build" href="./changelog.html" target="_blank" rel="noopener">` showing "v 0.4.0" or "v 0.5.0-dev+1a2b3c4" (`BUILD_VERSION`, the display form of the build id, set once at startup, per ADR 28; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, with `aria-label` "v 0.4.0, changelog, opens in a new tab" (it contains the visible text, WCAG 2.5.3; a new tab keeps a game in progress connected); the e2e test compares it to the build the host announces and follows the link to the changelog page, e2e AK (ADR 28). Before ADR 28 it was a `<footer id="build">` showing the commit hash with the label "Build version 1a2b3c4".
+
+Settled with the logo and favicon (`static/favicon.svg`, `static/index.html`, `scripts/icons.mjs`): the mark is the title's
+motif on a 32-unit tile in the page's paper: two faint axes in `--grid-major`, a 3-unit `--ink` curve from a `--team-1` dot to a
+`--team-2` dot, with the light and dark values inside the SVG under `prefers-color-scheme`, so the tile keeps it legible on any
+browser chrome. It is linked as the SVG icon, with `favicon-32.png` and a 180 px `apple-touch-icon.png` (light, filled edge to
+edge) as fallbacks, rendered from the SVG with Playwright by `node scripts/icons.mjs` and committed. The header shows the same
+file as a 1 em `img` with `alt=""` inside the `h1`, so the heading's name stays "Graph fight!". On the page the tile is the
+paper colour, so a 1 px `--grid-major` hairline outlines it. `theme-color` is `--paper` per scheme. No web manifest: the site is not an installable app. e2e scenario AJ checks that every linked icon is served
+from `dist/` as an image.
 
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
