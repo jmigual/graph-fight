@@ -1360,7 +1360,7 @@ const scenarios = {
         assert.equal(await width("apple-touch-icon.png"), 180);
         return [];
     },
-    async changelog() {
+    async AK() {
         // The footer version opens the changelog in a new tab, newest version first, with a way back (ADR 28).
         const errors = [];
         const page = await (await browser.newContext()).newPage();
