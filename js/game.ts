@@ -300,7 +300,7 @@ function kickTeam(p: Play, team: number) {
 
 /** Host, team mode: once confirmed, removes the guest in `seat`; its teammates take over its players, or its side is out (ADR 23, 27). */
 function kickSeat(p: Play, seat: string) {
-    const team = sideOf(p, seat) ?? 0;
+    const team = sideOf(p, seat)!;
     const last = seatsOf(p, team).every((s) => s === seat || p.left.has(s));
     if (confirm(`Kick ${seatName(seat)}? ${last ? "Their team will be out." : "Their teammates take over their players."}`)) room?.kick(seat);
 }
