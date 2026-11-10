@@ -90,6 +90,9 @@ Lobby topic per build:
   from `scripts/lobby-topic.mjs`: `graph-fight:lobby` when `GRAPH_FIGHT_LOBBY=live`, otherwise
   `graph-fight:lobby:dev`. Only the `npm run build` step of `pages.yml` sets that variable, so a
   forgotten flag lands on the dev topic. Without the define (Node tests) `net.ts` falls back to dev.
+  A step after the build in `pages.yml` fails the deploy unless `dist/index.js` holds the live
+  topic and not the dev one, which guards the define wiring in `build.mjs` that the Node test
+  does not cover.
 - Game rooms are unchanged: appId `graph-fight`, room `game-<hostId>`, shared by dev and live
   builds. They cannot cross-join through the lobby, since a build only lists hosts on its own
   topic; joining needs the random host id, which only the lobby listing carries. A dev and a live
