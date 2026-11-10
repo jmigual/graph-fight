@@ -1,6 +1,7 @@
 # 12. Net layer: host relay, Nostr lobby, version check
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
 Superseded in part by 0016: a gap or a dropped link triggers a replay of the log instead of desync or `leave`; `leave` is relayed only for an explicit quit.
 
 ## Context

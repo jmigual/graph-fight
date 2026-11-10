@@ -1,8 +1,9 @@
 # 4. Shot model: anchoring, sampling, collisions (XY field)
 
 Status: Accepted (2026-11-09)
-Superseded in part by 0020 (anchoring: map coordinates offset to start at the shooter, no mirror;
-`x` sweeps from the shooter toward the other half).
+Superseded in part by 0020: the host picks the frame. This ADR's anchoring is the "player-centred"
+frame; the default "map-centred" frame uses map coordinates offset to start at the shooter, with
+no mirror.
 
 ## Context
 

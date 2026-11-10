@@ -1,8 +1,9 @@
 # 14. Shot engine and turn details
 
 Status: Accepted (2026-11-09)
-Superseded in part by 0020 (shot direction on the disc: clockwise sweeps θ downward; XY no
-longer mirrors; undefined at the shooter means at the shooter's `x_p` or `θ₀`).
+Superseded in part by 0020 (in the default map-centred frame clockwise sweeps θ downward and
+undefined at the shooter means at the shooter's `x_p` or `θ₀`; this ADR still describes the
+player-centred frame).
 
 ## Context
 

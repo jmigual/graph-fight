@@ -1,17 +1,28 @@
-# 20. Shots in map coordinates, offset to start at the shooter
+# 20. Shot frame: map-centred (default) or player-centred, chosen by the host
 
-Status: Accepted (2026-11-10); supersedes in part 0004 (anchoring), 0005 (polar frame) and 0014
-(shot direction)
+Status: Accepted (2026-11-10); supersedes in part 0004 (anchoring), 0005 (polar frame), 0012
+(`start` and lobby listing fields) and 0014 (shot direction)
 
 ## Context
 
 ADRs 4 and 5 drew every shot in a frame local to the shooter: on XY `x` pointed toward the
 centre (mirrored for a right-hand shooter), and on the disc the polar origin was the shooter with
 `θ = 0` pointing at the centre. The user wants both fields to behave like Graphwar: formulas are
-in the map's own coordinates, and the curve is moved so that it departs from the shooter.
+in the map's own coordinates, and the curve is moved so that it departs from the shooter. They
+then asked to keep both: the game creator decides whether coordinates are centred on the map or
+on the player.
 
 ## Decision
 
+- **Option.** The host picks the frame when creating a game: "Map-centred (like Graphwar)", the
+  default, or "Player-centred", the ADR 4 and 5 frames unchanged (XY mirrored toward the centre,
+  polar origin at the shooter with `θ = 0` toward the centre, clockwise mirrors across the
+  shooter-to-centre axis, undefined means at local `x = 0`, `θ = 0` or `t = 0`). The engine takes
+  `Frame { Map, Player }` in `Game::new` after `Field`; it applies to both fields and both modes,
+  and there is no per-shot flag. Every combination of field and frame is valid, so `Frame` adds
+  no `GameError`. On the wire `start` carries `frame: "map" | "player"` and the lobby listing
+  carries it too, so joiners see it before joining; both are required and validated like
+  `field` (amends ADR 12's message list). The rest of this section is the map-centred frame.
 - **Map frame.** The origin is the map centre, `x` to the right, `y` up; on the disc `θ = 0` is
   the map's `+x` axis and `θ` grows counter-clockwise. This is the same for every player.
 - **Anchoring.** Every mode yields a curve `P(s)` in map coordinates and the world point is
@@ -39,14 +50,19 @@ in the map's own coordinates, and the curve is moved so that it departs from the
   centre, so a shot can pass through it. This needs no extra rule.
 - **`UndefinedAtShooter`** now means the start value is not finite: `f(x_p)`, `f(θ₀)`, or
   `x(0)`, `y(0)`, `r(0)`, `θ(0)`. `1/x` fires from `x_p = −8`, and `1/(x + 8)` does not.
-- **Clockwise** reverses the disc sweep (it no longer mirrors a shooter frame). It is a mirror
-  image across the line from the centre through the shooter only when `f` is even about `θ₀`,
-  and always for `r(t), θ(t)`. The flag still travels as `cw`, and XY still ignores it.
+- **Clockwise** reverses the disc sweep in the map frame (the player frame still mirrors). It is
+  a mirror image across the line from the centre through the shooter only when `f` is even about
+  `θ₀`, and always for `r(t), θ(t)`. The flag still travels as `cw`, and XY still ignores it.
 
 ## Consequences
 
-- A formula's shape is about the map, which every player shares, so players reason in one fixed
-  frame. The boards draw the map's axes (ADR 17, section 4).
+- In the map frame a formula's shape is about the map, which every player shares, so players
+  reason in one fixed frame, and the boards draw the map's axes (ADR 17, section 4). In the
+  player frame the boards keep the shooter's frame.
+- The engine keeps both code paths; they differ only in the curve and the linear map `D` of the
+  anchoring `shooter + D(P(s) − P(0))` (identity in the map frame).
+- Starter templates suit the map frame (ADR 17, section 8); in the player frame they still parse
+  and fire, with the shapes of the shooter's frame.
 - Absolute map positions matter: a parabola's vertex or a bump can be put at a chosen map `x`,
   and a non-periodic polar formula changes between team 0's players, whose sector straddles
   `θ = 0`.

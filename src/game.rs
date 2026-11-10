@@ -27,6 +27,16 @@ pub enum Field {
     Disc,
 }
 
+/// Where shot formulas are drawn from, chosen by the host (ADR 20).
+#[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Frame {
+    /// Map coordinates, offset so the curve passes through the shooter (like Graphwar).
+    Map,
+    /// The shooter's local frame, facing the centre (ADR 4, 5).
+    Player,
+}
+
 /// True for finite values above zero; rejects NaN and infinity, which would panic inside `rand`.
 fn is_positive(x: f64) -> bool {
     x.is_finite() && x > 0.
@@ -105,6 +115,7 @@ pub struct Options {
 /// Represents a game instance.
 pub struct Game {
     arena: Arena,
+    frame: Frame,
     ops: Options,
     current_team: usize,
 }
@@ -112,9 +123,9 @@ pub struct Game {
 #[wasm_bindgen]
 /// Methods available in the WebAssembly module.
 impl Game {
-    /// Creates a new game instance on the given `field`. The arena goes from -`x_max` to `x_max`
-    /// and -`y_max` to `y_max` (for a disc, `x_max` must equal `y_max`, the disc radius) and
-    /// contains `num_obstacles` obstacles with a size between `min_obstacle_size` and
+    /// Creates a new game instance on the given `field`, with shots drawn in `frame` (ADR 20).
+    /// The arena goes from -`x_max` to `x_max` and -`y_max` to `y_max` (for a disc, `x_max` must
+    /// equal `y_max`, the disc radius) and contains `num_obstacles` obstacles with a size between `min_obstacle_size` and
     /// `max_obstacle_size`. Each team has a number of players
     /// defined by `players_per_team` with a radius of `player_radius`. The number of teams is
     /// inferred by the length of `players_per_team`. The `seed` is used to generate the initial
@@ -122,6 +133,7 @@ impl Game {
     #[wasm_bindgen(constructor)]
     pub fn new(
         field: Field,
+        frame: Frame,
         x_max: f64,
         y_max: f64,
         num_obstacles: usize,
@@ -170,6 +182,7 @@ impl Game {
 
         let mut game = Game {
             arena: Arena::new(field, x_max, y_max),
+            frame,
             ops: Options {
                 num_obstacles,
                 min_obstacle_size,
@@ -207,8 +220,8 @@ impl Game {
     }
 
     /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc,
-    /// in map coordinates from the player's `x` or angle and offset to pass through the player
-    /// (ADR 20). On the disc `clockwise` sweeps θ downward; XY ignores it.
+    /// in the game's frame (ADR 20). On the disc `clockwise` sweeps θ downward (map frame) or
+    /// mirrors the shot across the shooter-to-centre axis (player frame); XY ignores it.
     /// On an error nothing changes and the turn is not consumed.
     pub fn fire(&mut self, expr: &str, clockwise: bool) -> Result<Shot, FireError> {
         let var = match self.arena.field() {
@@ -216,14 +229,16 @@ impl Game {
             Field::Disc => "θ",
         };
         let f = Formula::parse(expr, var)?;
-        self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f, clockwise))
+        let frame = self.frame;
+        self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f, frame, clockwise))
     }
 
     /// Fires `a`, `b` from the current player: `x(t), y(t)` on the XY field, `r(t), θ(t)` on the
     /// disc. `clockwise` as in `fire`. On an error nothing changes and the turn is not consumed.
     pub fn fire_param(&mut self, a: &str, b: &str, clockwise: bool) -> Result<Shot, FireError> {
         let (a, b) = (Formula::parse(a, "t")?, Formula::parse(b, "t")?);
-        self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b, clockwise))
+        let frame = self.frame;
+        self.shoot(|arena, shooter| shot::parametric(arena, shooter, &a, &b, frame, clockwise))
     }
 
     /// Fails exactly when `fire(expr)` would, without changing the game.
@@ -356,37 +371,104 @@ mod tests {
 
     #[test]
     fn test_build() {
-        let game = Game::new(Field::Xy, 20.0, 10.0, 5, 0.2, 2.0, &[4, 4], 1.0, 0);
+        let game = Game::new(
+            Field::Xy,
+            Frame::Map,
+            20.0,
+            10.0,
+            5,
+            0.2,
+            2.0,
+            &[4, 4],
+            1.0,
+            0,
+        );
         assert!(game.is_ok());
     }
 
     fn disc(teams: &[usize], seed: u64) -> Result<Game, GameError> {
-        Game::new(Field::Disc, 10.0, 10.0, 8, 0.2, 1.0, teams, 0.3, seed)
+        Game::new(
+            Field::Disc,
+            Frame::Map,
+            10.0,
+            10.0,
+            8,
+            0.2,
+            1.0,
+            teams,
+            0.3,
+            seed,
+        )
     }
 
     #[test]
     fn xy_rejects_three_teams() {
-        let game = Game::new(Field::Xy, 20.0, 10.0, 5, 0.2, 2.0, &[2, 2, 2], 1.0, 0);
+        let game = Game::new(
+            Field::Xy,
+            Frame::Map,
+            20.0,
+            10.0,
+            5,
+            0.2,
+            2.0,
+            &[2, 2, 2],
+            1.0,
+            0,
+        );
         assert_eq!(game.err(), Some(GameError::XyNeedsTwoTeams));
     }
 
     #[test]
     fn disc_requires_square_extent() {
-        let game = Game::new(Field::Disc, 20.0, 10.0, 5, 0.2, 1.0, &[2, 2], 0.3, 0);
+        let game = Game::new(
+            Field::Disc,
+            Frame::Map,
+            20.0,
+            10.0,
+            5,
+            0.2,
+            1.0,
+            &[2, 2],
+            0.3,
+            0,
+        );
         assert_eq!(game.err(), Some(GameError::DiscNotSquare));
         assert!(disc(&[2, 2], 0).is_ok());
     }
 
     #[test]
     fn disc_rejects_oversized_player() {
-        let game = Game::new(Field::Disc, 10.0, 10.0, 5, 0.2, 1.0, &[2, 2], 6.0, 0);
+        let game = Game::new(
+            Field::Disc,
+            Frame::Map,
+            10.0,
+            10.0,
+            5,
+            0.2,
+            1.0,
+            &[2, 2],
+            6.0,
+            0,
+        );
         assert_eq!(game.err(), Some(GameError::DiscPlayerTooLarge));
     }
 
     #[test]
     fn non_finite_inputs_are_rejected() {
         let new = |field, extent: f64, min: f64, max: f64, radius: f64| {
-            Game::new(field, extent, extent, 5, min, max, &[2, 2], radius, 0).err()
+            Game::new(
+                field,
+                Frame::Map,
+                extent,
+                extent,
+                5,
+                min,
+                max,
+                &[2, 2],
+                radius,
+                0,
+            )
+            .err()
         };
         for bad in [f64::NAN, f64::INFINITY] {
             assert_eq!(
@@ -426,8 +508,18 @@ mod tests {
     #[test]
     fn disc_players_of_different_teams_do_not_overlap() {
         for seed in 0..20 {
-            let Ok(game) = Game::new(Field::Disc, 10.0, 10.0, 0, 0.2, 1.0, &[6; 6], 1.0, seed)
-            else {
+            let Ok(game) = Game::new(
+                Field::Disc,
+                Frame::Map,
+                10.0,
+                10.0,
+                0,
+                0.2,
+                1.0,
+                &[6; 6],
+                1.0,
+                seed,
+            ) else {
                 continue;
             };
             let arena = game.js_arena();
@@ -476,7 +568,20 @@ mod tests {
     #[test]
     fn same_seed_same_arena() {
         for (a, b) in [(7, 7), (7, 8)] {
-            let xy = |seed| Game::new(Field::Xy, 20.0, 10.0, 5, 0.2, 2.0, &[4, 4], 1.0, seed);
+            let xy = |seed| {
+                Game::new(
+                    Field::Xy,
+                    Frame::Map,
+                    20.0,
+                    10.0,
+                    5,
+                    0.2,
+                    2.0,
+                    &[4, 4],
+                    1.0,
+                    seed,
+                )
+            };
             assert_eq!(
                 xy(a).unwrap().js_arena() == xy(b).unwrap().js_arena(),
                 a == b
@@ -493,6 +598,7 @@ mod tests {
         let teams = teams.iter().map(|t| Team::from_positions(t, 0.3)).collect();
         Game {
             arena: Arena::from_parts(field, extent.0, extent.1, vec![], teams),
+            frame: Frame::Map,
             ops: Options {
                 num_obstacles: 0,
                 min_obstacle_size: 0.2,
@@ -661,7 +767,18 @@ mod tests {
 
     #[test]
     fn empty_teams_are_rejected() {
-        let game = Game::new(Field::Disc, 10.0, 10.0, 0, 0.2, 1.0, &[2, 0, 2], 0.3, 0);
+        let game = Game::new(
+            Field::Disc,
+            Frame::Map,
+            10.0,
+            10.0,
+            0,
+            0.2,
+            1.0,
+            &[2, 0, 2],
+            0.3,
+            0,
+        );
         assert_eq!(game.err(), Some(GameError::EmptyTeam));
     }
 
@@ -683,6 +800,30 @@ mod tests {
                     game.fire("theta", clockwise).unwrap();
                 }
                 assert_eq!(game.arena.alive()[1][0], (y > 0.) == clockwise);
+            }
+        }
+    }
+
+    #[test]
+    fn player_frame_clockwise_shot_can_hit_what_counter_clockwise_misses() {
+        // In the shooter's frame r = θ from (8, 0) passes (8, -π/2) counter-clockwise and
+        // (8, π/2) clockwise; r = t, θ = 0.5 passes (4.49, -1.92) counter-clockwise and
+        // (4.49, 1.92) clockwise
+        for clockwise in [false, true] {
+            for (x, y, param) in [
+                (8., 1.5, false),
+                (8., -1.5, false),
+                (4.49, 1.92, true),
+                (4.49, -1.92, true),
+            ] {
+                let mut game = game_with(Field::Disc, (10., 10.), &[&[(8., 0.)], &[(x, y)]]);
+                game.frame = Frame::Player;
+                if param {
+                    game.fire_param("t", "0.5", clockwise).unwrap();
+                } else {
+                    game.fire("theta", clockwise).unwrap();
+                }
+                assert_eq!(game.arena.alive()[1][0], (y < 0.) == clockwise);
             }
         }
     }

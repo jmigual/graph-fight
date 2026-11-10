@@ -1,4 +1,4 @@
-//! Shot sampling and collisions (ADR 4, 5 and 20).
+//! Shot sampling and collisions (ADR 4, 5, 14 and 20).
 
 // tsify 0.5 deprecates `into_wasm_abi` (it panics on a failed conversion, and unwinding
 // leaks). These types only serialize, so the conversion cannot fail; `Ts<T>` would change the
@@ -10,7 +10,7 @@ use std::{f64::consts::TAU, fmt};
 use serde::Serialize;
 use tsify::Tsify;
 
-use super::{Arena, Field};
+use super::{Arena, Field, Frame};
 use crate::{
     formula::{Formula, ParseError},
     geometry::Point,
@@ -77,73 +77,97 @@ fn polar_position(arena: &Arena, shooter: (usize, usize)) -> (f64, f64) {
     (p.x.hypot(p.y), p.y.atan2(p.x).rem_euclid(TAU))
 }
 
-/// Fires `y = f(x)` on the XY field or `r = f(θ)` on the disc, from `shooter` (team, player), in
-/// map coordinates offset to pass through the shooter (ADR 20). On XY `x` sweeps from the
-/// shooter's `x_p` toward the other half and `y = f(x) − f(x_p) + y_p`; `clockwise` is ignored.
-/// On the disc `θ` sweeps one turn from the shooter's map angle `θ₀`, counter-clockwise or, with
-/// `clockwise`, clockwise, and `r = f(θ) − f(θ₀) + r_p`.
+/// Fires `y = f(x)` on the XY field or `r = f(θ)` on the disc, from `shooter` (team, player).
+/// `Frame::Map` (ADR 20): map coordinates offset to pass through the shooter. On XY `x` sweeps
+/// from the shooter's `x_p` toward the other half and `y = f(x) − f(x_p) + y_p`. On the disc `θ`
+/// sweeps one turn from the shooter's map angle `θ₀`, counter-clockwise or, with `clockwise`,
+/// clockwise, and `r = f(θ) − f(θ₀) + r_p`.
+/// `Frame::Player` (ADR 4, 5, 14): the shooter's local frame, facing the centre; `clockwise`
+/// mirrors a disc shot across the shooter-to-centre axis.
+/// XY ignores `clockwise` in both frames.
 pub fn explicit(
     arena: &mut Arena,
     shooter: (usize, usize),
     f: &Formula,
+    frame: Frame,
     clockwise: bool,
 ) -> Result<Shot, FireError> {
-    match arena.field() {
-        Field::Xy => {
-            let range = 2. * arena.x_max();
+    let range = match arena.field() {
+        Field::Xy => 2. * arena.x_max(),
+        Field::Disc => TAU,
+    };
+    match (arena.field(), frame) {
+        (Field::Xy, Frame::Map) => {
             let x0 = position(arena, shooter).x;
             let dir = if x0 > 0. { -1. } else { 1. };
-            trace(arena, shooter, range, |s| {
+            trace(arena, shooter, range, frame, clockwise, |s| {
                 let x = x0 + dir * s;
                 Point::new(x, f.eval(x))
             })
         }
-        Field::Disc => {
+        (Field::Disc, Frame::Map) => {
             let (r0, theta0) = polar_position(arena, shooter);
             let (f0, dir) = (f.eval(theta0), if clockwise { -1. } else { 1. });
-            trace(arena, shooter, TAU, |s| {
+            trace(arena, shooter, range, frame, clockwise, |s| {
                 let theta = theta0 + dir * s;
                 polar(f.eval(theta) - f0 + r0, theta)
             })
         }
+        (Field::Xy, Frame::Player) => trace(arena, shooter, range, frame, clockwise, |x| {
+            Point::new(x, f.eval(x))
+        }),
+        (Field::Disc, Frame::Player) => trace(arena, shooter, range, frame, clockwise, |theta| {
+            polar(f.eval(theta), theta)
+        }),
     }
 }
 
-/// Fires `x(t), y(t)` on the XY field or `r(t), θ(t)` on the disc, from `shooter` (team, player),
-/// offset to start at the shooter (ADR 20). On XY the point is `(x(t) − x(0), y(t) − y(0))` from
-/// the shooter in map coordinates, and `clockwise` is ignored. On the disc it is at radius
-/// `r(t) − r(0) + r_p` and angle `θ₀ ± (θ(t) − θ(0))`, minus when `clockwise`.
+/// Fires `x(t), y(t)` on the XY field or `r(t), θ(t)` on the disc, from `shooter` (team, player).
+/// `Frame::Map` (ADR 20): on XY the point is `(x(t) − x(0), y(t) − y(0))` from the shooter in map
+/// coordinates; on the disc it is at radius `r(t) − r(0) + r_p` and angle `θ₀ ± (θ(t) − θ(0))`,
+/// minus when `clockwise`. `Frame::Player`: the shooter's local frame as in `explicit`.
+/// XY ignores `clockwise` in both frames.
 pub fn parametric(
     arena: &mut Arena,
     shooter: (usize, usize),
     a: &Formula,
     b: &Formula,
+    frame: Frame,
     clockwise: bool,
 ) -> Result<Shot, FireError> {
-    match arena.field() {
-        Field::Xy => {
-            let range = 2. * arena.x_max();
-            trace(arena, shooter, range, |t| Point::new(a.eval(t), b.eval(t)))
-        }
-        Field::Disc => {
-            let range = 2. * arena.y_max();
+    let range = match arena.field() {
+        Field::Xy => 2. * arena.x_max(),
+        Field::Disc => 2. * arena.y_max(),
+    };
+    match (arena.field(), frame) {
+        (Field::Xy, _) => trace(arena, shooter, range, frame, clockwise, |t| {
+            Point::new(a.eval(t), b.eval(t))
+        }),
+        (Field::Disc, Frame::Map) => {
             let (r0, theta0) = polar_position(arena, shooter);
             let (a0, b0) = (a.eval(0.), b.eval(0.));
             let dir = if clockwise { -1. } else { 1. };
-            trace(arena, shooter, range, |t| {
+            trace(arena, shooter, range, frame, clockwise, |t| {
                 polar(a.eval(t) - a0 + r0, theta0 + dir * (b.eval(t) - b0))
             })
         }
+        (Field::Disc, Frame::Player) => trace(arena, shooter, range, frame, clockwise, |t| {
+            polar(a.eval(t), b.eval(t))
+        }),
     }
 }
 
-/// Walks the map curve `curve(s)` for `s` in `[0, range]`, anchored at the shooter, applying the
-/// collision rules to every sampled point. The world point is `shooter + (curve(s) − curve(0))`,
-/// so the first point is exactly the shooter.
+/// Walks the curve `curve(s)` for `s` in `[0, range]`, anchored at the shooter, applying the
+/// collision rules to every sampled point. The world point is `shooter + D(curve(s) − curve(0))`,
+/// so the first point is exactly the shooter. With `Frame::Map` the curve is in map coordinates
+/// and `D` is the identity. With `Frame::Player`, on XY `D` mirrors x for a shooter right of the
+/// centre; on the disc it turns local +x toward the centre and, when `clockwise`, mirrors local y.
 fn trace(
     arena: &mut Arena,
     shooter: (usize, usize),
     range: f64,
+    frame: Frame,
+    clockwise: bool,
     curve: impl Fn(f64) -> Point,
 ) -> Result<Shot, FireError> {
     let origin = position(arena, shooter);
@@ -153,9 +177,21 @@ fn trace(
         return Err(FireError::UndefinedAtShooter);
     }
 
+    // Rows of D
+    let [[a, b], [c, d]] = match (frame, arena.field()) {
+        (Frame::Player, Field::Xy) if origin.x > 0. => [[-1., 0.], [0., 1.]],
+        (Frame::Player, Field::Disc) => {
+            let norm = origin.x.hypot(origin.y);
+            let (cos, sin) = (-origin.x / norm, -origin.y / norm);
+            let flip = if clockwise { -1. } else { 1. };
+            [[cos, -flip * sin], [sin, flip * cos]]
+        }
+        _ => [[1., 0.], [0., 1.]],
+    };
     let at = |s: f64| {
         let p = curve(s);
-        Point::new(origin.x + (p.x - start.x), origin.y + (p.y - start.y))
+        let (dx, dy) = (p.x - start.x, p.y - start.y);
+        Point::new(origin.x + a * dx + b * dy, origin.y + c * dx + d * dy)
     };
 
     let mut points = Vec::new();
@@ -220,7 +256,14 @@ mod tests {
     }
 
     fn fire(arena: &mut Arena, shooter: (usize, usize), src: &str) -> Shot {
-        explicit(arena, shooter, &Formula::parse(src, "x").unwrap(), false).unwrap()
+        explicit(
+            arena,
+            shooter,
+            &Formula::parse(src, "x").unwrap(),
+            Frame::Map,
+            false,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -347,7 +390,7 @@ mod tests {
     fn xy_parametric_shot_departs_from_the_shooter_unmirrored() {
         // x(t) = 5 - t heads left in map coordinates, offset to start at the shooter (8, 1)
         let mut arena = xy(&[], &[(-8., 1.)], &[(8., 1.), (0., 1.)]);
-        let shot = parametric(&mut arena, (1, 0), &t("5-t"), &t("2"), false).unwrap();
+        let shot = parametric(&mut arena, (1, 0), &t("5-t"), &t("2"), Frame::Map, false).unwrap();
         assert_eq!(shot.points[0], Point::new(8., 1.));
         assert!(shot.points.iter().all(|p| p.y == 1.));
         assert_eq!(arena.alive(), vec![vec![false], vec![true, false]]);
@@ -360,7 +403,7 @@ mod tests {
             Formula::parse("t", "t").unwrap(),
             Formula::parse("t/2", "t").unwrap(),
         );
-        parametric(&mut arena, (0, 0), &a, &b, false).unwrap();
+        parametric(&mut arena, (0, 0), &a, &b, Frame::Map, false).unwrap();
         assert!(!arena.alive()[1][0]);
     }
 
@@ -398,10 +441,23 @@ mod tests {
         for shooter in &SHOOTERS[1..] {
             for clockwise in [false, true] {
                 for src in ["θ", "3", "ln(θ)", "θ^2"] {
-                    let shot = explicit(&mut disc(*shooter), (0, 0), &theta(src), clockwise);
+                    let shot = explicit(
+                        &mut disc(*shooter),
+                        (0, 0),
+                        &theta(src),
+                        Frame::Map,
+                        clockwise,
+                    );
                     assert_eq!(shot.unwrap().points[0], Point::from(*shooter), "{src}");
                 }
-                let shot = parametric(&mut disc(*shooter), (0, 0), &t("t+3"), &t("t+1"), clockwise);
+                let shot = parametric(
+                    &mut disc(*shooter),
+                    (0, 0),
+                    &t("t+3"),
+                    &t("t+1"),
+                    Frame::Map,
+                    clockwise,
+                );
                 assert_eq!(shot.unwrap().points[0], Point::from(*shooter));
             }
         }
@@ -412,9 +468,23 @@ mod tests {
         for shooter in SHOOTERS {
             let r = radius(&shooter.into());
             for clockwise in [false, true] {
-                let shot = explicit(&mut disc(shooter), (0, 0), &theta("3"), clockwise).unwrap();
-                let param =
-                    parametric(&mut disc(shooter), (0, 0), &t("3"), &t("t"), clockwise).unwrap();
+                let shot = explicit(
+                    &mut disc(shooter),
+                    (0, 0),
+                    &theta("3"),
+                    Frame::Map,
+                    clockwise,
+                )
+                .unwrap();
+                let param = parametric(
+                    &mut disc(shooter),
+                    (0, 0),
+                    &t("3"),
+                    &t("t"),
+                    Frame::Map,
+                    clockwise,
+                )
+                .unwrap();
                 for p in shot.points.iter().chain(&param.points) {
                     assert!((radius(p) - r).abs() < 1e-9, "{shooter:?}: {p:?}");
                 }
@@ -433,7 +503,8 @@ mod tests {
         for shooter in SHOOTERS {
             let r = radius(&shooter.into());
             let theta0 = shooter.1.atan2(shooter.0).rem_euclid(TAU);
-            let shot = explicit(&mut disc(shooter), (0, 0), &theta("θ"), false).unwrap();
+            let shot =
+                explicit(&mut disc(shooter), (0, 0), &theta("θ"), Frame::Map, false).unwrap();
             assert!(shot.points.len() > 10);
             // r = r_shooter + (θ − θ₀); it leaves the disc before a full turn
             for p in &shot.points {
@@ -447,7 +518,7 @@ mod tests {
     #[test]
     fn polar_parametric_straight_shot_hits_the_centre() {
         let mut arena = disc((0., 8.));
-        let shot = parametric(&mut arena, (0, 0), &t("-t"), &t("0"), false).unwrap();
+        let shot = parametric(&mut arena, (0, 0), &t("-t"), &t("0"), Frame::Map, false).unwrap();
         assert!(!arena.alive()[1][0]);
         // A negative radius goes through the centre to the far side of the disc
         assert!(shot.points.last().unwrap().y < -9.9);
@@ -476,14 +547,14 @@ mod tests {
         // cos(2θ) is even around these shooters' θ₀, so clockwise is the mirror image
         let even = theta("cos(2*θ)/2");
         for shooter in &SHOOTERS[..4] {
-            let ccw = explicit(&mut disc(*shooter), (0, 0), &even, false).unwrap();
-            let cw = explicit(&mut disc(*shooter), (0, 0), &even, true).unwrap();
+            let ccw = explicit(&mut disc(*shooter), (0, 0), &even, Frame::Map, false).unwrap();
+            let cw = explicit(&mut disc(*shooter), (0, 0), &even, Frame::Map, true).unwrap();
             assert_mirrored(&ccw, &cw, *shooter);
         }
         // f is evaluated at the actual θ, so clockwise r = θ spirals inward for a full turn
         for shooter in SHOOTERS {
             let r = radius(&shooter.into());
-            let cw = explicit(&mut disc(shooter), (0, 0), &theta("θ"), true).unwrap();
+            let cw = explicit(&mut disc(shooter), (0, 0), &theta("θ"), Frame::Map, true).unwrap();
             let (a, b) = (&cw.points[0], &cw.points[1]);
             assert!(a.x * b.y - a.y * b.x < 0.);
             assert!(cw.points.windows(2).all(|w| radius(&w[1]) < radius(&w[0])));
@@ -494,8 +565,24 @@ mod tests {
     #[test]
     fn clockwise_parametric_shot_mirrors_across_the_centre_axis() {
         for shooter in SHOOTERS {
-            let ccw = parametric(&mut disc(shooter), (0, 0), &t("-t"), &t("t/3"), false).unwrap();
-            let cw = parametric(&mut disc(shooter), (0, 0), &t("-t"), &t("t/3"), true).unwrap();
+            let ccw = parametric(
+                &mut disc(shooter),
+                (0, 0),
+                &t("-t"),
+                &t("t/3"),
+                Frame::Map,
+                false,
+            )
+            .unwrap();
+            let cw = parametric(
+                &mut disc(shooter),
+                (0, 0),
+                &t("-t"),
+                &t("t/3"),
+                Frame::Map,
+                true,
+            )
+            .unwrap();
             assert_mirrored(&ccw, &cw, shooter);
             // θ(t) = t/3 turns counter-clockwise around the centre, starting at the shooter, and
             // r = r_shooter − t goes through the centre
@@ -511,18 +598,18 @@ mod tests {
         let mut arena = disc((-8., 0.));
         for src in ["1/(θ-pi)", "ln(θ-pi)"] {
             assert_eq!(
-                explicit(&mut arena, (0, 0), &theta(src), false),
+                explicit(&mut arena, (0, 0), &theta(src), Frame::Map, false),
                 Err(FireError::UndefinedAtShooter)
             );
         }
         for (r, th) in [("1/t", "t"), ("t", "ln(t)")] {
             assert_eq!(
-                parametric(&mut arena, (0, 0), &t(r), &t(th), false),
+                parametric(&mut arena, (0, 0), &t(r), &t(th), Frame::Map, false),
                 Err(FireError::UndefinedAtShooter)
             );
         }
         // Undefined at θ = 0 only, where this shooter does not start
-        assert!(explicit(&mut arena, (0, 0), &theta("1/θ"), false).is_ok());
+        assert!(explicit(&mut arena, (0, 0), &theta("1/θ"), Frame::Map, false).is_ok());
     }
 
     #[test]
@@ -532,14 +619,97 @@ mod tests {
             Formula::parse("t/2", "t").unwrap(),
         );
         let x = Formula::parse("x", "x").unwrap();
-        let run = |cw| {
-            let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
-            let explicit = explicit(&mut arena, (0, 0), &x, cw).unwrap();
-            (
-                explicit,
-                parametric(&mut arena, (1, 0), &a, &b, cw).unwrap(),
-            )
-        };
-        assert_eq!(run(false), run(true));
+        for frame in [Frame::Map, Frame::Player] {
+            let run = |cw| {
+                let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
+                let explicit = explicit(&mut arena, (0, 0), &x, frame, cw).unwrap();
+                (
+                    explicit,
+                    parametric(&mut arena, (1, 0), &a, &b, frame, cw).unwrap(),
+                )
+            };
+            assert_eq!(run(false), run(true));
+        }
+    }
+
+    // The player frame (ADR 4, 5, 14): shots in the shooter's local frame, facing the centre.
+
+    #[test]
+    fn player_frame_xy_shots_head_toward_the_centre() {
+        let x = Formula::parse("x", "x").unwrap();
+        let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
+        let left = explicit(&mut arena, (0, 0), &x, Frame::Player, false).unwrap();
+        let right = explicit(&mut arena, (1, 0), &x, Frame::Player, false).unwrap();
+        let (l, r) = (&left.points[1], &right.points[1]);
+        assert!(l.x > -8. && l.y > 0.);
+        assert!(r.x < 8. && r.y > 0.);
+        // Parametric shots are mirrored too, and start at local t = 0
+        let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.), (0., 4.)]);
+        parametric(&mut arena, (1, 0), &t("t"), &t("t/2"), Frame::Player, false).unwrap();
+        assert!(!arena.alive()[1][1]);
+    }
+
+    #[test]
+    fn player_frame_polar_faces_the_centre() {
+        // r = θ starts along the local +x axis, which must point at the centre
+        for shooter in [(8., 0.), (0., -8.), (-5., 5.)] {
+            let mut arena = disc(shooter);
+            let shot = explicit(&mut arena, (0, 0), &theta("θ"), Frame::Player, false).unwrap();
+            let (first, second) = (&shot.points[0], &shot.points[3]);
+            let toward_centre = (-first.x, -first.y);
+            let step = (second.x - first.x, second.y - first.y);
+            let cos = (step.0 * toward_centre.0 + step.1 * toward_centre.1)
+                / (step.0.hypot(step.1) * toward_centre.0.hypot(toward_centre.1));
+            assert!(cos > 0.99, "shooter {shooter:?}, cos {cos}");
+        }
+    }
+
+    #[test]
+    fn player_frame_parametric_straight_shot_hits_the_centre() {
+        let mut arena = disc((0., 8.));
+        let shot = parametric(&mut arena, (0, 0), &t("t"), &t("0"), Frame::Player, false).unwrap();
+        assert!(!arena.alive()[1][0]);
+        // It keeps going to the far side of the disc
+        assert!(shot.points.last().unwrap().y < -9.9);
+    }
+
+    #[test]
+    fn player_frame_clockwise_mirrors_across_the_centre_axis() {
+        for shooter in [(8., 0.), (0., -8.), (-5., 5.)] {
+            let fire = |cw| explicit(&mut disc(shooter), (0, 0), &theta("θ"), Frame::Player, cw);
+            assert_mirrored(&fire(false).unwrap(), &fire(true).unwrap(), shooter);
+            let fire = |cw| {
+                parametric(
+                    &mut disc(shooter),
+                    (0, 0),
+                    &t("t"),
+                    &t("t/3"),
+                    Frame::Player,
+                    cw,
+                )
+            };
+            assert_mirrored(&fire(false).unwrap(), &fire(true).unwrap(), shooter);
+        }
+    }
+
+    #[test]
+    fn player_frame_is_undefined_at_local_zero() {
+        // The local curve starts at x = 0 or θ = 0 wherever the shooter is
+        let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
+        let x = Formula::parse("1/x", "x").unwrap();
+        assert_eq!(
+            explicit(&mut arena, (1, 0), &x, Frame::Player, false),
+            Err(FireError::UndefinedAtShooter)
+        );
+        assert_eq!(
+            explicit(
+                &mut disc((-8., 0.)),
+                (0, 0),
+                &theta("1/θ"),
+                Frame::Player,
+                false
+            ),
+            Err(FireError::UndefinedAtShooter)
+        );
     }
 }

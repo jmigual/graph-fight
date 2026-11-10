@@ -2,7 +2,8 @@
 
 Status: Accepted (2026-11-09)
 Superseded in part by 0014 (shot direction: CCW is the default; clockwise mirrors θ) and by
-0020 (polar coordinates about the map centre, offset to start at the shooter).
+0020 (the host picks the frame: this polar frame at the shooter is "player-centred"; the default
+"map-centred" frame puts the polar origin at the map centre, offset to start at the shooter).
 
 ## Context
 

@@ -1,5 +1,5 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
-import init, { Field as WasmField, Game as Sim } from "../pkg/index.js";
+import init, { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
@@ -237,7 +237,7 @@ function startGame(msg: Start) {
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
-        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
+        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, WasmFrame.Map, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
     } catch (err) {
         return end("Could not start the game.", `${err}`);
     }
