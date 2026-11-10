@@ -32,7 +32,7 @@ impl Point {
     }
 
     pub fn random_default(x_range: &Range<f64>, y_range: &Range<f64>) -> Point {
-        Point::random(&x_range, &y_range, &mut rand::rng())
+        Point::random(x_range, y_range, &mut rand::rng())
     }
 
     pub fn distance_to(&self, other: &Point) -> f64 {
@@ -137,7 +137,7 @@ mod tests {
 
         let distance = a.distance_to(&b);
 
-        assert!(distance >= 14.14 && distance <= 14.15);
+        assert!((14.14..=14.15).contains(&distance));
     }
 
     #[test]
