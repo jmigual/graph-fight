@@ -7,11 +7,13 @@ export { selfId };
 
 // Replaced by esbuild's `define` (scripts/build.mjs); undefined when run outside a bundle (tests).
 declare const __BUILD_VERSION__: string;
+declare const __LOBBY_TOPIC__: string;
 /** Identifies this build; peers on another build cannot play together. */
 export const BUILD_VERSION = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : "dev";
 
 const APP_ID = "graph-fight";
-const LOBBY_TOPIC = "graph-fight:lobby";
+// Only the deploy build announces on the live topic (scripts/lobby-topic.mjs); anything else uses the dev one.
+const LOBBY_TOPIC = typeof __LOBBY_TOPIC__ === "string" ? __LOBBY_TOPIC__ : "graph-fight:lobby:dev";
 // Relays checked to accept and forward ephemeral events (ADR 12); re-check after a trystero bump.
 const LOBBY_RELAYS = [
     "wss://relay.primal.net",

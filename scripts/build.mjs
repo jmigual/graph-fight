@@ -6,6 +6,7 @@ import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
+import { lobbyTopic } from "./lobby-topic.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = resolve(root, "dist");
@@ -43,7 +44,7 @@ const options = {
   bundle: true,
   format: "esm",
   target: "es2022",
-  define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
+  define: { __BUILD_VERSION__: JSON.stringify(buildVersion()), __LOBBY_TOPIC__: JSON.stringify(lobbyTopic()) },
   minify: !serve,
   sourcemap: serve,
   logLevel: "info",
