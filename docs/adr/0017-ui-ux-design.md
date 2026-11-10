@@ -36,7 +36,8 @@ sits next to the field it submits and comes before the helpers in focus order (s
 The end screen hides the editor, the saved formulas, the timer bar and the out note; the board, the
 last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide as the screen
 under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
-bar (sections 4 and 6).
+bar (sections 4 and 6). The Test arena button (ADR 25) sits in "Open games", under the list, and
+on a phone the test arena's editor follows the board, before the setup panel (section 6).
 
 ## Context
 
@@ -326,7 +327,8 @@ No horizontal scroll at 320 px or wider. Untrusted strings (game names, formulas
 **Lobby.** Open games come first because joining a friend's game is the common case. The list
 stays a `<table>` (it is tabular). An empty list says: "No open games yet. Host one and send a
 friend this page, or host one and add a bot to play alone." in a dashed `--grid-major` outline
-that marks where games will appear (no fill, no shadow: not a card). Field names shown to users: "XY plane" and "Polar disc"; the option
+that marks where games will appear (no fill, no shadow: not a card). Under the list (or that
+text), still in "Open games", is **Test arena** (`#test-open`, ADR 25) with its hint. Field names shown to users: "XY plane" and "Polar disc"; the option
 values stay `xy`/`disc`. Players are shown as "2 of 4". A full game's button reads "Full"
 (disabled). A game on another build has no button and reads "Different version. Reload the page."
 Host form: "Game name", "Field" (select: "XY plane, 2 players" / "Polar disc, 2 to 8 players"),
@@ -362,7 +364,11 @@ from 960 to 1279 px). Left: status bar, board, then
 the last-shot line. Right: formula editor, roster, saved formulas. On phone it is one column:
 status bar (sticky top), board, editor, roster, saved formulas. On desktop the left column is
 sticky, so the board stays in view while the side column scrolls (to a template, for example),
-except in the test arena (ADR 25), where the setup panel under the board must scroll.
+except in the test arena (ADR 25), where the setup panel under the board must scroll. On a phone
+the test arena shows the board, then the editor, then the setup panel: `.game-main` is
+`display: contents` there and `#test-panel` has `order: 1`, so Fire stays near the board. Only the
+boxes move; the DOM keeps the setup panel before the editor, so on a phone focus reaches the setup
+before the editor (moving the DOM would break the desktop column).
 
 ```
 +-----------------------------------------------+------------------------+

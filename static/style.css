@@ -395,6 +395,9 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 
 @media (max-width: 959px) {
     .status-area { position: sticky; top: 0; z-index: 1; }
+    /* In the test arena the editor follows the board, and the setup panel comes after it (ADR 25). */
+    #game[data-mode=test] .game-main { display: contents; }
+    #game[data-mode=test] #test-panel { order: 1; }
 }
 
 /* Desktop: two columns. */

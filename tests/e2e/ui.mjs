@@ -137,6 +137,8 @@ export const scenarios = {
         assert.ok(page.width < 1000, `the changelog keeps a reading measure (${page.width} px)`);
         await lobby.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(lobby, "#lobby")).sideways, false, "the lobby does not scroll sideways at 360 px");
+        // The Test arena entry sits under the open games, next to the empty-list text (ADR 25).
+        assert.equal(await lobby.locator("[aria-labelledby=open-games] #test-open").count(), 1, "Test arena is in Open games");
         // The game's board stays in view while the side column scrolls, but not the test arena's: its
         // setup panel is under the board and must scroll into view (ADR 25).
         await lobby.setViewportSize({ width: 1280, height: 800 });
@@ -152,6 +154,10 @@ export const scenarios = {
                 .map((el) => el.id || el.textContent.trim()),
         );
         assert.deepEqual(cut, [], "every test-arena control scrolls into view");
+        // On a phone the arena's editor comes right after the board, and the setup panel after it.
+        await lobby.setViewportSize({ width: 360, height: 800 });
+        const [fire, setup] = await lobby.evaluate(() => ["fire", "test-panel"].map((id) => document.getElementById(id).getBoundingClientRect().top));
+        assert.ok(fire < setup, `the editor comes before the setup panel on a phone (${fire}, ${setup})`);
         const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
         const [host] = pages;
         // In a game the board stays on screen while the page scrolls down the side column.
