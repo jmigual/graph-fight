@@ -12,6 +12,8 @@ who shoots. Either way a shot starts at the player.
 
 The host can add local players, who take turns at the host's screen, next to bots and remote guests.
 
+The host can remove a guest from the waiting room, or kick one mid-game; that team is out.
+
 There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
 Nostr relays lets them find each other.
 

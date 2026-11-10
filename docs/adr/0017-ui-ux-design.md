@@ -9,6 +9,8 @@ whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
 Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
 `#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
 ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue.
+Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
+button per guest team still in, and a kicked page ends with "The host removed you from this game.".
 
 ## Context
 

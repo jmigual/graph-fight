@@ -4,6 +4,8 @@ Status: Accepted (2026-11-09)
 Amended by 0021: bot seats get no token and no holder, so no peer can claim one, and they are
 never absent.
 Amended by 0022: so do local players' seats (`local:<n>`).
+Amended by 0023: the host can revoke a guest's seat; its token then claims nothing, and a rejoin
+with it is answered with a kick.
 Amended by 0018: a seated peer whose host link stays down for 25 s rejoins the game room, and
 gives the game up after 3 minutes.
 
