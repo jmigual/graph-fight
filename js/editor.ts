@@ -12,8 +12,8 @@ const NOTATION = {
 };
 /** The formula inputs' labels per field and mode. */
 const LABELS = {
-    xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
-    disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
+    xy: { explicit: ["y ="], parametric: ["x(t) =", "y(t) ="] },
+    disc: { explicit: ["r ="], parametric: ["r(t) =", "θ(t) ="] },
 };
 const OUT_OF_RANGE = `Use a number between -${LIMIT} and ${LIMIT}.`;
 const NOTICE = "Can't save in this browser; saved formulas last until you close the tab.";
