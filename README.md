@@ -16,7 +16,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)
 
-<img src="docs/img/game-disc.png" alt="Polar disc game with 4 players" width="760">
+<img src="docs/img/game-xy.png" alt="XY game with the formula editor" width="760">
 
 </div>
 
@@ -30,7 +30,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 - **Local players.** Hot-seat players take turns at the host's screen, next to bots and remote guests.
 - **Private games.** Listed with a lock and joined with a password, or left out of the lobby and joined through an invite link.
 - **Kick.** The host can remove a guest from the waiting room, or mid-game; that team is out.
-- **Reconnection.** A dropped player keeps their seat and catches up by replaying the game log.
+- **Reconnection.** A dropped player keeps their seat for a few minutes (the game is given up after 3 minutes) and catches up by replaying the game log.
 - **No server.** Players connect peer-to-peer over WebRTC ([Trystero](https://github.com/dmotz/trystero)) and find each other through a lobby on public [Nostr](https://nostr.com) relays.
 - **Deterministic Rust/WASM engine.** Peers exchange only the seed and formulas; every outcome is computed locally in WebAssembly.
 
@@ -39,7 +39,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 1. Open the [live site](https://graph-fight.marceigual.eu), then host a game or join one from the lobby.
 2. The host picks the field, the coordinates, who plays (guests, bots, local players) and whether the game is private.
 3. On your turn, type a formula. The curve starts at your character and flies until it hits a player (they die), an obstacle (it leaves a crater), or the edge of the field.
-4. Last team standing wins.
+4. Last team standing wins; if every team falls on the same shot, the game is a draw.
 
 ## 📸 Screenshots
 
@@ -73,13 +73,19 @@ flowchart LR
     subgraph B [Guest browser]
         TSB[TypeScript client] <--> WB[Rust/WASM engine]
     end
+    subgraph C [Another guest]
+        TSC[TypeScript client] <--> WC[Rust/WASM engine]
+    end
     TSA <-. lobby and signalling .-> N[(Nostr relays)]
     TSB <-. lobby and signalling .-> N
+    TSC <-. lobby and signalling .-> N
     TSA <== WebRTC, host relays turns ==> TSB
+    TSA <== WebRTC, host relays turns ==> TSC
 ```
 
 Each browser runs the same WASM engine. The host sequences and relays every message and owns the
-turn clock; guests send formulas, and every peer replays the same game from the shared seed.
+turn clock; guests send formulas, and every peer replays the same game from the shared seed. The game room is a full mesh, but only
+the host's messages count. Bots and local players run on the host's page.
 Design decisions are recorded as ADRs (see [Design decisions](#-design-decisions)).
 
 ## 🛠️ Development
