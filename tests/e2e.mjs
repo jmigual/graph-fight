@@ -39,11 +39,12 @@ const comparable = async (page) => {
 
 /**
  * Opens `n` pages (separate contexts) and brings them into one started game; pages[0] hosts.
- * `seats` is the host's seat count for the disc field (default `n`); `fakeHostClock` and
+ * `seats` is the host's seat count for the disc field (default `n`); `frame` is the shot frame,
+ * `map` (default) or `player` (ADR 20), shown in the lobby and the waiting room; `fakeHostClock` and
  * `fakeGuestClock` install Playwright's fake clock on the host or the first guest before it loads;
  * `blockStorage` makes the host's localStorage refuse writes.
  */
-async function startGame(n, field, label, { seats = n, fakeHostClock = false, fakeGuestClock = false, blockStorage = false } = {}) {
+async function startGame(n, field, label, { seats = n, frame = "map", fakeHostClock = false, fakeGuestClock = false, blockStorage = false } = {}) {
     const pages = [];
     const errors = [];
     for (let i = 0; i < n; i++) {
@@ -96,6 +97,7 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, fa
     const [host, ...guests] = pages;
     await host.fill("#host-name", name);
     await host.selectOption("#host-field", field);
+    await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.click("#host-form button");
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
@@ -106,6 +108,7 @@ async function startGame(n, field, label, { seats = n, fakeHostClock = false, fa
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
     await host.waitForFunction((k) => document.querySelectorAll("#room-players li").length === k, n, { timeout: SETUP_MS });
     for (const page of pages) assert.equal(await text(page, "#room-title"), name, "the waiting room is titled with the game name");
+    for (const page of pages) assert.match(await text(page, "#room-info"), new RegExp(`, ${frame}-centred, `), "the waiting room names the frame");
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
@@ -167,10 +170,10 @@ const text = (page, sel) => page.locator(sel).innerText();
 
 const scenarios = {
     async A() {
-        const { pages, errors } = await startGame(2, "xy", "A");
+        // The player-centred frame: shots start at local x = 0, so 1/x is undefined there (ADR 20).
+        const { pages, errors } = await startGame(2, "xy", "A", { frame: "player" });
         await assertSynced(pages, 0);
-        // Team 0 shoots first from the left half, so sqrt(x) is undefined at its x (ADR 20).
-        await assertRejected(pages, 0, "sqrt(x)");
+        await assertRejected(pages, 0, "1/x");
         await takeTurn(pages, 0, ["x"]);
         await takeTurn(pages, 1, ["t", "t"]);
         await takeTurn(pages, 2, ["-x"]);
@@ -628,6 +631,34 @@ const scenarios = {
         await guest.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.equal(await text(guest, "#end-message"), "Host unreachable.");
         await assertQuiet(guest, "05:00");
+        return errors;
+    },
+    async R() {
+        // Direction in the player-centred frame: clockwise mirrors the shot across the shooter's axis to the centre.
+        const { pages, errors } = await startGame(2, "disc", "R", { frame: "player" });
+        await assertSynced(pages, 0);
+        // `r = t, θ = 0.5` is a straight ray 0.5 rad from the axis: to the left (counter-clockwise) or right.
+        const aim = async (cw) => {
+            const page = await shooter(pages);
+            const before = JSON.parse(await state(page));
+            const { pos } = before.arena.teams[before.current].players[before.arena.teams[before.current].currentPlayer].shape;
+            await page.check(cw ? "#dir-cw" : "#dir-ccw");
+            await page.check("#mode-parametric");
+            await page.fill("#input-a", "t");
+            await page.fill("#input-b", "0.5");
+            await page.click("#fire");
+            await assertSynced(pages, before.turn + 1);
+            const { shot } = JSON.parse(await state(page));
+            const [from, to] = shot.points;
+            const d = Math.hypot(pos.x, pos.y);
+            const forward = { x: -pos.x / d, y: -pos.y / d };
+            const v = { x: to.x - from.x, y: to.y - from.y };
+            return Math.atan2(forward.x * v.y - forward.y * v.x, forward.x * v.x + forward.y * v.y);
+        };
+        const ccw = await aim(false);
+        const cw = await aim(true);
+        assert.ok(Math.abs(ccw - 0.5) < 0.05, `counter-clockwise turns left (${ccw})`);
+        assert.ok(Math.abs(cw + 0.5) < 0.05, `clockwise turns right (${cw})`);
         return errors;
     },
 };
