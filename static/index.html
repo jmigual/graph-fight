@@ -75,7 +75,22 @@
                 </select>
               </label>
               <p id="frame-hint" class="hint">Map-centred: x and y are the map's, as in Graphwar. Player-centred: they start at your player. <a href="#help-coordinates">More in Help</a>.</p>
+              <label class="field"><span>Mode</span>
+                <select id="host-mode">
+                  <option value="ffa">Free-for-all</option>
+                  <option value="teams">Teams</option>
+                </select>
+              </label>
               <label class="field"><span>Seats</span><input id="host-seats" type="number" min="2" value="2" required disabled></label>
+              <label class="field"><span>Teams</span><input id="host-teams" type="number" min="2" max="4" value="2" required disabled></label>
+              <label class="field"><span>Players per team</span><input id="host-team-size" type="number" min="1" max="4" value="2" required disabled></label>
+              <label class="field"><span>Characters per player</span>
+                <select id="host-characters">
+                  <option>1</option>
+                  <option>2</option>
+                  <option selected>3</option>
+                </select>
+              </label>
               <label class="field"><span>Visibility</span>
                 <select id="host-visibility">
                   <option value="public">Public</option>
@@ -103,7 +118,7 @@
                 <li>The shot follows its graph from your character until it hits a player (they die), an obstacle (it leaves a crater) or the edge of the field.</li>
                 <li>The last team standing wins.</li>
               </ul>
-              <p>Play on an XY field with 2 players or on a polar disc with 2 to 8.</p>
+              <p>Play on an XY field with 2 players or on a polar disc with 2 to 8, each on their own or in teams.</p>
               <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="Source code on GitHub, opens in a new tab">Source code on GitHub</a></p>
             </div>
             <figure>
@@ -328,10 +343,11 @@
 
       <section id="help-play">
         <h3>How to play</h3>
-        <p>Each player controls a team of 3 characters. You aim by writing a formula; your shot follows its curve and kills every character it touches. The last team with a character standing wins.</p>
+        <p>Each player controls a team of 3 characters, or 1 or 2 if the host chooses so. In a team game several players share a team and its characters. You aim by writing a formula; your shot follows its curve and kills every character it touches. The last team with a character standing wins.</p>
         <h4 id="help-turns">Turns and the timer</h4>
         <ul>
           <li>Teams take turns in team order. Within a team the characters take turns too: after a team's turn (a shot or a timeout), its next living character is up the next time it is the team's turn.</li>
+          <li>In a team game each character belongs to one of the team's players, in turn: the first character to the first player, the second to the second, and so on. So the players of a team take turns as well. Every team has as many characters as the largest team has players times the characters per player, so a smaller team's players play more of them.</li>
           <li>The status bar says whose turn it is ("Your turn", "Team 2 is aiming"), and the tab title starts with "Your turn" when it is yours. You can type while you wait; only Fire is disabled.</li>
           <li>A turn lasts 60 seconds. The bar under the status drains and the number turns red under 10 s. When it reaches 0 the host skips the turn and nobody shoots. The timer keeps running while this help is open.</li>
           <li>Fire checks your formula first. A formula that cannot be used shows an error under the boxes and does not cost the turn.</li>
@@ -339,6 +355,7 @@
         <h4 id="help-teams">Teams and the field</h4>
         <ul>
           <li>The XY plane has 2 teams: Team 1 on the left half, Team 2 on the right. The polar disc has 2 to 8 teams, each in its own sector of the disc.</li>
+          <li>In a team game (Mode: Teams) the host picks the number of teams, 2 on the XY plane and 2 to 4 on the disc, and the players per team. A player who joins goes to the team with the most open seats. In the waiting room you can Join another team that has room, and the host can move anyone.</li>
           <li>A team is told apart by its number, its cap colour and its face, never by colour alone. The roster lists the teams and how many characters each has left.</li>
         </ul>
         <h4 id="help-kills">What kills, and what stops a shot</h4>
@@ -350,12 +367,12 @@
         <h4 id="help-end">How a game ends</h4>
         <ul>
           <li>When only one team has characters left, it wins: "You win." or "Team 2 wins.". If the last characters die together, the game is a draw.</li>
-          <li>Leave game (it asks first) takes your team out of the game. If the host leaves, the game ends for everyone. Back to lobby appears when it is over.</li>
+          <li>Leave game (it asks first) takes your team out of the game. In a team game your teammates take over your characters, and the team is out only when its last player leaves. If the host leaves, the game ends for everyone. Back to lobby appears when it is over.</li>
         </ul>
         <h4 id="help-host-join">Hosting and joining</h4>
         <ul>
-          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players, or polar disc with 2 to 8), the coordinates (see <a href="#help-coordinates">Coordinates</a>) and, for the disc, the seats.</li>
-          <li>The host waits in the waiting room and presses Start, which needs at least 2 players. If more people join than there are seats, the first to join play.</li>
+          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players, or polar disc with 2 to 8), the coordinates (see <a href="#help-coordinates">Coordinates</a>), the mode (Free-for-all, or Teams with the number of teams and the players per team), for a free-for-all on the disc the seats, and the characters per player.</li>
+          <li>The host waits in the waiting room and presses Start, which needs at least 2 players, and in a team game a player on every team. If more people join than there are seats, the first to join play.</li>
           <li>There is no game server. Players connect directly to each other, and only formulas and control messages are sent. Public Nostr relays are used to find open games.</li>
         </ul>
       </section>

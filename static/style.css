@@ -157,7 +157,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 
 .field { display: grid; gap: 0.25rem; max-width: 24rem; margin-bottom: 1rem; }
-.field:has(#host-seats:disabled) { display: none; }
+.field:has(#host-seats:disabled), .field:has(#host-teams:disabled), .field:has(#host-team-size:disabled) { display: none; }
 
 /* Segmented radio pair: the radios stay visible. */
 .segmented { display: flex; flex-wrap: wrap; border: 0; padding: 0; margin: 0 0 0.75rem; min-width: 0; }

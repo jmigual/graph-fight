@@ -40,7 +40,7 @@ function renderLobby(list: OpenGame[]) {
                 lock.setAttribute("aria-label", "Password required");
             }
             if (g.compatible) {
-                const [long, short] = FIELD_NAMES[g.field].map((name, i) => `${name}, ${FRAME_NAMES[g.frame][i]}`);
+                const [long, short] = FIELD_NAMES[g.field].map((name, i) => [name, FRAME_NAMES[g.frame][i], ...makeUp(g)].join(", "));
                 const field = cell("");
                 for (const [cls, name] of [["long", long], ["short", short]]) {
                     const span = field.appendChild(document.createElement("span"));
@@ -63,14 +63,37 @@ function renderLobby(list: OpenGame[]) {
     );
 }
 
+/**
+ * A listed game's make-up after its field (ADR 27): in team mode "2 teams of 2" and each side's open
+ * seats ("Team 2: 1 open"), then "1 character each" unless the default.
+ */
+function makeUp(g: OpenGame) {
+    const size = g.seats / g.teams.length;
+    const sides = g.teams.length ? [`${g.teams.length} teams of ${size}`, ...g.teams.flatMap((n, t) => (n < size ? [`Team ${t + 1}: ${size - n} open`] : []))] : [];
+    return [...sides, ...gameSize(g).slice(1)];
+}
+
 const hostField = $<HTMLSelectElement>("host-field");
+const hostMode = $<HTMLSelectElement>("host-mode");
 const hostSeats = $<HTMLInputElement>("host-seats");
+const hostTeams = $<HTMLInputElement>("host-teams");
+const hostTeamSize = $<HTMLInputElement>("host-team-size");
 hostSeats.max = String(MAX_PLAYERS);
-hostField.onchange = () => {
-    // The xy field is exactly two players (ADR 5).
-    hostSeats.disabled = hostField.value === "xy";
-    if (hostSeats.disabled) hostSeats.value = "2";
-};
+/**
+ * Shows the fields the field and the mode need; CSS hides a disabled one. A free-for-all on the disc
+ * has Seats; Teams has the number of teams on the disc and the players per team, at most
+ * `MAX_PLAYERS` seats in all. The xy field is exactly two players (ADR 5), or two teams (ADR 27).
+ */
+function syncHostForm() {
+    const xy = hostField.value === "xy";
+    const teams = hostMode.value === "teams";
+    hostSeats.disabled = xy || teams;
+    hostTeams.disabled = xy || !teams;
+    hostTeamSize.disabled = !teams;
+    if (xy) hostSeats.value = hostTeams.value = "2";
+    hostTeamSize.max = String(Math.floor(MAX_PLAYERS / Math.max(2, Number(hostTeams.value) || 2)));
+}
+hostField.onchange = hostMode.onchange = hostTeams.oninput = syncHostForm;
 const hostVisibility = $<HTMLSelectElement>("host-visibility");
 hostVisibility.onchange = () => {
     $<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password";
@@ -95,7 +118,11 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     if (room || $("lobby").hidden) return forget("host-password");
     const hidden = hostVisibility.value === "link";
     const share = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
-    const offer: Announce = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password", teams: [], k: DEFAULT_K };
+    // In team mode the room fills `teams` with each side's players (ADR 27).
+    const sides = hostMode.value === "teams" ? Number(hostTeams.value) : 0;
+    const seats = sides ? sides * Number(hostTeamSize.value) : Number(hostSeats.value);
+    const k = Number($<HTMLSelectElement>("host-characters").value);
+    const offer: Announce = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats, locked: hostVisibility.value === "password", teams: Array<number>(sides).fill(0), k };
     forget("host-password");
     hostRoom(offer, hidden, share, password);
 };

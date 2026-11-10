@@ -12,7 +12,9 @@ player); the 3 players per team are `DEFAULT_K` in `js/net.ts`, no longer a cons
 `js/index.ts`. In team mode the host seats joiners, bots and local players by the joiner rule (the
 side with the most open seats, the lowest on a tie; the rest wait in join order), Start needs a
 player on every side and sends `teams` for the seated seats only, and any `start` carries `k` when
-it is not 3.
+it is not 3. The host form has "Mode" `#host-mode` (Free-for-all / Teams); Teams shows "Teams"
+`#host-teams` on the disc and "Players per team" `#host-team-size` in place of Seats, and both modes
+have "Characters per player" `#host-characters` (1 to 3, default 3).
 Superseded in part by 0020: the host also announces `frame` (`{name, field, frame, players, seats}`)
 and sends it in `start`.
 Superseded in part by 0016: "host left" now comes from the host's relayed `leave`; seated peers keep their seat when a link drops.

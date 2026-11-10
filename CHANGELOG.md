@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.0 — 2026-11-10
+- Team games: the host picks Teams, the number of teams and the players per team, and players join a team or the other in the waiting room, so more people can play on the XY plane. A team's players take its characters in turn, and a player who leaves hands their characters to their teammates. The host also picks 1, 2 or 3 characters per player, in any game.
+
 ## 0.6.0 — 2026-11-10
 - Every screen is centred, and the board grows to fill a wide window and stays in view while you scroll during a game.
 - In the editor, Fire sits right after the formula, Insert sits beside each saved formula, and the turn state is clearer.

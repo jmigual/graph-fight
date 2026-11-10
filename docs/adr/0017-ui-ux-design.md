@@ -46,7 +46,9 @@ side has a seat still in; the end screen reads "Your team wins." on the winning 
 "Team 2 wins." with its seats named (sections 10 and 11). In the waiting room each side is a list
 ("Team 1, 2 of 2") with the joiners waiting for a seat below; the host has Move to Team N on each
 row for each other side with room, a seated guest Join Team N; the info line reads "2 teams of 2",
-and "1 character each" when not 3 (section 6).
+and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `#host-teams`,
+`#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
+"2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
 
 ## Context
 

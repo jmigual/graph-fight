@@ -1,14 +1,11 @@
 # 27. Team mode: several seats share one engine team
 
 Status: Accepted (2026-11-10). Amends 0012 (`start`, lobby listing, two out-of-sequence messages),
-0015 (the announce carries `teams` and `k`; the 3 characters per team are `DEFAULT_K`), 0016
-(`leave` of a seat), 0017 (waiting room, roster, status bar, out note, Leave game, end copy), 0021
-(bots are seated on a team), 0022 (local players are seated on a team) and 0023 (a kick in a team
-hands the seat's characters over).
-
-Amendments still to come: the protocol and the pure rules land first; each later commit that changes
-a behaviour adds its "Amended by 0027" line to that ADR and 0027 to its index row. What is left is
-the host form, in 0015 and 0017 (added to their 0027 lines).
+0015 (host form, seating, Start rule, characters per player; the 3 characters per team are
+`DEFAULT_K`), 0016 (`leave` of a seat), 0017 (host form, lobby, waiting room, roster, status bar,
+out note, Leave game, end copy), 0021 (bots are seated on a team), 0022 (local players are seated on
+a team) and 0023 (a kick in a team hands the seat's characters over). Each of them got its note in
+the commit that changed that behaviour.
 
 ## Context
 
@@ -96,9 +93,12 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   listing's `compatible`, the invite link's `v`).
 - **UI.**
   - Host form: "Mode" `#host-mode` (Free-for-all, the default / Teams). In Teams, "Teams"
-    `#host-teams` (2 on XY, disabled; 2 to 4 on the disc) and "Players per team" `#host-team-size`
-    (1 to `⌊8 / teams⌋`) replace `#host-seats`, hidden like the password field. In both modes,
-    "Characters per player" `#host-characters` (1 to 3, default 3).
+    `#host-teams` (2 to 4 on the disc; always 2 on XY, where it is disabled and hidden like Seats)
+    and "Players per team" `#host-team-size` (1 to `⌊8 / teams⌋`) replace `#host-seats`, hidden like
+    the password field. In both modes, "Characters per player" `#host-characters` (1 to 3, default 3).
+  - Help (ADR 26): "How to play" says a player has 3 characters unless the host chooses 1 or 2, how
+    a team's players take its characters in turn, how team games are set up and joined, and that
+    leaving hands one's characters to the teammates.
   - Waiting room: `#room-players` becomes one list per side ("Team 1, 2 of 2"), with the waiting
     joiners below. A guest sees a **Join Team N** button on each other side with room. The host has a
     **Move to Team N** button on every row (the host's own, guests, locals, bots) for each other side
