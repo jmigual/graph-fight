@@ -78,6 +78,8 @@ export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, stri
 export type Timeout = { type: "timeout"; turn: number };
 export type Leave = { type: "leave"; peer: string };
 export type GameMsg = Start | Shot | Timeout | Leave;
+/** Team mode's waiting room (ADR 27): the seat ids on each side, at most `size` per side. */
+export type Lineup = { size: number; teams: string[][] };
 /** What the host broadcasts: `start` is seq 0, every later message is the previous seq + 1. */
 export type Relayed = { seq: number; msg: GameMsg };
 
@@ -129,6 +131,16 @@ export function parseLocal(id: string): number | undefined {
 /** A seat the host's page plays, a bot's or a local player's: the seat book never binds it to a peer (ADR 21, 22). */
 export const isHostRun = (id: string) => isBot(id) || isLocal(id);
 
+/** A seat id as `start.peers` holds it: a short text, and a well-formed id in the bot and local namespaces. */
+const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
+
+/** The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at most `size` seat ids. */
+function parseLineup(v: Record<string, unknown>): Lineup | undefined {
+    const { size, teams } = v;
+    if (!isCount(size, MAX_PLAYERS) || size < 1 || !Array.isArray(teams) || teams.length < 2 || teams.length * size > MAX_PLAYERS) return undefined;
+    return teams.every((t) => Array.isArray(t) && t.length <= size && t.every(isSeatId)) ? { size, teams } : undefined;
+}
+
 /**
  * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
@@ -142,7 +154,7 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
             const k = v.k === undefined ? MAX_K : v.k;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p))) && isK(k) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field, k))) {
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every(isSeatId) && isK(k) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field, k))) {
                 return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version, ...(v.teams !== undefined && { teams: v.teams }), ...(v.k !== undefined && { k }) };
             }
             return undefined;
@@ -162,29 +174,37 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12, 16, 23, 24). A payload from the host must be
+ * Decides what to do with a game-room payload (ADR 12, 16, 23, 24, 27). A payload from the host must be
  * a sequenced broadcast, our private seat token `{seat}`, `{type: "kick"}`, which removes us from
- * the game, or `{type: "share"}`, which lets us share the invite link; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
- * as a request; everything else is dropped.
+ * the game, `{type: "share"}`, which lets us share the invite link, or, until the game has
+ * `started`, team mode's `{type: "lineup"}`; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
+ * as a request, and until the game has `started` a `{type: "team"}` request; everything else is dropped.
  */
 export function routeIncoming(
     hostId: string,
     self: string,
     from: string,
     data: unknown,
+    started = false,
 ):
     | { kind: "relayed"; seq: number; msg: GameMsg }
     | { kind: "seat"; token: string }
     | { kind: "kicked" }
     | { kind: "share" }
+    | { kind: "lineup"; lineup: Lineup }
     | { kind: "request"; shot: Shot }
     | { kind: "rejoin"; token: string }
     | { kind: "quit" }
+    | { kind: "team"; team: number }
     | undefined {
     if (from === hostId) {
         if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
         if (isObj(data) && data.type === "kick") return { kind: "kicked" };
         if (isObj(data) && data.type === "share") return { kind: "share" };
+        if (isObj(data) && data.type === "lineup") {
+            const lineup = started ? undefined : parseLineup(data);
+            return lineup && { kind: "lineup", lineup };
+        }
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
@@ -192,6 +212,7 @@ export function routeIncoming(
     if (self !== hostId || !isObj(data)) return undefined;
     if (data.type === "rejoin") return isText(data.token) ? { kind: "rejoin", token: data.token } : undefined;
     if (data.type === "quit") return { kind: "quit" };
+    if (data.type === "team") return !started && isCount(data.team, MAX_PLAYERS - 1) ? { kind: "team", team: data.team } : undefined;
     const msg = parseGameMsg(data);
     return msg?.type === "shot" ? { kind: "request", shot: msg } : undefined;
 }
@@ -494,6 +515,14 @@ export type GameHandlers = {
     onKicked(): void;
     /** The host lets us share its invite link (ADR 24). */
     onShare?(): void;
+    /** Before `start`, team mode (ADR 27): the host's sides as they are now. */
+    onLineup?(lineup: Lineup): void;
+    /**
+     * Host only, before `start`, team mode (ADR 27): room peer `peer`, not kicked, asks for a seat on
+     * side `team`, an integer below `MAX_PLAYERS`. The handler honours it only for a seated peer and
+     * a side with an open seat, and sends the new lineup.
+     */
+    onTeamRequest?(peer: string, team: number): void;
     /**
      * We joined without a seat and the host link never came up, even after joining the room again
      * once (ADR 24): 3 × `REJOIN_MS` in all. With a password, a wrong one looks the same as a host
@@ -540,6 +569,13 @@ export type Game = {
     kick(seat: string): void;
     /** Host only: tell `peer` it may share the invite link (ADR 24). Sent outside the sequence, like a kick. */
     share(peer: string): void;
+    /**
+     * Host only, before `start`, team mode (ADR 27): send the sides to every guest that is not kicked,
+     * outside the sequence. Throws on a lineup guests would drop, and once the game has started.
+     */
+    lineup(lineup: Lineup): void;
+    /** Guest only, team mode (ADR 27): ask the host for a seat on side `team`; the next lineup shows the answer. */
+    askTeam(team: number): void;
     /**
      * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
      * not connected; on another peer, the host while its link is down.
@@ -689,8 +725,13 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         action.send({ type: "kick" }, { target: peer }).catch((err) => console.warn("kick send failed", err));
     }
 
+    // A guest that applied `start`; the host knows from its outbox.
+    let applied = false;
     const accept = sequencer(
-        versionGate(BUILD_ID, handlers.onMessage, (hostVersion) => {
+        versionGate(BUILD_ID, (msg) => {
+            if (msg.type === "start") applied = true;
+            handlers.onMessage(msg);
+        }, (hostVersion) => {
             leave();
             handlers.onVersionMismatch(hostVersion);
         }),
@@ -703,7 +744,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
 
     function onData(data: JsonValue, peerId: string) {
         if (banned.has(peerId)) return;
-        const routed = routeIncoming(hostId, selfId, peerId, data);
+        const routed = routeIncoming(hostId, selfId, peerId, data, applied || out.started());
         if (routed?.kind === "relayed") {
             accept(routed.seq, routed.msg);
         } else if (routed?.kind === "seat") {
@@ -714,6 +755,10 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             handlers.onKicked();
         } else if (routed?.kind === "share") {
             handlers.onShare?.();
+        } else if (routed?.kind === "lineup") {
+            handlers.onLineup?.(routed.lineup);
+        } else if (routed?.kind === "team") {
+            handlers.onTeamRequest?.(peerId, routed.team);
         } else if (routed && seats) {
             // Requests count only from the peer holding a seat now, and act for that seat.
             if (routed.kind === "rejoin") {
@@ -769,6 +814,19 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             if (!isHost) throw new Error("only the host shares its invite");
             // A lost one only hides the link from that guest.
             action.send({ type: "share" }, { target: peer }).catch((err) => console.warn("share send failed", err));
+        },
+        lineup(lineup) {
+            if (!isHost) throw new Error("only the host sends the lineup");
+            if (out.started()) throw new Error("lineup after start");
+            if (!parseLineup(lineup)) throw new Error("invalid lineup");
+            const guests = Object.keys(room.getPeers()).filter((p) => !banned.has(p));
+            // A lost one is replaced by the next, sent on every change.
+            action.send({ type: "lineup", ...lineup }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
+        },
+        askTeam(team) {
+            if (isHost) throw new Error("the host seats itself");
+            // A lost request changes nothing; the next lineup shows the sides as they are.
+            action.send({ type: "team", team }, { target: hostId }).catch((err) => console.warn("team request failed", err));
         },
         absent() {
             if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];

@@ -120,6 +120,45 @@ assert.equal(routeIncoming("h", "p", "q", { type: "share" }), undefined, "a shar
 assert.equal(routeIncoming("h", "h", "p", { type: "share" }), undefined, "a share sent to the host");
 for (const bad of [{ share: true }, { type: "Share" }, "share", { seq: 1, msg: { type: "share" } }]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
 
+// Team mode's waiting room (ADR 27): the sides come from the host only, and only before `start`.
+const lineup = { type: "lineup", size: 2, teams: [["h", "bot:easy:1"], ["local:1"]] };
+assert.deepEqual(routeIncoming("h", "p", "h", lineup), { kind: "lineup", lineup: { size: 2, teams: lineup.teams } });
+assert.equal(routeIncoming("h", "p", "h", lineup, true), undefined, "a lineup after start");
+assert.equal(routeIncoming("h", "p", "q", lineup), undefined, "a lineup from a non-host");
+assert.equal(routeIncoming("h", "h", "p", lineup), undefined, "a lineup sent to the host");
+for (const good of [
+    { ...lineup, teams: [[], []] },
+    { ...lineup, size: 1, teams: Array(MAX_PLAYERS).fill(["p"]) },
+    { ...lineup, size: 4, teams: [["a", "b", "c", "d"], []] },
+]) assert.deepEqual(routeIncoming("h", "p", "h", good), { kind: "lineup", lineup: { size: good.size, teams: good.teams } }, JSON.stringify(good));
+for (const bad of [
+    { ...lineup, size: 0 },
+    { ...lineup, size: 1.5 },
+    { ...lineup, size: "2" },
+    { ...lineup, size: undefined },
+    { ...lineup, teams: undefined },
+    { ...lineup, teams: [["h"]] },
+    { ...lineup, teams: ["h", "p"] },
+    { ...lineup, size: 3, teams: [[], [], []] },
+    { ...lineup, size: 1, teams: [["h", "p"], []] },
+    { ...lineup, teams: [["h", 7], []] },
+    { ...lineup, teams: [["h".repeat(65)], []] },
+    { ...lineup, teams: [["bot:hard:9"], []] },
+    { ...lineup, teams: [["local:0"], []] },
+    { seq: 1, msg: lineup },
+]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
+// A guest asks the host for a side; only the host takes it, and only before `start`.
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "team", team: 1 }), { kind: "team", team: 1 });
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "team", team: MAX_PLAYERS - 1 }), { kind: "team", team: MAX_PLAYERS - 1 });
+assert.equal(routeIncoming("h", "h", "p", { type: "team", team: 1 }, true), undefined, "a team request after start");
+assert.equal(routeIncoming("h", "p", "q", { type: "team", team: 1 }), undefined, "a team request at a non-host");
+assert.equal(routeIncoming("h", "p", "h", { type: "team", team: 1 }), undefined, "a team request from the host");
+for (const team of [undefined, -1, MAX_PLAYERS, 0.5, "1", null]) assert.equal(routeIncoming("h", "h", "p", { type: "team", team }), undefined, String(team));
+// The other messages do not depend on whether the game has started.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "kick" }, true), { kind: "kicked" });
+assert.deepEqual(routeIncoming("h", "h", "p", shot, true), { kind: "request", shot });
+
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
 assert.throws(() => box.stamp(shot), /before start/, "nothing before start");
