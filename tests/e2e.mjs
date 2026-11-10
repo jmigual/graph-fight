@@ -740,11 +740,12 @@ const scenarios = {
         const { turn } = JSON.parse(await state(host));
         await host.check("#mode-explicit");
         await host.fill("#input-a", "0");
-        await host.click("#fire");
         // The canvas at four instants: the pen is still moving 150 and 300 ms after Fire, and rests at the end.
+        // Fire is clicked in the same evaluate, so no round trip sits before the first frame.
         const frames = await host.evaluate(async () => {
             const canvas = document.getElementById("arena");
             const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+            document.getElementById("fire").click();
             const out = [canvas.toDataURL()];
             await wait(150);
             out.push(canvas.toDataURL());
@@ -775,7 +776,9 @@ const scenarios = {
                 cw: document.getElementById("dir-cw").checked,
             }));
         const characterOf = ({ current, arena }) => `${current}:${arena.teams[current].currentPlayer}`;
-        // Odd shots are parametric rays and clockwise, even ones steep explicit curves that leave the disc at once.
+        // Parametric rays, clockwise, alternate with steep explicit curves that leave the disc at once, two
+        // rounds each. A character fires every third round of its team, so the shape it last fired
+        // differs from the previous shooter's, and a restore that skipped the mode or direction shows.
         const fire = async (page, turn) => {
             const key = characterOf(JSON.parse(await state(page)));
             const known = memory.get(key);
@@ -783,7 +786,7 @@ const scenarios = {
                 assert.deepEqual(await editor(page), known, `turn ${turn}: the editor holds the last shot of character ${key}`);
                 restored++;
             }
-            const next = turn % 2 === 1 ? { parametric: true, a: "t", b: `0.0${turn}`, cw: true } : { parametric: false, a: `${100 + turn}*θ`, b: "", cw: false };
+            const next = Math.floor(turn / 4) % 2 === 1 ? { parametric: true, a: "t", b: `0.0${turn}`, cw: true } : { parametric: false, a: `${100 + turn}*θ`, b: "", cw: false };
             await page.check(next.parametric ? "#mode-parametric" : "#mode-explicit");
             await page.check(next.cw ? "#dir-cw" : "#dir-ccw");
             await page.fill("#input-a", next.a);
@@ -807,8 +810,34 @@ const scenarios = {
         await guest.reload();
         await guest.waitForFunction((t) => window.__state()?.turn === t && !document.getElementById("fire").disabled, turn, { timeout: SETUP_MS });
         assert.equal(JSON.parse(await state(guest)).faint, before.faint, "the replay restores the older paths");
-        const known = memory.get(characterOf(before));
-        if (known) assert.deepEqual(await editor(guest), known, "the replay restores the character's formula");
+        assert.deepEqual(await editor(guest), memory.get(characterOf(before)), "the replay restores the character's formula");
+        return errors;
+    },
+    async W() {
+        // A rejoin replays the game onto the turn we are already on (ADR 16): a formula typed meanwhile
+        // must survive it, though the character's last shot would be restored by a fresh start.
+        const { pages, errors } = await startGame(2, "disc", "W");
+        const guest = pages[1];
+        await assertSynced(pages, 0);
+        // Each team's characters fire once (6 turns), so on the guest's next turn its character has a shot to restore.
+        let turn = 0;
+        const guestUp = async () => {
+            const { current, me } = JSON.parse(await state(guest));
+            return current === me;
+        };
+        while (turn < 6 || !(await guestUp())) await takeTurn(pages, turn, ["t", "0"]), turn++;
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.fill("#input-a", "draft");
+        // The replay's start puts the direction back to counter-clockwise: that shows it ran.
+        await guest.check("#dir-cw");
+        const links = await guest.evaluate(() => {
+            window.__pcs.forEach(window.__drop);
+            return window.__pcs.length;
+        });
+        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
+        await guest.waitForFunction(() => document.getElementById("dir-ccw").checked, null, { timeout: SETUP_MS });
+        await assertSynced(pages, turn);
+        assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
         return errors;
     },
 };

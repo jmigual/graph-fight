@@ -89,6 +89,8 @@ let games: OpenGame[] = [];
 let roomInfo: Announce | undefined;
 /** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
 let ended = false;
+/** The last turn whose start ran `restore`, kept across `startGame`: a rejoin replays turns we already lived, and must not overwrite what we typed since. */
+let restored = { host: "", turn: -1 };
 
 function renderLobby(list: OpenGame[]) {
     games = list;
@@ -425,7 +427,9 @@ function changed(p: Play, newTurn: boolean) {
         cueTurn(mine);
         // Our character's last formula comes back; one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
-        if (last) restore(last);
+        const fresh = hostId !== restored.host || p.turn > restored.turn;
+        if (fresh) restored = { host: hostId, turn: p.turn };
+        if (last && fresh) restore(last);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
         if (hostId === selfId) void playBot(p);
     }
