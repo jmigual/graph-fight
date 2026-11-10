@@ -291,9 +291,9 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         text(`θ₀ ≈ ${theta0.toFixed(2)}`, cx + (a + 36) * Math.cos(-theta0 / 2), cy + (a + 36) * Math.sin(-theta0 / 2), colour("ink-soft"), 3);
     }
 
-    // Older paths: thinner and half transparent, in the team colour, under the newest.
+    // Older paths: thinner and a quarter transparent, in the team colour, under the newest.
     ctx.lineWidth = 1.5;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.75;
     for (const old of olderPaths(view.shots, arena, view.shot)) {
         ctx.strokeStyle = colour(`team-${(old.team % 8) + 1}`);
         ctx.beginPath();

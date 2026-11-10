@@ -238,18 +238,17 @@ centre) and the gaze after a shot (from the shot's first points) are the same in
 Settled with the per-character shot memory (`js/render.ts`, `js/index.ts`): every applied shot is
 also kept per character in `Play.shots`, keyed by `lookKey` like the gaze, so a reload that
 replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
-- **Board.** Each living character's last shot stays drawn: 1.5 px at half opacity in its team
-  token (`--team-1`..`--team-8`, so both themes keep their contrast), under the newest shot, which
-  keeps its 2.5 px full-colour stroke, its label and its pen animation. During the animation the
-  previous newest is already one of the faint paths. A character's path goes with its death, at the
-  final frame of the shot that killed it; a newest shot is drawn even if its shooter died of it. A
-  turn without a shot (timeout, failed formula) leaves every path faint. Not a new token, since
-  the opacity is the team token's own; with 8 teams that is at most 24 thin lines, and the label
-  stays on the newest only. `olderPaths` in `render.ts` picks them.
-- **Formula box.** When one of our characters' turn starts, the editor takes that character's last
-  formulas: mode, both expressions (the second is emptied for an explicit shot) and the CW/CCW
-  radio, which stays hidden on XY. A character that has not fired leaves the editor as it is, so
-  it may hold the previous shooter's text, but one that has fired never gets another's.
+- **Board.** Each living character's last shot stays drawn: 1.5 px at 75 % opacity in its team
+  token (`--team-1`..`--team-8`), under the newest shot, which keeps its 2.5 px full-colour
+  stroke, its label and its pen animation. Measured against `--paper`, the faint strokes are at
+  least 3.18:1 in the light theme and 3.95:1 in the dark one, above WCAG 1.4.11's 3:1 (at 50 %
+  they fell to 2.07:1 and 2.53:1, so that was rejected); the thinner line keeps older paths
+  reading as older. During the animation the previous newest is already one of the faint paths.
+  A character's path goes with its death, at the final frame of the shot that killed it; a newest
+  shot is drawn even if its shooter died of it. A turn without a shot (timeout, failed formula)
+  leaves every path faint. With 8 teams that is at most 24 thin lines, and the label stays on the
+  newest only. `olderPaths` in `render.ts` picks them.
+- **Formula box.** See section 7, "Per-character formula".
 `window.__state()` gains `faint`, the number of faint paths, for the e2e test (ADR 15's hook
 stays read-only and the same on every peer).
 Also settled (`js/index.ts`): the host's own shot applies synchronously inside `room.shoot`, so
@@ -399,8 +398,17 @@ before start), it stands alone.
   - Keyboard: native radio-group arrows. Changing it redraws only our board: the θ arc arrow, the
     `π/2` label and our face's gaze. Nothing is sent until Fire; the shot then carries the
     engine change's direction flag.
-  - It resets to counterclockwise when a game starts and otherwise keeps its value across turns.
-    Saved formulas do not store a direction, and Insert leaves the toggle alone.
+  - It resets to counterclockwise when a game starts and otherwise keeps its value across turns,
+    except when `restore` sets it (next item). Saved formulas do not store a direction, and Insert
+    leaves the toggle alone.
+  - **Per-character formula.** Every applied shot is kept in `Play.shots` per character (keyed by
+    `lookKey`, rebuilt by a log replay; nothing travels). When one of our characters' turn starts,
+    `restore` puts that character's last shot in the editor: the mode radio, both expressions (the
+    second is emptied for an explicit shot) and the CW/CCW radio (hidden on XY). A character that
+    has not fired leaves the editor as it is, so it may hold the previous shooter's text, but one
+    that has fired never gets another's. `restore` runs only for a turn later than the last one it
+    ran for with this host (module state that outlives `startGame`): a rejoin replays turns we
+    already lived, and must not overwrite what we typed since. A reload starts fresh, so it restores.
 
 ### 8. Saved formulas and templates
 
