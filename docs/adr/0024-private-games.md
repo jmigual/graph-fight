@@ -16,6 +16,9 @@ game, since a reload brings a new peer id.
 
 - **Host form.** "Visibility": Public (the default, as before), Password or Private link. Password
   shows a "Password" field (required, at most 64 characters); CSS hides it otherwise, like Seats.
+  Both password fields, here and in the join dialog, are masked (`type="password"`) and have a
+  **Show** toggle button next to them (`aria-label="Show password"`, `aria-pressed`) that reveals the
+  text. The dialog's field is masked again each time it opens.
 - **Room password.** A password or private-link game joins its room `game-<hostId>` with
   `joinRoom({appId, password})`, on the host and on every guest. A guest with another password never
   connects: Trystero cannot decrypt the other side's offers. There is no extra check message.
@@ -76,8 +79,8 @@ Rejected:
 - Putting the password into the room name instead: anyone reading a listing or a relay would see
   peers meet, and ADR 12's room naming would change for no gain.
 - `window.prompt` for the password: it is blocking and has no label of ours.
-- A masked password field: the password is a shared game key, not an account secret, and the invite
-  link shows it anyway, so seeing what was typed helps more.
+- Plain, always visible password fields: a password typed in front of others, or on a shared screen
+  (ADR 22), should not be on show by default; the toggle covers checking what was typed.
 
 ## Consequences
 

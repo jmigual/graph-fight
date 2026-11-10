@@ -182,12 +182,20 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     enterRoom(selfId, undefined, password);
 };
 
+// Password fields are masked; their Show toggle (aria-pressed) reveals the text (ADR 24).
+const reveal = (button: HTMLButtonElement, shown: boolean) => {
+    $<HTMLInputElement>(button.getAttribute("aria-controls") ?? "").type = shown ? "text" : "password";
+    button.setAttribute("aria-pressed", String(shown));
+};
+document.querySelectorAll<HTMLButtonElement>("button.reveal").forEach((button) => (button.onclick = () => reveal(button, button.getAttribute("aria-pressed") !== "true")));
+
 const passwordDialog = $<HTMLDialogElement>("password-dialog");
 /** The game whose password the dialog asks for. */
 let asking = "";
 function askPassword(id: string) {
     asking = id;
     $<HTMLInputElement>("join-password").value = "";
+    reveal(passwordDialog.querySelector("button.reveal")!, false);
     passwordDialog.showModal();
 }
 $<HTMLFormElement>("password-form").onsubmit = async (e) => {

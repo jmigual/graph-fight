@@ -35,7 +35,11 @@
             <dialog id="password-dialog" aria-labelledby="password-heading">
               <form id="password-form">
                 <h2 id="password-heading">Join with a password</h2>
-                <label class="field"><span>Password</span><input id="join-password" maxlength="64" autocomplete="off" spellcheck="false" required></label>
+                <div class="field">
+                  <label for="join-password">Password</label>
+                  <div class="secret"><input id="join-password" type="password" maxlength="64" autocomplete="off" spellcheck="false" required>
+                    <button type="button" class="secondary reveal" aria-controls="join-password" aria-pressed="false" aria-label="Show password">Show</button></div>
+                </div>
                 <div class="actions">
                   <button type="submit" class="primary">Join</button>
                   <button id="password-cancel" type="button" class="secondary">Cancel</button>
@@ -67,7 +71,11 @@
                   <option value="link">Private link</option>
                 </select>
               </label>
-              <label class="field"><span>Password</span><input id="host-password" maxlength="64" autocomplete="off" spellcheck="false" required disabled></label>
+              <div class="field">
+                <label for="host-password">Password</label>
+                <div class="secret"><input id="host-password" type="password" maxlength="64" autocomplete="new-password" spellcheck="false" required disabled>
+                  <button type="button" class="secondary reveal" aria-controls="host-password" aria-pressed="false" aria-label="Show password">Show</button></div>
+              </div>
               <button id="host-submit" type="submit" class="primary">Host game</button>
             </form>
           </section>

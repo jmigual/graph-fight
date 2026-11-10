@@ -119,7 +119,11 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.selectOption("#host-frame", frame);
     if (field === "disc") await host.fill("#host-seats", String(seats));
     await host.selectOption("#host-visibility", visibility);
-    if (visibility === "password") await host.fill("#host-password", password);
+    if (visibility === "password") {
+        // The password is masked until its Show toggle is pressed (ADR 24).
+        assert.equal(await host.getAttribute("#host-password", "type"), "password");
+        await host.fill("#host-password", password);
+    }
     await host.click("#host-form button[type=submit]");
     for (const level of bots) {
         await host.selectOption("#bot-level", level);
@@ -1060,6 +1064,11 @@ const scenarios = {
                 await wrong.clock.install();
                 await wrong.goto(url);
                 await wrong.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+                // The dialog's field is masked; Show reveals it and says so with aria-pressed.
+                assert.equal(await wrong.getAttribute("#join-password", "type"), "password");
+                const show = wrong.locator("#password-dialog").getByRole("button", { name: "Show password" });
+                await show.click();
+                assert.deepEqual([await wrong.getAttribute("#join-password", "type"), await show.getAttribute("aria-pressed")], ["text", "true"]);
                 await wrong.fill("#join-password", `${password}!`);
                 await wrong.press("#join-password", "Enter");
                 await wrong.waitForTimeout(3000); // real time for the signalling to meet and fail

@@ -14,7 +14,8 @@ which a quit or kick of the current shooter also makes (section 7).
 Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
 button per guest team still in, and a kicked page ends with "The host removed you from this game.".
 Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,
-a password game's row has a padlock named "Password required", Join on it opens `#password-dialog`,
+a password game's row has a padlock named "Password required", Join on it opens `#password-dialog`
+(masked `#join-password` with a Show toggle, as `#host-password` has),
 and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`.
 
 ## Context
