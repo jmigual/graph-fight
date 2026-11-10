@@ -2,6 +2,7 @@
 
 ## 0.5.0 — 2026-11-10
 - A test arena, opened from the lobby, tries formulas offline: place players and obstacles anywhere, fire from any player and see what the shot hits, as often as you like.
+- The lobby has an About section below the host form with a short description, a demo video and a link to the GitHub repo; the footer links it too.
 
 ## 0.4.0 — 2026-11-10
 - The host can add local players who take turns on the host's screen.
