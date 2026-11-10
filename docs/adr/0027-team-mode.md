@@ -60,10 +60,9 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   host leaves it out when it is 3. So a free-for-all `start` with the default, and its log, are
   byte-identical to today. `parseGameMsg` drops a `start` whose `k` is not an integer from 1 to 3, or
   whose `teams` is not an array of integers of the same length as `peers`, with values `0 … T−1` each
-  used at least once, `T ≥ 2`, `T = 2` on XY, `T × S ≤ 8` (the seat cap, `MAX_PLAYERS`) and
-  `T × S × k ≤ 24`. The host's `relay` throws on the same checks (ADR 12). With `k ≤ 3` the seat cap
-  keeps the total within 24, which is only reached at `k = 3`; the character cap is checked as well
-  so that the bound placement was checked at stays explicit.
+  used at least once, `T ≥ 2`, `T = 2` on XY, and `T × S ≤ 8` (the seat cap, `MAX_PLAYERS`). The
+  host's `relay` throws on the same checks (ADR 12). With `k ≤ 3` the seat cap keeps the total
+  within 24, which is only reached at `k = 3`.
 - **Lobby listing** gains a required `teams: number[]`: `[]` for free-for-all, else the players
   (humans, locals, bots) on each side, length `T`, with `seats` = `T × S`. `parseListing` requires
   `T ≥ 2`, `seats` a multiple of `T`, each entry `≤ seats / T`, and their sum `= players`. It also

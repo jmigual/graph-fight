@@ -42,8 +42,6 @@ export const MAX_PLAYERS = 8;
 export const MAX_WAITING = 32;
 /** Most characters per player a host may choose (ADR 27); a `start` without `k` means this many. */
 const MAX_K = 3;
-/** Most characters in one game: ADR 15 checked placement for 8 teams of 3 (ADR 27). */
-const MAX_CHARACTERS = 24;
 /** Longest formula the Rust parser accepts. */
 const MAX_EXPR = 256;
 /** Longest id, seed or name accepted off the wire. */
@@ -99,14 +97,12 @@ const isK = (v: unknown): v is number => isCount(v, MAX_K) && v > 0;
 
 /**
  * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T ≥ 2` (exactly 2
- * on the XY field), and, S being the largest side, `T × S` stays within `MAX_PLAYERS` seats and
- * `T × S × k` within `MAX_CHARACTERS` (ADR 27).
+ * on the XY field), and `T × S` within `MAX_PLAYERS` seats, S being the largest side (ADR 27).
  */
-function isTeams(teams: unknown, count: number, field: Field, k: number): teams is number[] {
+function isTeams(teams: unknown, count: number, field: Field): teams is number[] {
     if (!Array.isArray(teams) || teams.length !== count || !teams.every((t) => isCount(t, count - 1))) return false;
     const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
-    const seats = sizes.length * Math.max(...sizes);
-    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && seats <= MAX_PLAYERS && seats * k <= MAX_CHARACTERS;
+    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && sizes.length * Math.max(...sizes) <= MAX_PLAYERS;
 }
 
 /** True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T ≥ 2` sides of `seats / T` seats, adding up to `players`. */
@@ -164,9 +160,8 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
     switch (v.type) {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
-            const k = v.k === undefined ? MAX_K : v.k;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every(isSeatId) && isK(k) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field, k))) {
-                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version, ...(v.teams !== undefined && { teams: v.teams }), ...(v.k !== undefined && { k }) };
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every(isSeatId) && (v.k === undefined || isK(v.k)) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field))) {
+                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version, ...(v.teams !== undefined && { teams: v.teams }), ...(v.k !== undefined && { k: v.k }) };
             }
             return undefined;
         }

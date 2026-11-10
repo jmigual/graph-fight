@@ -71,11 +71,10 @@ for (const bad of [
     { ...teamStart, teams: [0, 2, 0, 2] },
     { ...teamStart, teams: [0, 0, 0, 0] },
     { ...teamStart, field: "xy", teams: [0, 1, 2, 1] },
-    // T × S over the seat cap (MAX_PLAYERS), with T × S × k within 24 characters.
+    // T × S over the seat cap (MAX_PLAYERS), whatever k is.
     { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 },
     { ...start, peers: ["h", "p", "q", "r", "s", "t", "u"], teams: [0, 0, 0, 1, 1, 1, 2], k: 1 },
     { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 2 },
-    // T × S × k over 24 characters as well.
     { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 3 },
     { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 3 },
 ]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
