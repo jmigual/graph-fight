@@ -1332,7 +1332,7 @@ const scenarios = {
         await typeAndFire("1000*pi*th", "1000*π*th", 2);
         return errors;
     },
-    async AI() {
+    async AJ() {
         // Every icon the page links is in dist/ and served as an image (ADR 17).
         const page = await (await browser.newContext()).newPage();
         await page.goto(url);

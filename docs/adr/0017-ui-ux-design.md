@@ -700,7 +700,7 @@ motif on a 32-unit tile in the page's paper: two faint axes in `--grid-major`, a
 browser chrome. It is linked as the SVG icon, with `favicon-32.png` and a 180 px `apple-touch-icon.png` (light, filled edge to
 edge) as fallbacks, rendered from the SVG with Playwright by `node scripts/icons.mjs` and committed. The header shows the same
 file as a 1 em `img` with `alt=""` inside the `h1`, so the heading's name stays "Graph fight!". `theme-color` is `--paper` per
-scheme. No web manifest: the site is not an installable app. e2e scenario AI checks that every linked icon is served
+scheme. No web manifest: the site is not an installable app. e2e scenario AJ checks that every linked icon is served
 from `dist/` as an image.
 
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
