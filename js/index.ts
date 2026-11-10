@@ -8,7 +8,7 @@ import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Sta
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
-import { aliveCounts, clearError, cueTurn, describeTurn, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";
+import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, seatName, setLive, setText, short, showError, TITLE } from "./status";
 
 // Fetches `index_bg.wasm`, which sits next to the bundle in dist/.
 await init();
@@ -63,6 +63,12 @@ type Play = {
     shots: Map<string, LastShot>;
     /** The board as last drawn, where the next shot's animation starts. */
     view?: View;
+    /**
+     * Turn starts so far: the start, each shot and timeout, and each leave that passes the turn on.
+     * Unlike `turn`, it moves when a quit or a kick hands the turn to the next team; a replay counts
+     * the same starts again in the same order.
+     */
+    starts: number;
     /** Our shot is sent and not yet applied. */
     pending: boolean;
     over: boolean;
@@ -99,8 +105,8 @@ let games: OpenGame[] = [];
 let roomInfo: Announce | undefined;
 /** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
 let ended = false;
-/** The last turn whose start ran `restore`, kept across `startGame`: a rejoin replays turns we already lived, and must not overwrite what we typed since. */
-let restored = { host: "", turn: -1 };
+/** The last turn start (`Play.starts`) that ran `restore`, kept across `startGame`: a rejoin replays turns we already lived, and must not overwrite what we typed since. */
+let restored = { host: "", starts: 0 };
 
 function renderLobby(list: OpenGame[]) {
     games = list;
@@ -376,7 +382,7 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -498,20 +504,21 @@ function changed(p: Play, newTurn: boolean) {
     const winner = p.sim.winner();
     if (winner !== undefined) {
         const id = p.peers[winner];
-        return end(id === me ? "You win." : playsHere(id) ? `${seatName(id)} wins.` : `Team ${winner + 1} wins.`);
+        return end(playsHere(id) ? ourWin(id, hotSeat(p)) : `Team ${winner + 1} wins.`);
     }
     if (p.sim.arena().teams.every((t) => t.players.every((pl) => !pl.alive))) return end("Draw.", "Nobody is left.");
     if (newTurn) {
+        p.starts++;
         clearError();
         resetClock(p);
         // Our turn starts (or a local player's): say so to screen readers, and on a device with a keyboard put the cursor in the formula (ADR 17, 22).
         const team = p.sim.get_current_team_idx();
         const mine = playsHere(p.peers[team]);
-        cueTurn(mine ? p.peers[team] : null);
+        cueTurn(mine ? p.peers[team] : null, hotSeat(p));
         // Our character's last formula comes back (each local player's own, since characters are per team); one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
-        const fresh = hostId !== restored.host || p.turn > restored.turn;
-        if (fresh) restored = { host: hostId, turn: p.turn };
+        const fresh = hostId !== restored.host || p.starts > restored.starts;
+        if (fresh) restored = { host: hostId, starts: p.starts };
         if (last && fresh) restore(last);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
         if (hostId === selfId) void playBot(p);
@@ -521,6 +528,8 @@ function changed(p: Play, newTurn: boolean) {
 
 /** This page plays seat `id`: it is ours, or we host and it is a local player's (ADR 22). */
 const playsHere = (id: string) => id === me || (hostId === selfId && isLocal(id));
+/** We host a game with local players: several people share this screen, so the host's own turn is named too (ADR 22). */
+const hotSeat = (p: Play) => hostId === selfId && p.peers.some(isLocal);
 
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
@@ -530,7 +539,7 @@ function refresh(p: Play) {
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
-    renderStatus({ over: p.over, team, seat: p.peers[team], mine, hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
+    renderStatus({ over: p.over, team, seat: p.peers[team], mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && view.absent.includes(team) });
     setText($("last-shot"), p.note);
     // The editor goes once every team played here is out.
     const out = !p.over && p.peers.every((id, t) => !playsHere(id) || view.arena.teams[t].players.every((pl) => !pl.alive));
@@ -567,7 +576,7 @@ function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
-    cueTurn(null);
+    cueTurn(null, false);
     if (play) {
         play.over = true;
         clearTimeout(play.clock);

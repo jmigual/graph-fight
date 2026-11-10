@@ -8,7 +8,9 @@ staying on the board and refilling the editor. Amended 2026-11-10: the formula i
 whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
 Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
 `#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
-ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue.
+ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue
+("Host's turn" for the host's own when there are local players); `restore` runs once per turn start,
+which a quit or kick of the current shooter also makes (section 7).
 Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
 button per guest team still in, and a kicked page ends with "The host removed you from this game.".
 Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,

@@ -18,8 +18,22 @@ export function seatName(id: string) {
     const local = parseLocal(id);
     return bot ? `Bot ${bot.n}, ${bot.level}` : local ? `Local ${local}` : short(id);
 }
-/** The turn of a seat this page plays: "Your turn", or "Local 2's turn", so the people at the screen know who plays (ADR 22). */
-export const ourTurn = (seat: string) => (parseLocal(seat) ? `${seatName(seat)}'s turn` : "Your turn");
+/**
+ * Who plays a seat on this page, when people share the screen (ADR 22): "Local 2" for a local
+ * player, and "Host" for the host's own seat in a `hotSeat` game (one with local players).
+ * Undefined means the one person at the page: "you".
+ */
+const sharedName = (seat: string, hotSeat: boolean) => (parseLocal(seat) ? seatName(seat) : hotSeat ? "Host" : undefined);
+/** The turn of a seat this page plays: "Your turn", or "Local 2's turn" and "Host's turn" at a shared screen. */
+const ourTurn = (seat: string, hotSeat: boolean) => {
+    const name = sharedName(seat, hotSeat);
+    return name ? `${name}'s turn` : "Your turn";
+};
+/** The headline when a seat this page plays wins: "You win.", or "Local 2 wins." and "Host wins." at a shared screen. */
+export function ourWin(seat: string, hotSeat: boolean) {
+    const name = sharedName(seat, hotSeat);
+    return name ? `${name} wins.` : "You win.";
+}
 const teamColour = (team: number) => `var(--team-${(team % 8) + 1})`;
 export const aliveCounts = (arena: Arena) => arena.teams.map((t) => t.players.filter((pl) => pl.alive).length);
 
@@ -60,9 +74,9 @@ export function showError(message: string, invalid = true) {
     setLive($("error"), message, () => invalid && formulaInputs().forEach((input) => input.setAttribute("aria-invalid", "true")));
 }
 
-/** Says "Your turn" (or "Local 2's turn") to screen readers when this page plays `seat`, once per turn start; null says nothing. */
-export function cueTurn(seat: string | null) {
-    setLive($("turn-cue"), seat === null ? "" : ourTurn(seat));
+/** Says "Your turn" (or "Local 2's turn", "Host's turn") to screen readers when this page plays `seat`, once per turn start; null says nothing. */
+export function cueTurn(seat: string | null, hotSeat: boolean) {
+    setLive($("turn-cue"), seat === null ? "" : ourTurn(seat, hotSeat));
 }
 
 export type Status = {
@@ -72,6 +86,8 @@ export type Status = {
     seat: string;
     /** The current shooter plays on this page: ours, or on the host a local player (ADR 22). */
     mine: boolean;
+    /** We host a game with local players, so several people share this screen (ADR 22). */
+    hotSeat: boolean;
     /** We are a guest and our link to the host is down (ADR 16). */
     hostDown: boolean;
     /** The current shooter's seat is disconnected. */
@@ -79,14 +95,14 @@ export type Status = {
 };
 
 /** Status bar, tab title and team colour: the host link, a disconnected shooter, or whose turn it is. */
-export function renderStatus({ over, team, seat, mine, hostDown, away }: Status) {
+export function renderStatus({ over, team, seat, mine, hotSeat, hostDown, away }: Status) {
     $("game").style.setProperty("--team", over ? "" : teamColour(team));
     setText($("turn-swatch"), over ? "" : String(team + 1));
-    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat) : `Team ${team + 1} is aiming`;
+    const words = hostDown ? "Reconnecting to the host…" : away ? `Team ${team + 1} is disconnected. The timer will skip its turn.` : mine ? ourTurn(seat, hotSeat) : `Team ${team + 1} is aiming`;
     setText($("turn"), over ? "" : words);
     $("turn").classList.toggle("quiet", !over && hostDown);
     $("timer").hidden = over;
-    document.title = mine && !over && !hostDown ? `${ourTurn(seat)} | ${TITLE}` : TITLE;
+    document.title = mine && !over && !hostDown ? `${ourTurn(seat, hotSeat)} | ${TITLE}` : TITLE;
 }
 
 /** The board's text alternative for a shot or timeout: who fired what, and who lost players. */

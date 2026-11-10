@@ -29,11 +29,16 @@ them. A person at the host's screen needs the same seat, with the host's editor 
   as a remote request and a bot's shot, so the log and the replay hold an ordinary `shot`. The editor
   is replaced by "Your team is out" only when every team played on the page is out.
 - **Whose turn.** People share the screen, so the status bar, the tab title and `#turn-cue` say
-  "Local 2's turn" on a local player's turn, and "Your turn" on the host's own. A local player's win
-  reads "Local 2 wins.". Guests see a local team like any other: "Team 3 is aiming".
-- **Editor memory.** ADR 17, section 7 keys each character's last shot by team and player, and the
-  `restored` guard counts turns, so it already works per team: each local player gets its own
-  characters' formulas back. No change was needed beyond counting local turns as ours.
+  "Local 2's turn" on a local player's turn and, in a game with local players, "Host's turn" on the
+  host's own. Without local players the host's turn stays "Your turn". A win reads "Local 2 wins." or
+  "Host wins." the same way. Guests see a local team like any other: "Team 3 is aiming".
+- **Editor memory.** ADR 17, section 7 keys each character's last shot by team and player, so each
+  local player gets its own characters' formulas back. The `restored` guard counted turns, which a
+  quit or a kick of the current shooter does not change (`leave` uses no turn number), so the next
+  team's formula was not restored then. It now counts turn starts (`Play.starts`: the start, each shot
+  and timeout, and each `leave` that passes the turn on), which a replay counts again in the same
+  order. On a local player's first round its characters have not fired, so the editor keeps the
+  previous player's formula, as for any character that has not fired.
 - **UI.** The host's waiting room has **Add local player** `#add-local` (secondary) next to the bot
   controls. Each local player is one `li` in `#room-players`, "Local 1", listed before the bots, with
   a **Remove** button (`aria-label="Remove Local 1"`). After any Remove the focus goes to the next
@@ -46,12 +51,13 @@ them. A person at the host's screen needs the same seat, with the host's editor 
 Rejected:
 - One hot-seat mode separate from hosting: hosting a room with no guests already works offline
   (ADR 21), so a local seat is just another kind of seat.
-- Naming the host's own seat ("Host's turn") as well: the roster tags it "you" and the status bar
-  keeps the existing "Your turn", which every scenario and screen reader user already knows.
+- Keeping "Your turn" for the host's own seat in a game with local players: at a shared screen it
+  does not say which person should play.
 
 ## Consequences
 
 - No wire, replay or engine change. The new protocol rule is the local seat id format.
 - A local player's shot is as trusted as the host's own: only the host's page can send it.
 - Tests: `tests/net.test.mjs` (local ids, seat book), e2e X (host and a local player, played to the
-  end) and Y (a local player, a bot and a guest in one game).
+  end) and Y (a local player, a bot and a guest in one game), and AD (a guest quits on its turn and the
+  next local player's formula comes back).

@@ -907,7 +907,7 @@ const scenarios = {
             if (await host.isVisible("#end")) break;
             assert.ok(turn < 100, "the game ends");
             const { current, arena } = JSON.parse(await state(host));
-            const words = current === 1 ? "Local 1's turn" : "Your turn";
+            const words = current === 1 ? "Local 1's turn" : "Host's turn";
             assert.equal(await text(host, "#turn"), words);
             assert.equal(await host.title(), `${words} | Graph fight!`);
             await host.waitForFunction((w) => document.getElementById("turn-cue").textContent === w, words);
@@ -931,7 +931,7 @@ const scenarios = {
             memory.set(key, formula);
             await host.waitForFunction((t) => window.__state().turn > t, turn, { timeout: TURN_WAIT_MS });
         }
-        assert.match(await text(host, "#end-message"), /^(You win|Local 1 wins|Draw)\./);
+        assert.match(await text(host, "#end-message"), /^(Host wins|Local 1 wins|Draw)\./);
         assert.ok(restored >= 2, `formulas were restored on later turns (${restored})`);
         return errors;
     },
@@ -1079,6 +1079,32 @@ const scenarios = {
         await assertSynced(pages, 0);
         await takeTurn(pages, 0, ["t", "0"]);
         await takeTurn(pages, 1, ["t", "0"]);
+        return errors;
+    },
+    async AD() {
+        // A guest quits on its turn and a local player is next (ADR 22): the turn number stays, but the
+        // local player's turn has started, so its character's last formula comes back in the host's editor.
+        const { pages, errors } = await startGame(2, "disc", "AD", { seats: 3, locals: 1 });
+        const [host, guest] = pages;
+        // Everyone fires straight out of the disc; the local player's formulas differ from the host's.
+        const memory = new Map();
+        let turn = 0;
+        await assertSynced(pages, 0);
+        for (;;) {
+            const { current, arena } = JSON.parse(await state(host));
+            if (current === 1 && memory.has(`2:${arena.teams[2].currentPlayer}`)) break;
+            assert.ok(turn < 30, "the local player's next character has fired");
+            const exprs = current === 2 ? ["t", `0.0${turn}`] : ["t", "0"];
+            if (current === 2) memory.set(`2:${arena.teams[2].currentPlayer}`, exprs[1]);
+            await takeTurn(pages, turn++, exprs);
+        }
+        const { arena } = JSON.parse(await state(host));
+        const expected = memory.get(`2:${arena.teams[2].currentPlayer}`);
+        assert.equal(await host.inputValue("#input-b"), "0", "the host's own formula is in the editor");
+        await guest.click("#quit");
+        await host.waitForFunction(() => window.__state().current === 2, null, { timeout: TURN_WAIT_MS });
+        assert.equal(JSON.parse(await state(host)).turn, turn, "a quit uses no turn number");
+        assert.equal(await host.inputValue("#input-b"), expected, "the local player's formula is back");
         return errors;
     },
     async AH() {
