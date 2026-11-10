@@ -694,6 +694,15 @@ carries `cw: false`. Changing it redraws only our board. `__state` also returns 
 
 Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
 
+Settled with the logo and favicon (`static/favicon.svg`, `static/index.html`, `scripts/icons.mjs`): the mark is the title's
+motif on a 32-unit tile in the page's paper: two faint axes in `--grid-major`, a 3-unit `--ink` curve from a `--team-1` dot to a
+`--team-2` dot, with the light and dark values inside the SVG under `prefers-color-scheme`, so the tile keeps it legible on any
+browser chrome. It is linked as the SVG icon, with `favicon-32.png` and a 180 px `apple-touch-icon.png` (light, filled edge to
+edge) as fallbacks, rendered from the SVG with Playwright by `node scripts/icons.mjs` and committed. The header shows the same
+file as a 1 em `img` with `alt=""` inside the `h1`, so the heading's name stays "Graph fight!". `theme-color` is `--paper` per
+scheme. No web manifest: the site is not an installable app. e2e scenario AI checks that every linked icon is served
+from `dist/` as an image.
+
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
 team's seat is away (the countdown beside it already gives the time). Both update when the set of disconnected seats changes. The `#absent` line is gone, since the roster and the status bar carry
