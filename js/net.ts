@@ -142,8 +142,8 @@ export function parseLocal(id: string): number | undefined {
 /** A seat the host's page plays, a bot's or a local player's: the seat book never binds it to a peer (ADR 21, 22). */
 export const isHostRun = (id: string) => isBot(id) || isLocal(id);
 
-/** A seat id as `start.peers` holds it: a short text, and a well-formed id in the bot and local namespaces. */
-const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
+/** A seat id as `start.peers` and `lineup` hold it: a short text, and a well-formed id in the bot and local namespaces. */
+export const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
 
 /**
  * The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at

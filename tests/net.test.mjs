@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
 import { pbkdf2Sync } from "node:crypto";
-import { inviteFragment, isBot, isHostRun, isLocal, lineupMessage, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
+import { inviteFragment, isBot, isHostRun, isLocal, isSeatId, lineupMessage, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -287,6 +287,9 @@ assert.equal(parseLocal("bot:hard:1"), undefined);
 assert.equal(isLocal("p"), false);
 assert.equal(isLocal("local:x"), true);
 assert.deepEqual([isHostRun("bot:hard:1"), isHostRun("local:2"), isHostRun("p")], [true, true, false]);
+// A seat id as `start.peers` and `lineup` hold it (ADR 27): the host seats no peer whose id is not one.
+assert.deepEqual(["p".repeat(64), "bot:hard:1", "local:2"].map(isSeatId), [true, true, true]);
+assert.deepEqual(["p".repeat(65), "bot:hard:9", "local:0"].map(isSeatId), [false, false, false]);
 const mixed = { ...start, peers: ["h", "p", "local:1", "local:2", "bot:easy:1"] };
 assert.deepEqual(parseGameMsg(mixed), mixed);
 for (const bad of ["local:", "local:0", "local:8", "local:12", "local:1 ", "Local:1", "local:one", "local:1:1"]) {

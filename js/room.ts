@@ -1,5 +1,5 @@
 // The room: the connection to the game room and the waiting room, until a game starts (ADR 12, 16, 21, 22, 23, 24).
-import { BUILD_ID, DEFAULT_K, inviteFragment, isHostRun, joinGame, parseBot, parseLocal, selfId } from "./net";
+import { BUILD_ID, DEFAULT_K, inviteFragment, isHostRun, isSeatId, joinGame, parseBot, parseLocal, selfId } from "./net";
 import type { Announce, Game as Room, Lineup } from "./net";
 import { $, show } from "./dom";
 import { FIELD_NAMES, FRAME_NAMES, gameSize, games, lobby, passwordDialog } from "./lobby";
@@ -96,8 +96,9 @@ export function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
             sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_ID, me, key: roomKey } satisfies Seat));
         },
         onPeerJoin(peer) {
-            // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
-            if (isHostRun(peer)) return;
+            // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22), nor one
+            // whose id no `start` or `lineup` could carry (ADR 27).
+            if (isHostRun(peer) || !isSeatId(peer)) return;
             // A rejoined room (ADR 18) reports peers we already had.
             if (!connected.includes(peer)) connected.push(peer);
             // In team mode the host seats the joiner by the joiner rule, or puts it in line (ADR 27).
