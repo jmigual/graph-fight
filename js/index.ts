@@ -53,6 +53,8 @@ type Seat = { hostId: string; token: string; version: string; me: string; key?: 
 
 type Play = {
     sim: Sim;
+    /** The game's `start.seed`, which tells two games of one host apart. */
+    seed: string;
     field: Field;
     frame: Frame;
     /** `peers[i]` plays team `i`. */
@@ -112,8 +114,12 @@ let games: OpenGame[] = [];
 let roomInfo: Announce | undefined;
 /** Set by the first end message, which stays: later ones (host left after a win) are ignored. */
 let ended = false;
-/** The last turn start (`Play.starts`) that ran `restore`, kept across `startGame`: a rejoin replays turns we already lived, and must not overwrite what we typed since. */
-let restored = { host: "", starts: 0 };
+/**
+ * The game (its `start.seed`) and the last turn start (`Play.starts`) that ran `restore`, kept across
+ * `startGame`: a rejoin replays the same `start` and turns we already lived, and must not overwrite
+ * what we typed since. Another game, even from the same host, starts afresh.
+ */
+let restored = { seed: "", starts: 0 };
 
 function renderLobby(list: OpenGame[]) {
     games = list;
@@ -426,7 +432,7 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
+    play = { sim, seed: msg.seed, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), shots: new Map(), starts: 0, pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -561,8 +567,8 @@ function changed(p: Play, newTurn: boolean) {
         cueTurn(mine ? p.peers[team] : null, hotSeat(p));
         // Our character's last formula comes back (each local player's own, since characters are per team); one that has not fired leaves the editor as it is.
         const last = mine && p.shots.get(lookKey(team, p.sim.arena().teams[team].currentPlayer));
-        const fresh = hostId !== restored.host || p.starts > restored.starts;
-        if (fresh) restored = { host: hostId, starts: p.starts };
+        const fresh = p.seed !== restored.seed || p.starts > restored.starts;
+        if (fresh) restored = { seed: p.seed, starts: p.starts };
         if (last && fresh) restore(last);
         if (mine && matchMedia("(pointer: fine)").matches) $("input-a").focus();
         if (hostId === selfId) void playBot(p);

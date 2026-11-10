@@ -9,8 +9,8 @@ whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
 Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
 `#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
 ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue
-("Host's turn" for the host's own when there are local players); `restore` runs once per turn start,
-which a quit or kick of the current shooter also makes (section 7).
+("Host's turn" for the host's own when there are local players); `restore` runs once per turn start
+in each game, which a quit or kick of the current shooter also makes (section 7).
 Amended by 0023: the host's waiting room gives each guest a Remove button, the host's roster a Kick
 button per guest team still in, and a kicked page ends with "The host removed you from this game.".
 Amended by 0024: the host form has "Visibility" `#host-visibility` and "Password" `#host-password`,
@@ -431,9 +431,13 @@ before start), it stands alone.
     `restore` puts that character's last shot in the editor: the mode radio, both expressions (the
     second is emptied for an explicit shot) and the CW/CCW radio (hidden on XY). A character that
     has not fired leaves the editor as it is, so it may hold the previous shooter's text, but one
-    that has fired never gets another's. `restore` runs only for a turn later than the last one it
-    ran for with this host (module state that outlives `startGame`): a rejoin replays turns we
-    already lived, and must not overwrite what we typed since. A reload starts fresh, so it restores.
+    that has fired never gets another's. `restore` runs only for a turn start later than the last
+    one it ran for in this game (module state that outlives `startGame`, keyed by the game's
+    `start.seed`): a rejoin replays the same `start` and turns we already lived, and must not
+    overwrite what we typed since. Turn starts are the start, each shot and timeout, and each `leave`
+    that passes the turn on, so the next team's formula also comes back after a quit or a kick
+    (ADR 22, 23); a replay counts them again in the same order. Another game, even from the same
+    host, has another seed and starts afresh. A reload starts fresh, so it restores.
 
 ### 8. Saved formulas and templates
 

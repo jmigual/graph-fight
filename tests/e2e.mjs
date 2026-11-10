@@ -1253,6 +1253,43 @@ const scenarios = {
         assert.doesNotMatch(await text(guest, "#end-message"), /password/i, "a public game asks for no password");
         return errors;
     },
+    async AG() {
+        // The editor memory starts afresh in the host's next game (ADR 17, section 7): after a long first
+        // game, a character's formula still comes back on its second turn of the second one.
+        const { pages, errors } = await startGame(2, "xy", "AG");
+        const [host, guest] = pages;
+        await assertSynced(pages, 0);
+        // Steep shots leave the field at once, so nobody is hit.
+        for (let turn = 0; turn < 8; turn++) await takeTurn(pages, turn, [`${200 + turn}*x`]);
+        await guest.click("#quit");
+        await host.waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
+        await host.click("#back");
+        const name = `e2e-AG-${Math.random().toString(36).slice(2, 8)}`;
+        await host.fill("#host-name", name);
+        await host.click("#host-form button[type=submit]");
+        await guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }).click({ timeout: SETUP_MS });
+        await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
+        await host.click("#start");
+        await assertSynced(pages, 0);
+        const memory = new Map();
+        let restored = 0;
+        for (let turn = 0; turn < 8; turn++) {
+            const page = await shooter(pages);
+            const { current, arena } = JSON.parse(await state(page));
+            const key = `${current}:${arena.teams[current].currentPlayer}`;
+            if (memory.has(key)) {
+                assert.equal(await page.inputValue("#input-a"), memory.get(key), `turn ${turn}: character ${key} gets its formula back in the second game`);
+                restored++;
+            }
+            memory.set(key, `${100 + turn}*x`);
+            await page.check("#mode-explicit");
+            await page.fill("#input-a", memory.get(key));
+            await page.click("#fire");
+            await assertSynced(pages, turn + 1);
+        }
+        assert.equal(restored, 2, "both teams' first characters came back");
+        return errors;
+    },
     async AH() {
         // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
         // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.

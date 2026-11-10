@@ -37,7 +37,8 @@ them. A person at the host's screen needs the same seat, with the host's editor 
   quit or a kick of the current shooter does not change (`leave` uses no turn number), so the next
   team's formula was not restored then. It now counts turn starts (`Play.starts`: the start, each shot
   and timeout, and each `leave` that passes the turn on), which a replay counts again in the same
-  order. On a local player's first round its characters have not fired, so the editor keeps the
+  order, and is keyed by the game's `start.seed` rather than the host, so the host's next game
+  starts afresh (ADR 17, section 7). On a local player's first round its characters have not fired, so the editor keeps the
   previous player's formula, as for any character that has not fired.
 - **UI.** The host's waiting room has **Add local player** `#add-local` (secondary) next to the bot
   controls. Each local player is one `li` in `#room-players`, "Local 1", listed before the bots, with
