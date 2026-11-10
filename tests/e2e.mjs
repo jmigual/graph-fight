@@ -210,7 +210,7 @@ const scenarios = {
     async C() {
         const { pages, errors } = await startGame(2, "disc", "C");
         await assertSynced(pages, 0);
-        // θ₀ is in [0, 2π) (ADR 20), so ln(-θ) is undefined at every shooter.
+        // θ₀ is in [0, 2π] (ADR 20), so ln(-θ) is undefined at every shooter.
         await assertRejected(pages, 0, "ln(-θ)");
         await takeTurn(pages, 0, ["t", "0"]);
         await takeTurn(pages, 1, ["3"]);

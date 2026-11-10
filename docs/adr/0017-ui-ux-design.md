@@ -223,7 +223,7 @@ and `π/2` beside the shooter are replaced by where our formula starts and which
 drawn above the obstacles and under the faces. On XY: a line from the `x` axis to our face, the
 label `x ≈ -7.32` (two decimals) on the far side of the axis and clear of the face, and a 40 px
 arrow from our face toward the other half. On the disc: a line from the centre toward our face,
-an arc from the `θ = 0` axis to it labelled `θ₀ ≈ 0.61` (the value in `[0, 2π)` the engine uses),
+an arc from the `θ = 0` axis to it labelled `θ₀ ≈ 0.61` (the engine's value, in `[0, 2π]`, ADR 20),
 and a short arc arrow about the centre just inside our face turning the chosen way (section 7).
 While we aim on the disc our face looks along that sweep: the direction from the centre to us
 turned +90° (counterclockwise) or -90° (clockwise); on XY the resting gaze already faces the sweep.

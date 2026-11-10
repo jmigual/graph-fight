@@ -1,7 +1,7 @@
 //! The starter templates (ADR 17, section 8) are shared with the client in `js/starters.json`.
 //! Each one must parse with the right variable at the slider's min, default and max, and be
 //! finite at the start point. For `y = f(x)` and `r = f(θ)` that is the shooter's map `x` or angle
-//! `θ₀` in `[0, 2π)` (ADR 20), so it is checked at several of them, on both XY halves.
+//! `θ₀` in `[0, 2π]` (ADR 20), so it is checked at several of them, on both XY halves.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 

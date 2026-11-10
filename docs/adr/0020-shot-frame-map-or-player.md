@@ -36,9 +36,11 @@ on the player.
   horizontal line through the shooter and `y = x` has slope 1 from either side.
 - **`x(t), y(t)`** with `t` in `[0, 2 x_max]` as before: `(x(t) − x(0) + x_p, y(t) − y(0) + y_p)`.
   The formula alone decides the direction; a right-hand shooter heads left with `x(t) = −t`.
-- **Disc `θ₀`.** The shooter is at polar `(r_p, θ₀)` with `θ₀ = atan2(y, x)` taken in `[0, 2π)`.
-  The range matters for formulas that are not 2π-periodic (`θ²`, `ln(θ)`, `1/θ`): a shooter just
-  below the `+x` axis starts at `θ₀ ≈ 2π`, not `≈ 0`.
+- **Disc `θ₀`.** The shooter is at polar `(r_p, θ₀)` with `θ₀ = atan2(y, x).rem_euclid(2π)`, in
+  `[0, 2π]`: it is in `[0, 2π)` except that a shooter a hair below the `+x` axis can round up to
+  exactly `2π` (the board's label then reads `0.00`). The range matters for formulas that are not
+  2π-periodic (`θ²`, `ln(θ)`, `1/θ`): a shooter just below the `+x` axis starts at `θ₀ ≈ 2π`,
+  not `≈ 0`.
 - **`r = f(θ)`.** `θ` sweeps one turn, `[θ₀, θ₀ + 2π]` counter-clockwise or `[θ₀ − 2π, θ₀]`
   downward when clockwise, and `f` is evaluated at the actual `θ`. The drawn radius is
   `f(θ) − f(θ₀) + r_p`, so `r = 3` orbits the centre at the shooter's distance and `r = θ`

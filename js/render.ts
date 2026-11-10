@@ -252,6 +252,7 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         // shooter knows the direction. Canvas angles are world angles negated.
         const [cx, cy] = at({ x: 0, y: 0 });
         const [x, y] = at(origin);
+        // Where the engine's θ₀ rounds up to exactly 2π (a hair below the +x axis), this shows 0.00.
         const theta0 = (Math.atan2(origin.y, origin.x) + 2 * Math.PI) % (2 * Math.PI);
         const dist = Math.hypot(x - cx, y - cy);
         const gap = shooter.shape.radius * scale + 8;

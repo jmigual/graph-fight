@@ -71,7 +71,8 @@ fn position(arena: &Arena, shooter: (usize, usize)) -> Point {
         .clone()
 }
 
-/// The shooter's map polar coordinates `(r, θ₀)`, with `θ₀` in `[0, 2π)` (ADR 20).
+/// The shooter's map polar coordinates `(r, θ₀)`, with `θ₀ = atan2(y, x).rem_euclid(2π)` in
+/// `[0, 2π]` (ADR 20): a shooter a hair below the `+x` axis can round up to exactly `2π`.
 fn polar_position(arena: &Arena, shooter: (usize, usize)) -> (f64, f64) {
     let p = position(arena, shooter);
     (p.x.hypot(p.y), p.y.atan2(p.x).rem_euclid(TAU))
