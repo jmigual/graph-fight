@@ -516,6 +516,9 @@ mod tests {
         );
     }
 
+    /// A regression guard, not a proof: `Bot::new` borrows the game and keeps a deep copy, so the
+    /// types already keep the search off the live game. This fails if the bot ever shares state
+    /// with it.
     #[test]
     fn a_search_leaves_the_game_unchanged() {
         for (field, frame) in BOARDS {
