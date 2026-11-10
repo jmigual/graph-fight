@@ -32,6 +32,7 @@ to play alone, in a dashed outline, and a hint under "Coordinates" says what eac
 saved formula has Insert and Delete beside its name (sections 6 and 8). The Save/Fire row follows
 the inputs, the error line and the direction, and the helper buttons and hint move below it, so Fire
 sits next to the field it submits and comes before the helpers in focus order (sections 6 and 7).
+`#turn` is up to 1.25 rem, and on our turn the formula inputs get a 2 px `--mark` border (section 10).
 
 ## Context
 
@@ -371,9 +372,10 @@ except in the test arena (ADR 25), where the setup panel under the board must sc
 +-----------------------------------------------+------------------------+
 ```
 
-The status bar holds a numbered team swatch, then `#turn` ("Your turn" or "Team 2 is aiming"),
-then `#countdown` ("42 s"), then **Leave game** (reconnection work). Under it a 4 px bar drains
-in the current team's colour (width from the same 250 ms tick). From 10 s down the number turns
+The status bar holds a numbered team swatch, then `#turn` ("Your turn" or "Team 2 is aiming",
+bold, `clamp(1rem, 4vw, 1.25rem)` so "Your turn" stays on one line at 320 px), then `#countdown`
+("42 s"), then **Leave game** (reconnection work). Under it a 4 px bar drains in the current team's
+colour (width from the same 250 ms tick). From 10 s down the number turns
 `--danger` and bold. The last-shot line (`#last-shot`, `aria-live="polite"`) is the text
 alternative for the canvas: "Team 2 fired y = x/2. Team 1 lost a player." It is computed from the
 alive flags before and after the shot. On the disc it names the direction: "Team 2 fired
@@ -605,7 +607,7 @@ text "2 of 3 players left"); and a state word:
 
 | State | Roster | Board | Status bar |
 |---|---|---|---|
-| Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer |
+| Current, ours | "aiming", bold | ring + grid origin; on the disc our face looks to the chosen side | "Your turn", swatch, timer; the formula inputs get a 2 px `--mark` border while Fire is enabled |
 | Current, other | "aiming" | ring + grid origin | "Team 2 is aiming" |
 | Waiting | nothing | face looking toward the centre or along its last shot | |
 | Disconnected (reconnection work) | "disconnected", `--ink-soft` | closed eyes | when current: "Team 2 is disconnected. The timer will skip its turn." |
