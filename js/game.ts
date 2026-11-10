@@ -12,7 +12,7 @@ import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
 import type { LastShot, Look, View } from "./render";
 import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, renderStatus, setText, showError } from "./status";
-import { dropSeat, HOST_LEFT, hostId, me, room, SEAT_KEY } from "./index";
+import { dropSeat, HOST_LEFT, hostId, me, room, SEAT_KEY } from "./room";
 
 const TURN_MS = 60_000;
 const PLAYER_RADIUS = 0.3;

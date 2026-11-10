@@ -2,7 +2,7 @@
 import { DEFAULT_K, joinLobby, MAX_PLAYERS, newToken, selfId, stretchPassword } from "./net";
 import type { Announce, OpenGame } from "./net";
 import { $ } from "./dom";
-import { enterRoom, hostRoom, room } from "./index";
+import { enterRoom, hostRoom, room } from "./room";
 
 /** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
 export const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
