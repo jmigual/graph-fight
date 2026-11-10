@@ -38,6 +38,12 @@ export const scenarios = {
         await phone.click("#help-close");
         assert.equal(await isOpen(), false, "Close closes it");
         assert.equal(await focused(), "help-open", "focus returns to the Help button after Close");
+        // The host form's Coordinates hint links to that section (ADR 17).
+        await phone.click("#frame-hint a");
+        await phone.waitForFunction(() => document.getElementById("help").open);
+        assert.equal(await inView("help-coordinates"), true, "the Coordinates hint opens its section");
+        await phone.keyboard.press("Escape");
+        await closed();
         // Unrelated fragments (an invite link, ADR 24) do not open it. Wait for the event the help listens to.
         await phone.evaluate(
             () =>

@@ -252,7 +252,8 @@ Settled with ADR 20 (`js/render.ts`, `js/lobby.ts`, `js/room.ts`): the host pick
 has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
 `map`) and "Player-centred" (`player`), with the hint `#frame-hint` under it (named by its
 `aria-describedby`): "Map-centred: x and y are the map's, as in Graphwar. Player-centred: they
-start at your player." The lobby's Field cell adds it ("XY plane, map-centred",
+start at your player. More in Help.", where "More in Help" links to `#help-coordinates` (ADR 26). The
+lobby's Field cell adds it ("XY plane, map-centred",
 short "XY, map") and so does the waiting room's info line ("Polar disc, player-centred, 3 seats").
 In the player-centred frame the board is as described above and in section 7. In the
 map-centred frame shots are in map coordinates on both fields, so the graph paper does not
