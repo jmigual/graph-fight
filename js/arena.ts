@@ -223,6 +223,8 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     $("test-open").onclick = () => {
         active = true;
         $("game").dataset.mode = "test";
+        // A game we were out of hid the editor, and leaving it does not bring it back.
+        $("shot-form").hidden = false;
         clearError();
         reset();
         show("game");
