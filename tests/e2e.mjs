@@ -951,12 +951,24 @@ const scenarios = {
         assert.equal(await inView("help-formulas"), true, "a hash change shows its section");
         await phone.keyboard.press("Escape");
         await closed();
+        const focused = () => phone.evaluate(() => document.activeElement?.id);
         await phone.click("#help-open");
         assert.equal(await isOpen(), true, "the Help button opens the help");
+        await phone.keyboard.press("Escape");
+        await closed();
+        assert.equal(await focused(), "help-open", "focus returns to the Help button after Escape");
+        await phone.click("#help-open");
         await phone.click("#help-close");
         assert.equal(await isOpen(), false, "Close closes it");
-        // Unrelated fragments (an invite link, ADR 24) do not open it.
-        await phone.evaluate(() => (location.hash = "#join=abc&key=def&v=1"));
+        assert.equal(await focused(), "help-open", "focus returns to the Help button after Close");
+        // Unrelated fragments (an invite link, ADR 24) do not open it. Wait for the event the help listens to.
+        await phone.evaluate(
+            () =>
+                new Promise((ok) => {
+                    addEventListener("hashchange", ok, { once: true });
+                    location.hash = "#join=abc&key=def&v=1";
+                }),
+        );
         assert.equal(await isOpen(), false);
 
         // Mid-game: the page that is not shooting reads the help while the other fires.

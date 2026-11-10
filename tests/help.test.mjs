@@ -22,6 +22,7 @@ const constants = [...rust.matchAll(/"(\w+)" => return Ok\(Node::Num/g)].map((m)
 assert.deepEqual(constants, ["pi", "e"], "found the parser's constants");
 assert.deepEqual(codes("help-constants-list"), constants, "constants in the help match the parser");
 
+// MAX_LEN is the one 256 in the Rust parser; the help states it once (#help-max-len).
 const limit = rust.match(/const MAX_LEN: usize = (\d+);/)[1];
 assert.equal(html.match(/<strong id="help-max-len">(\d+)<\/strong>/)[1], limit, "length limit in the help matches the parser");
 
