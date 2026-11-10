@@ -153,6 +153,8 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     // A private-link game is not listed: its guests open the invite link (ADR 24). The first one loads
     // it, as from a new tab; the next one pastes it into its open lobby, which only changes the fragment.
     const listed = visibility === "link" ? [] : guests;
+    // A private-link host announces nothing; its invite link carries the build version instead.
+    const version = host.announced ?? (visibility === "link" ? new URLSearchParams((await host.inputValue("#invite-link")).split("#")[1]).get("v") : undefined);
     for (const [i, guest] of guests.filter((g) => !listed.includes(g)).entries()) {
         if (i % 2 === 0) await guest.goto("about:blank");
         await guest.goto(await host.inputValue("#invite-link"));
@@ -162,7 +164,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     const joins = rows.map((row) => row.getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
     // The footer shows the version the host announced, on the lobby screen...
-    await assertBuild(pages, host.announced);
+    await assertBuild(pages, host.announced ?? version);
     // The listing counts the bots and local players (ADR 21, 22), and marks a password game (ADR 24).
     if (listed.length && (bots.length || locals)) await rows[0].filter({ hasText: `${1 + bots.length + locals} of ` }).waitFor({ timeout: SETUP_MS });
     for (const row of rows) assert.equal(await row.getByRole("img", { name: "Password required" }).count(), visibility === "password" ? 1 : 0);
@@ -185,7 +187,7 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
     // ...and on the game screen.
-    await assertBuild(pages, host.announced);
+    await assertBuild(pages, host.announced ?? version);
     return { pages, errors, seatsLine };
 }
 
