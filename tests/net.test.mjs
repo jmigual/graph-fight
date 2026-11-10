@@ -42,6 +42,41 @@ for (const bad of [
     { ...start, version: "v".repeat(65) },
 ]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
 
+// Team mode (ADR 27): `teams` gives each seat's side and `k` the characters per player. Without
+// them a start is free-for-all with 3, exactly as before.
+assert.equal(JSON.stringify(parseGameMsg(start)), JSON.stringify(start), "a free-for-all start is unchanged");
+const teamStart = { ...start, peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1], k: 2 };
+for (const good of [
+    teamStart,
+    { ...start, k: 1 },
+    { ...start, k: 3 },
+    { ...start, peers: ["h", "p", "q"], teams: [1, 1, 0] },
+    { ...start, field: "xy", peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1] },
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 1, 2, 3, 0, 1, 2, 3], k: 3 },
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 },
+    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 2 },
+]) assert.deepEqual(parseGameMsg(good), good, JSON.stringify(good));
+for (const bad of [
+    { ...start, k: 0 },
+    { ...start, k: 4 },
+    { ...start, k: 1.5 },
+    { ...start, k: "2" },
+    { ...start, k: null },
+    { ...teamStart, teams: "0101" },
+    { ...teamStart, teams: null },
+    { ...teamStart, teams: [0, 1, 0] },
+    { ...teamStart, teams: [0, 1, 0, 1, 0] },
+    { ...teamStart, teams: [0, 1, 0, 1.5] },
+    { ...teamStart, teams: [0, 1, 0, -1] },
+    { ...teamStart, teams: [0, 1, 0, "1"] },
+    { ...teamStart, teams: [0, 2, 0, 2] },
+    { ...teamStart, teams: [0, 0, 0, 0] },
+    { ...teamStart, field: "xy", teams: [0, 1, 2, 1] },
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 3 },
+    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 3 },
+]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
+assert.throws(() => outbox().stamp({ ...teamStart, teams: [0, 0, 0, 0] }), Error, "the host's relay refuses what peers would drop");
+
 // Routing: only the host's sequenced broadcasts are delivered; the host also takes bare shot
 // requests from others; nothing else gets through.
 const shot = { type: "shot", turn: 0, exprs: ["x"], cw: false };

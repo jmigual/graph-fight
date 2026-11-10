@@ -35,6 +35,10 @@ const MAX_FRAME = 4096;
 
 /** Upper bound on players in a room; also bounds `start.peers`. */
 export const MAX_PLAYERS = 8;
+/** Most characters per player a host may choose (ADR 27); a `start` without `k` means this many. */
+const MAX_K = 3;
+/** Most characters in one game: ADR 15 checked placement for 8 teams of 3 (ADR 27). */
+const MAX_CHARACTERS = 24;
 /** Longest formula the Rust parser accepts. */
 const MAX_EXPR = 256;
 /** Longest id, seed or name accepted off the wire. */
@@ -61,7 +65,11 @@ export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
 export type OpenGame = Listing & { compatible: boolean };
 
-export type Start = { type: "start"; seed: string; field: Field; frame: Frame; peers: string[]; version: string };
+/**
+ * `teams[i]` is the side of `peers[i]` in team mode, absent in a free-for-all; `k` is the characters
+ * per player, absent when it is 3, so a free-for-all start with the default is as before ADR 27.
+ */
+export type Start = { type: "start"; seed: string; field: Field; frame: Frame; peers: string[]; version: string; teams?: number[]; k?: number };
 /** `cw` is the disc shot direction: clockwise when true, counter-clockwise when false (ADR 14). */
 export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string]; cw: boolean };
 export type Timeout = { type: "timeout"; turn: number };
@@ -77,6 +85,17 @@ const isField = (v: unknown): v is Field => v === "xy" || v === "disc";
 const isFrame = (v: unknown): v is Frame => v === "map" || v === "player";
 const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
+const isK = (v: unknown): v is number => isCount(v, MAX_K) && v > 0;
+
+/**
+ * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T ≥ 2` (exactly 2
+ * on the XY field), and the game stays within `MAX_CHARACTERS`: `T × S × k`, S the largest side (ADR 27).
+ */
+function isTeams(teams: unknown, count: number, field: Field, k: number): teams is number[] {
+    if (!Array.isArray(teams) || teams.length !== count || !teams.every((t) => isCount(t, count - 1))) return false;
+    const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
+    return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && sizes.length * Math.max(...sizes) * k <= MAX_CHARACTERS;
+}
 
 /** A bot's seat id in `start.peers` (ADR 21). Trystero peer ids are alphanumeric, so no peer has one. */
 const BOT_ID = /^bot:(easy|medium|hard):([1-7])$/;
@@ -108,15 +127,16 @@ export const isHostRun = (id: string) => isBot(id) || isLocal(id);
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
  * turn it away as another version instead of it being dropped. A `start` seat that begins with
  * `bot:` must be a well-formed bot id (ADR 21), and one that begins with `local:` a well-formed
- * local player's id (ADR 22).
+ * local player's id (ADR 22). `teams` and `k` (ADR 27) are kept only when present.
  */
 export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p)))) {
-                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version };
+            const k = v.k === undefined ? MAX_K : v.k;
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p))) && isK(k) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field, k))) {
+                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version, ...(v.teams !== undefined && { teams: v.teams }), ...(v.k !== undefined && { k }) };
             }
             return undefined;
         }
