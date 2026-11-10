@@ -1383,11 +1383,13 @@ const scenarios = {
         const page = await (await browser.newContext()).newPage();
         const errors = [];
         page.on("pageerror", (e) => errors.push(`${e}`));
-        let sent = 0;
+        // `lobby` counts the lobby's own subscriptions, so the check below knows the relays were watched.
+        let [sent, lobby] = [0, 0];
         page.on("websocket", (ws) =>
             ws.on("framesent", (f) => {
                 const frame = String(f.payload);
-                if (frame.startsWith('["EVENT"') || (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"'))) sent++;
+                if (frame.startsWith('["REQ","lobby"')) lobby++;
+                else if (frame.startsWith('["EVENT"') || frame.startsWith('["REQ"')) sent++;
             }),
         );
         await page.addInitScript(() => {
@@ -1401,7 +1403,10 @@ const scenarios = {
             };
         });
         await page.goto(url);
+        // A game we were out of hides the editor and leaving it does not show it again: the arena must.
+        await page.evaluate(() => (document.getElementById("shot-form").hidden = true));
         await page.click("#test-open");
+        assert.equal(await page.isVisible("#shot-form"), true, "the arena has the editor");
         assert.equal(await page.locator("#test-items li").count(), 0, "the arena starts without obstacles");
         const board = page.locator("#arena");
         // The page position of map point (x, y) on a field with extents xMax, yMax, and a click there.
@@ -1429,6 +1434,12 @@ const scenarios = {
         await click(5, 0);
         await fire(["0"], /^Team 1 player 1 fired y = 0\. It hit Team 2 player 1\.$/);
         await fire(["0"], /It hit Team 2 player 1\.$/);
+        // A swipe across an empty part of the board places nothing.
+        await page.mouse.move(...(await spot(-4, -6)));
+        await page.mouse.down();
+        await page.mouse.move(...(await spot(0, -6)), { steps: 5 });
+        await page.mouse.up();
+        assert.equal(await page.locator("#test-items li").count(), 2, "a swipe is not a click");
         // An obstacle cannot touch a player; one in the way stops the shot there.
         await page.check("#place-obstacle");
         await click(5, 1);
@@ -1489,6 +1500,7 @@ const scenarios = {
         await page.waitForSelector("#lobby:not([hidden])");
         // Nothing was announced or joined meanwhile.
         await page.waitForTimeout(2000);
+        assert.ok(lobby > 0, "the page subscribed to the lobby, so its frames were seen");
         assert.equal(sent, 0, "no lobby announcement or room subscription");
         assert.equal(await page.evaluate(() => window.__links), 0, "no WebRTC link");
         assert.equal(await page.evaluate(() => window.__state()), null, "no game");
