@@ -1,8 +1,10 @@
 // Run: node --experimental-strip-types --no-warnings tests/build.test.mjs
 // A build announces on the live lobby topic only when GRAPH_FIGHT_LOBBY=live (ADR 12).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 import { DEV_TOPIC, LIVE_TOPIC, lobbyTopic } from "../scripts/lobby-topic.mjs";
+import { VERSIONED_MEDIA, contentHash, versionMedia } from "../scripts/versioned-media.mjs";
 
 assert.notEqual(DEV_TOPIC, LIVE_TOPIC);
 assert.equal(lobbyTopic({}), DEV_TOPIC, "default is dev");
@@ -32,4 +34,12 @@ const net = await import(`data:text/javascript;base64,${Buffer.from(await bundle
 assert.equal(net.BUILD_ID, "0.4.0+abc1234");
 assert.equal(net.BUILD_VERSION, "0.4.0");
 assert.equal(new URLSearchParams(net.inviteFragment("h", "k").slice(1)).get("v"), "0.4.0+abc1234");
+// The built page names the demo video and poster with a hash of their content, so a re-recording is a new URL (ADR 29).
+const built = versionMedia(readFileSync("static/index.html", "utf8"), "static");
+for (const file of VERSIONED_MEDIA) {
+    const hash = contentHash("static", file);
+    assert.match(hash, /^[0-9a-f]{8}$/);
+    assert.ok(built.includes(`"./${file}?v=${hash}"`), `${file} is versioned`);
+    assert.ok(!built.includes(`"./${file}"`), `no bare ${file} left`);
+}
 console.log("build tests passed");

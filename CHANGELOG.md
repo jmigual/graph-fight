@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1 — 2026-11-10
+- The About video always shows the latest recording; browsers no longer keep playing an old copy.
+
 ## 0.8.0 — 2026-11-10
 - In a formula you can leave out the * after a number: 2x, 2θ, 3pi, 2sin(x) and 2(x+1) work, and so does 2a with a slider letter.
 - Formula sliders take less space: each slider is two lines, the range with its value, then `min ≤ a ≤ max  Step: step` in small underlined boxes, as on Desmos.

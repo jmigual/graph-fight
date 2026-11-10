@@ -31,6 +31,10 @@ the open games and the host form, must not have to scroll past it.
   formulas, and writes `static/demo.webm` and `static/demo-poster.jpg`. Run it after
   `npm run build` when the UI changes enough to date the clip; the files are committed and copied
   to `dist/` with the rest of `static/`.
+- Cache: a re-recording keeps the file names, and a browser keeps media past GitHub Pages'
+  `max-age=600`, so viewers saw the old clip after 0.8.0. `scripts/build.mjs` rewrites the `src` and
+  `poster` in `dist/index.html` to `demo.webm?v=<hash>` and `demo-poster.jpg?v=<hash>` (first 8 hex
+  characters of the file's sha256, `scripts/versioned-media.mjs`); `static/index.html` stays plain.
 - Quality and size: the first clip was Playwright's `recordVideo` scaled down to 480x270, which is
   blurry at the 448 CSS px the video has on a desktop (896 device px on a HiDPI screen, 984 on a
   phone) and made the formula and status text unreadable. The recorder now renders the 960x540 page at
