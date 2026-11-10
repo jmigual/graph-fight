@@ -10,8 +10,8 @@ from the host), and relays `leave {peer}` for a seat it kicks, as for a quit.
 Amended by 0024: the listing carries `locked` (a password game), a private-link game is not listed,
 and a password or private-link game room is joined with Trystero's `password` option. The host may
 send a guest `{type: "share"}` (outside the sequence, accepted only from the host).
-Amended by 0028: the build version is the release number from `CHANGELOG.md`, or the next minor plus
-`-dev+<hash>` in any build without `GRAPH_FIGHT_LOBBY=live` (see "Version check").
+Amended by 0028: the build id peers compare is `<release>+<hash>` from `CHANGELOG.md`, or the next
+minor `-dev+<hash>` in any build without `GRAPH_FIGHT_LOBBY=live` (see "Version check").
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
 uses `graph-fight:lobby:dev` (see "Lobby topic per build").
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
@@ -83,10 +83,11 @@ room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby i
 - Dead relays are retried with a doubling delay (5 s up to 60 s); `leave()` stops reconnecting.
 
 Version check (peers on different builds would desync silently):
-- esbuild's `define` (ADR 19; webpack's DefinePlugin before) sets `__BUILD_VERSION__` per ADR 28:
-  the release number in the live build, otherwise the next minor plus `-dev+` and the short commit
-  hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` when the repository is unavailable
-  (it was the bare hash before ADR 28). `net.ts` exports it as `BUILD_VERSION`.
+- esbuild's `define` (ADR 19; webpack's DefinePlugin before) sets `__BUILD_ID__` per ADR 28:
+  `<release>+<hash>` in the live build, otherwise `<next minor>-dev+<hash>`, where the hash is the
+  short commit hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` when the repository is
+  unavailable (it was the bare hash before ADR 28, `__BUILD_VERSION__`). `net.ts` exports it as
+  `BUILD_ID`; `BUILD_VERSION` is the display form for the footer and is never compared.
 - Listings and `start` carry it. Lobby entries get `compatible: false` on a mismatch, kept in
   the list so the UI can grey them out ("different version - reload"). A peer receiving a
   `start` from another build leaves the room and gets `onVersionMismatch` instead of the
@@ -106,8 +107,8 @@ Lobby topic per build:
 - Game rooms are unchanged: appId `graph-fight`, room `game-<hostId>`, shared by dev and live
   builds. They cannot cross-join through the lobby, since a build only lists hosts on its own
   topic; joining needs the random host id, which only the lobby listing carries. A dev and a live
-  build of the same commit share `BUILD_VERSION`, so the version check would not stop someone who
-  forged the id, which is accepted under ADR 7's trusted-peers model.
+  build of the same commit differ in `BUILD_ID` (`-dev`), but a forged host id would still reach a
+  room of the other kind, which is accepted under ADR 7's trusted-peers model.
 
 ## Consequences
 
