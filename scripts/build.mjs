@@ -2,19 +2,20 @@
 // `--serve` watches the TypeScript and serves dist/ on :8080 instead of minifying.
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
+import { changelogHtml, parseChangelog } from "./changelog.mjs";
 import { lobbyTopic } from "./lobby-topic.mjs";
+import { buildVersion } from "./version.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = resolve(root, "dist");
 
-// Identifies the build so peers on different builds refuse to play together (ADR 12):
-// the commit hash, or a hash of the sources (and Cargo.lock, which fixes the arenas) when the
-// repository is unavailable.
-function buildVersion() {
+// Identifies the sources of a dev build (ADR 12, 28): the commit hash, or a hash of the sources
+// (and Cargo.lock, which fixes the arenas) when the repository is unavailable.
+function sourceHash() {
   try {
     return execSync("git rev-parse --short HEAD", { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
   } catch {
@@ -30,6 +31,7 @@ function buildVersion() {
   }
 }
 
+const changelog = parseChangelog(readFileSync(resolve(root, "CHANGELOG.md"), "utf8"));
 const serve = process.argv.includes("--serve");
 
 rmSync(dist, { recursive: true, force: true });
@@ -37,6 +39,7 @@ mkdirSync(dist, { recursive: true });
 cpSync(resolve(root, "static"), dist, { recursive: true });
 const copyWasm = () => cpSync(resolve(root, "pkg/index_bg.wasm"), resolve(dist, "index_bg.wasm"));
 copyWasm();
+writeFileSync(resolve(dist, "changelog.html"), changelogHtml(changelog));
 
 const options = {
   entryPoints: [resolve(root, "js/index.ts")],
@@ -44,7 +47,7 @@ const options = {
   bundle: true,
   format: "esm",
   target: "es2022",
-  define: { __BUILD_VERSION__: JSON.stringify(buildVersion()), __LOBBY_TOPIC__: JSON.stringify(lobbyTopic()) },
+  define: { __BUILD_VERSION__: JSON.stringify(buildVersion(changelog, sourceHash())), __LOBBY_TOPIC__: JSON.stringify(lobbyTopic()) },
   minify: !serve,
   sourcemap: serve,
   logLevel: "info",
