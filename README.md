@@ -32,6 +32,7 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
 - **Local players.** Hot-seat players take turns at the host's screen, next to bots and remote guests.
 - **Private games.** Listed with a lock and joined with a password, or left out of the lobby and joined through an invite link.
 - **Kick.** The host can remove a guest from the waiting room, or mid-game; that team is out.
+- **Test arena.** An offline sandbox from the lobby: place players and obstacles anywhere, fire from any player and see what the shot hits, as often as you like.
 - **Reconnection.** A dropped player keeps their seat for a few minutes (the game is given up after 3 minutes) and catches up by replaying the game log.
 - **No server.** Players connect peer-to-peer over WebRTC ([Trystero](https://github.com/dmotz/trystero)) and find each other through a lobby on public [Nostr](https://nostr.com) relays.
 - **Deterministic Rust/WASM engine.** Peers exchange only the seed and formulas; every outcome is computed locally in WebAssembly.
@@ -53,6 +54,9 @@ Inspired by [Graphwar](https://graphwar.com/graphwar_1/index.html).
   <tr>
     <td align="center"><img src="docs/img/game-disc.png" alt="Polar disc game"><br>Polar disc field with 4 players (dark theme); the last shot was fired clockwise.</td>
     <td align="center"><img src="docs/img/formulas.png" alt="Saved formulas"><br>Saved formulas: a template with its sliders open.</td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/img/arena.png" alt="Test arena" width="640"><br>Test arena: hand-placed players and obstacles; the last shot hit team 2 and is ringed.</td>
   </tr>
 </table>
 

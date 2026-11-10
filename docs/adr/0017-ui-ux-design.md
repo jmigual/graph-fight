@@ -19,6 +19,9 @@ a password game's row has a padlock named "Password required", Join on it opens 
 (masked `#join-password` with a Show toggle, as `#host-password` has),
 and the host's waiting room shows `#invite-link` and **Copy invite link** `#copy-link`; a guest's does
 too when the host ticked "Guests can share the invite link" `#host-share`.
+Amended by 0025: the lobby's Test arena button, the game screen's test mode
+(`#game[data-mode=test]`) with its selectors, hit and selection rings on the board (`View.hits`,
+`View.picked`), and `editor.refresh` sets the input labels.
 
 ## Context
 
