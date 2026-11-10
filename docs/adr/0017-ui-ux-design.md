@@ -38,6 +38,8 @@ last-shot line and the roster stay (section 6). The Help bar (ADR 26) is as wide
 under it, so Help ends where that screen ends, and the board's height budget `--chrome` counts the
 bar (sections 4 and 6). The Test arena button (ADR 25) sits in "Open games", under the list, and
 on a phone the test arena's editor follows the board, before the setup panel (section 6).
+Amended 2026-11-10 (compact sliders): a slider block is two lines instead of three, modelled on Desmos
+(section 8).
 Amended by 0027: in team mode the roster has one entry per side with its pips, then its seats, each
 with "you", "aiming", "disconnected" or "left"; the status bar and turn cue name the seat ("Team 2:
 abc123 is aiming"); a seat whose characters are all dead reads "Your players are out. Team 1 plays
@@ -523,16 +525,24 @@ capture the variable of another mode. One letter matches Desmos and catches typo
 a slider, and Fire reports "Unknown name 'amp'". In a parametric template both formulas share
 their sliders.
 
-**Slider row** per letter, in order of first appearance, laid out like Desmos:
+**Slider block** per letter, in order of first appearance, laid out like Desmos in two lines:
 
 ```
-a = [ 1.5 ]                      value: number input, exact entry
-[-10] ----------o---------- [10]  min, native <input type=range>, max
-step [     ]                     optional; empty = continuous
+a  ----------o----------  [ 1.5 ]    letter, native <input type=range>, value: number input, exact entry
+[-10] ≤ a ≤ [10]   Step: [   ]      min, max, optional step; empty = continuous
 ```
 
 - Labels: the letter in STIX italic is the range's label. The number inputs are labelled
-  "Lowest a", "Highest a", "Step of a" (visually just the field, with `aria-label`).
+  "Value of a", "Lowest a", "Highest a", "Step of a" (visually just the field, with `aria-label`).
+  The `≤ a ≤` between the limits is `aria-hidden` decoration.
+- The number inputs are small, centred and underline-only (a bottom border in `--ink-soft`, red when
+  invalid) so the line reads like Desmos's limits editor. They keep `min-height: var(--control-h)`,
+  so the touch target is 44 px under a coarse pointer. The limits line wraps (`flex-wrap`) instead of
+  scrolling, and fits in 288 px (a 320 px screen). The limits stay always visible rather than behind
+  a toggle: Desmos reveals them on a click on the track's ends, but here that would hide the only way
+  to set them behind an extra tap and a disclosure per letter, for one more line saved.
+- Height: the Wave starter's block (two letters, summary included) went from 324 px to 204 px at 360
+  and 1280 px (380 to 244 px with a coarse pointer).
 - Defaults for a new letter: min -10, max 10, value 1, step empty.
 - Empty step gives `step="any"`. The value is shown and inserted with
   `clamp(ceil(-log10((max - min) / 1000)), 0, 6)` decimals (2 for the default span). A step
