@@ -1333,7 +1333,7 @@ const scenarios = {
         return errors;
     },
     async AJ() {
-        // Every icon the page links is in dist/ and served as an image (ADR 17).
+        // Every icon the page links is in dist/ and served as an image, and the PNGs have their sizes (ADR 17).
         const page = await (await browser.newContext()).newPage();
         await page.goto(url);
         const hrefs = await page.$$eval('link[rel~="icon"], link[rel="apple-touch-icon"]', (links) => links.map((l) => l.href));
@@ -1343,6 +1343,14 @@ const scenarios = {
             assert.equal(res.ok(), true, href);
             assert.match(res.headers()["content-type"], /^image\//, href);
         }
+        const width = (file) => page.evaluate(async (src) => {
+            const img = new Image();
+            img.src = src;
+            await img.decode();
+            return img.naturalWidth;
+        }, file);
+        assert.equal(await width("favicon-32.png"), 32);
+        assert.equal(await width("apple-touch-icon.png"), 180);
         return [];
     },
 };
