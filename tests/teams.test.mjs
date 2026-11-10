@@ -28,6 +28,7 @@ assert.deepEqual(sideOf(duo, "local:1"), 1);
 assert.deepEqual(perSide(duo), [6, 6]);
 assert.deepEqual(owners(duo, 0), ["h", "q", "h", "q", "h", "q"]);
 assert.deepEqual(owners(duo, 1), ["p", "local:1", "p", "local:1", "p", "local:1"]);
+assert.equal(owner(duo, none, 5, 0), undefined, "a side with no seats has no owner");
 assert.deepEqual(perSide({ ...duo, k: 1 }), [2, 2]);
 assert.deepEqual(owners({ ...duo, k: 2 }, 0), ["h", "q", "h", "q"]);
 

@@ -52,6 +52,7 @@ for (const good of [
     { ...start, k: 3 },
     { ...start, peers: ["h", "p", "q"], teams: [1, 1, 0] },
     { ...start, field: "xy", peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1] },
+    { ...start, field: "xy", peers: ["h", "p", "q"], teams: [0, 1, 0], k: 1 },
     { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 1, 2, 3, 0, 1, 2, 3], k: 3 },
     { ...start, peers: ["h", "p", "q", "r", "s"], teams: [0, 0, 1, 1, 2], k: 3 },
 ]) assert.deepEqual(parseGameMsg(good), good, JSON.stringify(good));
