@@ -891,12 +891,14 @@ const scenarios = {
                 assert.equal(await host.inputValue("#input-a"), memory.get(key), `turn ${turn}: character ${key} gets its own formula back`);
                 restored++;
             }
-            // A straight line through the shooter and the nearest living enemy: y = k x in the map frame is
-            // offset to pass through the shooter (ADR 20). Obstacles in the way are dug out shot by shot.
+            // The first round, one shot per character, leaves the field at once (steep), so every character
+            // has a formula to get back while the game still runs. Then a straight line through the shooter
+            // and the nearest living enemy: y = k x in the map frame is offset to pass through the shooter
+            // (ADR 20). Obstacles in the way are dug out shot by shot.
             const { pos } = arena.teams[current].players[arena.teams[current].currentPlayer].shape;
             const targets = arena.teams[1 - current].players.filter((pl) => pl.alive).map((pl) => pl.shape.pos);
             const target = targets.sort((a, b) => Math.hypot(a.x - pos.x, a.y - pos.y) - Math.hypot(b.x - pos.x, b.y - pos.y))[0];
-            const formula = `(${((target.y - pos.y) / (target.x - pos.x)).toFixed(6)})*x`;
+            const formula = turn < 6 ? `${100 + turn}*x` : `(${((target.y - pos.y) / (target.x - pos.x)).toFixed(6)})*x`;
             await host.check("#mode-explicit");
             await host.fill("#input-a", formula);
             await host.click("#fire");
