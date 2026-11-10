@@ -100,5 +100,7 @@ turn (ADR 4, 14), so neither fits a sandbox.
   that only the arena uses. `Arena::from_parts` and `Team::from_positions` are no longer test-only.
 - Placing and moving are pointer only; the keyboard can select and remove but not place. A setup is
   not saved and lasts until the arena is left.
-- A player exactly at the disc centre has no direction to face in the player frame, so its shots
-  there are empty (no points, no error).
+- A player exactly at the disc centre has no direction toward the centre. In the player frame the
+  engine then faces it along `+x` (`trace` in `src/game/shot.rs`), which is how the board already
+  draws it (`ahead` in `js/render.ts`). Only the arena can put a player there: a game places disc
+  players at `r >= R/2` (ADR 11), so no game shot changes.

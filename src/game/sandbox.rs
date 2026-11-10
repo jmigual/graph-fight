@@ -313,6 +313,23 @@ mod tests {
     }
 
     #[test]
+    fn a_player_at_the_disc_centre_fires_along_plus_x() {
+        // The centre has no direction to face; the player frame then faces +x, as the board does
+        for frame in [Frame::Map, Frame::Player] {
+            let players = vec![player(0., 0., 0), player(5., 0., 1)];
+            let game = sandbox(Field::Disc, frame, players, vec![]).unwrap();
+            for cw in [false, true] {
+                let shot = game.fire_param_from(0, 0, "t", "0", cw).unwrap();
+                assert_eq!(shot.points[0], Point::new(0., 0.), "{frame:?}");
+                assert_eq!(shot.hits, vec![[1, 0]], "{frame:?}");
+                let shot = game.fire_from(0, 0, "θ", cw).unwrap();
+                assert_eq!(shot.points[0], Point::new(0., 0.), "{frame:?}");
+                assert!(shot.points.len() > 10, "{frame:?}");
+            }
+        }
+    }
+
+    #[test]
     fn hits_are_reported_and_the_game_is_unchanged() {
         let game = three(Field::Xy, Frame::Map);
         let (arena, turn) = (game.js_arena(), game.get_current_team_idx());
