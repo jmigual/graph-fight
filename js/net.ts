@@ -44,6 +44,8 @@ const REJOIN_MS = 25_000;
 const HOST_LOST_MS = 180_000;
 
 export type Field = "xy" | "disc";
+/** How strong a bot plays (ADR 21). */
+export type BotLevel = "easy" | "medium" | "hard";
 /** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
 export type Frame = "map" | "player";
 
@@ -71,17 +73,29 @@ const isFrame = (v: unknown): v is Frame => v === "map" || v === "player";
 const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 
+/** A bot's seat id in `start.peers` (ADR 21). Trystero peer ids are alphanumeric, so no peer has one. */
+const BOT_ID = /^bot:(easy|medium|hard):([1-7])$/;
+/** True for an id in the bot namespace, well-formed or not. */
+export const isBot = (id: string) => id.startsWith("bot:");
+
+/** The level and number of a bot's seat id, or undefined for a human's. */
+export function parseBot(id: string): { level: BotLevel; n: number } | undefined {
+    const m = BOT_ID.exec(id);
+    return m ? { level: m[1] as BotLevel, n: Number(m[2]) } : undefined;
+}
+
 /**
  * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
- * turn it away as another version instead of it being dropped.
+ * turn it away as another version instead of it being dropped. A `start` seat that begins with
+ * `bot:` must be a well-formed bot id (ADR 21).
  */
 export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)))) {
                 return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version };
             }
             return undefined;
@@ -323,12 +337,12 @@ const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b
 
 /**
  * Host only (ADR 16): a private token for each seat in `peers` (`start.peers`) and the peer
- * currently holding each seat. The host's own seat, 0, has no token (`""`), so nobody can
- * claim it.
+ * currently holding each seat. The host's own seat, 0, and bot seats (ADR 21) have no token
+ * (`""`), so nobody can claim them; a bot seat has no holder either, since the host plays it.
  */
 export function seatBook(peers: string[]) {
-    const tokens = peers.map((_, i) => (i ? newToken() : ""));
-    const holders = [...peers];
+    const tokens = peers.map((p, i) => (i && !isBot(p) ? newToken() : ""));
+    const holders = peers.map((p) => (isBot(p) ? undefined : p));
     return {
         tokens: tokens as readonly string[],
         /** Moves the seat whose token is exactly `token` to `peer`; false for an unknown token. */
@@ -342,8 +356,8 @@ export function seatBook(peers: string[]) {
             const i = holders.indexOf(peer);
             return i < 0 ? undefined : peers[i];
         },
-        /** Seat ids, other than the host's, whose holder is not `connected`. */
-        absent: (connected: (peer: string) => boolean) => peers.filter((_, i) => i > 0 && !connected(holders[i])),
+        /** Seat ids, other than the host's and the bots', whose holder is not `connected`. */
+        absent: (connected: (peer: string) => boolean) => peers.filter((_, i) => i > 0 && holders[i] !== undefined && !connected(holders[i])),
     };
 }
 
@@ -491,8 +505,8 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         action.send(out.stamp(msg)).catch(handlers.onSendError);
         if (msg.type === "start") {
             const book = (seats = seatBook(msg.peers));
-            // Each token goes to its own seat only, never broadcast.
-            msg.peers.forEach((peer, i) => i > 0 && action.send({ seat: book.tokens[i] }, { target: peer }).catch(handlers.onSendError));
+            // Each token goes to its own seat only, never broadcast; the host's and bots' seats have none.
+            msg.peers.forEach((peer, i) => book.tokens[i] && action.send({ seat: book.tokens[i] }, { target: peer }).catch(handlers.onSendError));
         }
         deliverLocal(msg);
     }

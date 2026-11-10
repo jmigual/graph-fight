@@ -1,6 +1,6 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import init, { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
-import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
+import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey } from "./render";
@@ -157,6 +157,8 @@ function enterRoom(id: string, seat?: Seat) {
             sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me } satisfies Seat));
         },
         onPeerJoin(peer) {
+            // A peer announcing a bot id is never seated (ADR 21).
+            if (isBot(peer)) return;
             // A rejoined room (ADR 18) reports peers we already had.
             if (!connected.includes(peer)) connected.push(peer);
             roomChanged();

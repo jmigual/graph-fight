@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
-import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
+import { isBot, lobbyBook, MAX_PLAYERS, outbox, parseBot, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -133,6 +133,28 @@ assert.equal(seats.seatOf("p2"), "p", "the new peer holds the seat");
 assert.equal(seats.seatOf("p"), undefined, "the old peer id no longer does");
 assert.deepEqual(seats.absent((id) => id === "h" || id === "p"), ["p", "q"], "absence follows the holder, not the seat id");
 assert.deepEqual(seats.absent(() => false), ["p", "q"], "the host's own seat is never absent");
+
+// Bot seats (ADR 21): no token, no holder, never absent; a peer calling itself a bot gets nothing.
+const withBots = seatBook(["h", "p", "bot:hard:1", "bot:easy:2"]);
+assert.deepEqual(withBots.tokens.map((t) => t !== ""), [false, true, false, false], "only the human guest gets a token");
+assert.equal(withBots.seatOf("bot:hard:1"), undefined, "a peer announcing a bot id holds no seat");
+assert.equal(withBots.rejoin("", "bot:hard:1"), false);
+assert.equal(withBots.seatOf("bot:hard:1"), undefined, "the empty token claims no bot seat");
+assert.deepEqual(withBots.absent(() => false), ["p"], "bots are never absent");
+assert.equal(withBots.rejoin(withBots.tokens[1], "p2"), true);
+assert.equal(withBots.seatOf("p2"), "p");
+
+// Bot ids: `bot:<level>:<n>`, n from 1 to 7, in `start.peers`; any other `bot:` entry drops the start.
+assert.deepEqual(parseBot("bot:hard:1"), { level: "hard", n: 1 });
+assert.deepEqual(parseBot("bot:easy:7"), { level: "easy", n: 7 });
+assert.equal(parseBot("p"), undefined);
+assert.equal(isBot("p"), false);
+assert.equal(isBot("bot:x"), true);
+assert.deepEqual(parseGameMsg({ ...start, peers: ["h", "bot:medium:1", "bot:hard:2"] }), { ...start, peers: ["h", "bot:medium:1", "bot:hard:2"] });
+for (const bad of ["bot:", "bot:hard:0", "bot:hard:8", "bot:expert:1", "bot:Hard:1", "bot:hard:1 ", "bot:hard:12"]) {
+    assert.equal(parseBot(bad), undefined, bad);
+    assert.equal(parseGameMsg({ ...start, peers: ["h", bad] }), undefined, bad);
+}
 
 // Version gate: a start from another build is not delivered; other messages pass.
 const seen = [];
