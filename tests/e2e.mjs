@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml" };
 const SETUP_MS = 120_000;
 const TURN_WAIT_MS = 30_000;
 /** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */
@@ -1331,6 +1331,19 @@ const scenarios = {
         await typeAndFire("1000*th", "1000*th", 1);
         await typeAndFire("1000*pi*th", "1000*π*th", 2);
         return errors;
+    },
+    async AI() {
+        // Every icon the page links is in dist/ and served as an image (ADR 17).
+        const page = await (await browser.newContext()).newPage();
+        await page.goto(url);
+        const hrefs = await page.$$eval('link[rel~="icon"], link[rel="apple-touch-icon"]', (links) => links.map((l) => l.href));
+        assert.equal(hrefs.length, 3, "SVG, PNG fallback and touch icon");
+        for (const href of hrefs) {
+            const res = await page.request.get(href);
+            assert.equal(res.ok(), true, href);
+            assert.match(res.headers()["content-type"], /^image\//, href);
+        }
+        return [];
     },
 };
 

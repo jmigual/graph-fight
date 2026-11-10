@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .tile { fill: #EEF4EF; }
+    .axes { stroke: #A3C2AE; }
+    .shot { stroke: #14302A; }
+    .team-1 { fill: #C2410C; }
+    .team-2 { fill: #0B63B0; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #22332D; }
+      .axes { stroke: #45625A; }
+      .shot { stroke: #E6EFEA; }
+      .team-1 { fill: #FF9A5C; }
+      .team-2 { fill: #6CB6F2; }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="7"/>
+  <path class="axes" d="M4 16H28M16 4V28" fill="none" stroke-width="1.5"/>
+  <path class="shot" d="M8 24C13 2 19 30 24 8" fill="none" stroke-width="3" stroke-linecap="round"/>
+  <circle class="team-1" cx="8" cy="24" r="4"/>
+  <circle class="team-2" cx="24" cy="8" r="4"/>
+</svg>
