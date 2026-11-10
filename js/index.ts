@@ -31,6 +31,10 @@ const ARENAS = {
 /** sessionStorage key of our seat, kept until the game ends so a reload can rejoin (ADR 16). */
 const SEAT_KEY = "graph-fight-seat";
 const MISMATCH = ["Different version.", "Reload the page, then join again."] as const;
+/** An invite from another build: the fragment is already gone, so the link has to be opened again. */
+const INVITE_MISMATCH = ["Different version.", "Reload the page, then open the invite link again."] as const;
+/** An invite opened while this page is in a game or a waiting room (ADR 24). */
+const BUSY = "Finish or leave this game first, then open the invite link again.";
 const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
 const REMOVED = ["The host removed you from this game.", "Join another game from the lobby."] as const;
 const UNREACHABLE = ["Wrong password, or the host can't be reached.", "Check the password or the link with the host, then join again."] as const;
@@ -375,6 +379,8 @@ $("start").onclick = () => {
 };
 
 function toLobby() {
+    // A join dialog left open would sit in the hidden lobby and could still join a room.
+    passwordDialog.close();
     sessionStorage.removeItem(SEAT_KEY);
     room?.leave();
     room = null;
@@ -699,12 +705,20 @@ function openInvite() {
     if (!invite) return false;
     history.replaceState(null, "", location.pathname + location.search);
     if (invite.version === BUILD_VERSION) enterRoom(invite.hostId, undefined, invite.key);
-    else end(...MISMATCH);
+    else end(...INVITE_MISMATCH);
     return true;
 }
 // A link pasted into this tab changes only the fragment, which does not reload the page.
 addEventListener("hashchange", () => {
-    if (!parseInvite(location.hash) || (room && !ended)) return;
+    if (!parseInvite(location.hash)) return;
+    if (room && !ended) {
+        // This page stays where it is. The key still goes from the address bar, or a reload would
+        // follow the link instead of rejoining our seat (ADR 16).
+        history.replaceState(null, "", location.pathname + location.search);
+        if (play) showError(BUSY, false);
+        else $("room-error").textContent = BUSY;
+        return;
+    }
     toLobby();
     // The last game's end must not swallow this one's (a version mismatch ends at once).
     ended = false;

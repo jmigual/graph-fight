@@ -1093,6 +1093,7 @@ const scenarios = {
     async AC() {
         // A private-link game (ADR 24) is never announced. The host copies the invite link, which
         // carries a 128-bit key in the fragment; the guests join through it, and their address bars drop the key.
+        let link;
         const { pages, errors } = await startGame(3, "disc", "AC", {
             visibility: "link",
             share: true,
@@ -1102,7 +1103,7 @@ const scenarios = {
                 await observer.waitForTimeout(7000); // more than two announce periods
                 assert.equal(await observer.locator("#games tr", { hasText: name }).count(), 0, "a lobby page does not list it");
                 assert.equal(host.published.some((f) => f.includes(name)), false, "the host never announced it");
-                const link = await host.inputValue("#invite-link");
+                link = await host.inputValue("#invite-link");
                 assert.ok(link.startsWith(`${url}#join=`), link);
                 assert.match(link, /&key=[0-9a-f]{32}&v=/);
                 await host.click("#copy-link");
@@ -1115,6 +1116,19 @@ const scenarios = {
         });
         await assertSynced(pages, 0);
         await takeTurn(pages, 0, ["t", "0"]);
+        // A link pasted mid-game: the page stays in its game and says why, the key leaves the address
+        // bar, and a reload rejoins the seat instead of following the link (ADR 16, 24).
+        const guest = pages[1];
+        const { me } = JSON.parse(await state(guest));
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.goto(link);
+        await guest.waitForFunction(() => document.getElementById("error").textContent !== "");
+        assert.match(await text(guest, "#error"), /leave this game first/);
+        assert.equal(await guest.evaluate(() => location.href), url, "the address bar is clean");
+        await guest.reload();
+        await guest.waitForFunction(() => window.__state()?.turn === 1, null, { timeout: SETUP_MS });
+        assert.equal(JSON.parse(await state(guest)).me, me, "the reload rejoined the same seat");
+        await assertSynced(pages, 1);
         await takeTurn(pages, 1, ["t", "0"]);
         return errors;
     },

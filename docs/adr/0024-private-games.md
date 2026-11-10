@@ -48,14 +48,19 @@ game, since a reload brings a new peer id.
   server. Copy uses
   `navigator.clipboard.writeText`; when that fails (no secure context, no permission) the field's text
   is selected for copying by hand. A polite status line says which.
-- **Opening a link.** On load, and on `hashchange` while the page is in the lobby or on the end
-  screen (a link pasted into an open tab only changes the fragment), `parseInvite` reads the fragment.
-  It is untrusted input: `join`, `key` and `v` must all be there, `join` and `key` non-empty, each at
-  most 64 characters, or the fragment is ignored. The page first removes the fragment with
-  `history.replaceState`, so a screenshot or a copied address does not show the key, then joins at
-  once. If `v` is not our build, it shows "Different version." instead of joining. The link carries the
+- **Opening a link.** On load, and on `hashchange` (a link pasted into an open tab only changes the
+  fragment), `parseInvite` reads the fragment. It is untrusted input: `join`, `key` and `v` must all
+  be there, `join` and `key` non-empty, each at most 64 characters, or the fragment is ignored. The
+  page always removes a valid fragment first with `history.replaceState`, so a screenshot or a copied
+  address does not show the key. In the lobby or on the end screen it then joins at once; if `v` is
+  not our build, it shows "Different version." and "Reload the page, then open the invite link again."
+  (the fragment is gone, so the link has to be opened again) instead of joining. In a game or a
+  waiting room it stays where it is and says "Finish or leave this game first, then open the invite
+  link again." in the game's error line or the waiting room's. Removing the fragment there matters: a
+  reload would otherwise follow the link instead of rejoining the seat (ADR 16). The link carries the
   version because the `start` gate (ADR 12) only turns a guest away once the game starts, and that
-  guest would then hold a seat nobody plays.
+  guest would then hold a seat nobody plays. Leaving for the lobby also closes the password dialog,
+  so a dialog left open cannot join a room from the hidden lobby.
 - **Join timeout.** There was no connection timeout for a fresh join before: a guest whose host never
   answered waited in the waiting room for good. Now every guest joining without a seat, public or
   private, does what the ADR 18 watchdog does: if the host link has not come up after 25 s, it leaves
@@ -98,9 +103,10 @@ Rejected:
   kick under a new peer id (ADR 23); the host then hosts a new game with a new secret.
 - A wrong password costs the guest 75 s before the message. A correct one on a slow relay gets a
   second signalling round before it is called wrong.
-- Tests: `tests/net.test.mjs` (`locked`, `share` only from the host, `parseInvite`, `inviteFragment`, `newToken`,
-  `stretchPassword` against Node's `pbkdf2Sync` with the same parameters), e2e AB (a
-  password game joined with the right password, refused with a wrong one after one more join of the
-  room, and a guest reload), AF (a public join to a host that is gone) and AC
-  (a private-link game absent from the lobby and the host's published events, its link copied, and
-  joined by loading it and by pasting it into an open lobby).
+- Tests: `tests/net.test.mjs` (`locked`, `share` only from the host, `parseInvite`,
+  `inviteFragment`, `newToken`, `stretchPassword` against Node's `pbkdf2Sync` with the same
+  parameters); e2e AB (a password game joined with the right password, refused with a wrong one after
+  one more join of the room, masked fields, guests not sharing, and a guest reload), AF (a public join
+  to a host that is gone) and AC (a private-link game absent from the lobby and the host's published
+  events, its link copied, shared with the guests, joined by loading it and by pasting it into an
+  open lobby, and pasted again mid-game: the address bar is cleaned and a reload rejoins the seat).
