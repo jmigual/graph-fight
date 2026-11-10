@@ -1,7 +1,10 @@
 # Changelog
 
 ## 0.8.0 — 2026-11-10
+- In a formula you can leave out the * after a number: 2x, 2θ, 3pi, 2sin(x) and 2(x+1) work, and so does 2a with a slider letter.
 - Formula sliders take less space: each slider is two lines, the range with its value, then `min ≤ a ≤ max  Step: step` in small underlined boxes, as on Desmos.
+- The demo video in About is sharper.
+- The changelog page shows the site icon.
 
 ## 0.7.0 — 2026-11-10
 - Team games: the host picks Teams, the number of teams and the players per team, and players join a team or the other in the waiting room, so more people can play on the XY plane. A team's players take its characters in turn, and a player who leaves hands their characters to their teammates. The host also picks 1, 2 or 3 characters per player, in any game.
