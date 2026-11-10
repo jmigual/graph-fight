@@ -1,7 +1,9 @@
 # 17. UI and UX design: graph paper, formula editor, saved formulas and templates
 
 Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4). The board
-follows ADR 20 (settled in section 4).
+follows ADR 20 (settled in section 4). Amended by 0021: the host's waiting room has `#bot-level`
+and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the roster names a
+bot "Bot 1, hard" where a human's short id goes.
 
 ## Context
 
