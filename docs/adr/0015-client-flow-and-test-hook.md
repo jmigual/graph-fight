@@ -1,6 +1,8 @@
 # 15. Client constants, room flow, turn clock and test hook
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0020: the host also announces `frame` (`{name, field, frame, players, seats}`)
+and sends it in `start`.
 Superseded in part by 0016: "host left" now comes from the host's relayed `leave`; seated peers keep their seat when a link drops.
 
 ## Context

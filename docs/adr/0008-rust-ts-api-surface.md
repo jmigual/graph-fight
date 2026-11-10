@@ -1,6 +1,8 @@
 # 8. Rust/TypeScript API surface
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0020: the constructor takes `frame: Frame` (`Map` or `Player`) right after
+`field`.
 Superseded in part by 0014: `fire` returns `FireError` (including `UndefinedAtShooter`); the shooter validates with `check`/`check_param`; `fire`/`fire_param` take a `clockwise` direction flag.
 
 ## Context
