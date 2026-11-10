@@ -267,7 +267,7 @@ mod tests {
         PlacedObstacle { x, y, r }
     }
 
-    /// The arena constants of `js/index.ts`: XY 20 by 10, a disc of radius 10, players of 0.3.
+    /// The arena constants of `js/game.ts`: XY 20 by 10, a disc of radius 10, players of 0.3.
     fn sandbox(
         field: Field,
         frame: Frame,

@@ -203,7 +203,7 @@ Layering, back to front:
        first trajectory point to the first point at least 0.5 units away (or the last point if
        none is that far). An empty shot leaves the gaze unchanged. The gaze stays until that
        player shoots again.
-     - Gaze is UI state in `index.ts`, keyed by team and player index. It is not in `__state` and
+     - Gaze is UI state in `game.ts`, keyed by team and player index. It is not in `__state` and
        not synchronised. It resets to the default on a new game, and after a reload it is
        rebuilt from the replayed log (see "Settled in S2" below).
    - **States.** Current shooter: a 2 px `--ink` ring 3 px outside the halo; it is also the origin
@@ -244,7 +244,7 @@ Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r =
 with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
 scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
 
-Settled with ADR 20 (`js/render.ts`, `js/index.ts`): the host picks the shot frame. The host form
+Settled with ADR 20 (`js/render.ts`, `js/lobby.ts`, `js/room.ts`): the host picks the shot frame. The host form
 has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
 `map`) and "Player-centred" (`player`), with the hint `#frame-hint` under it (named by its
 `aria-describedby`): "Map-centred: x and y are the map's, as in Graphwar. Player-centred: they
@@ -270,7 +270,7 @@ Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockw
 above the map rather than from the shooter, in the map-centred frame. The resting gaze (toward the
 centre) and the gaze after a shot (from the shot's first points) are the same in both frames.
 
-Settled with the per-character shot memory (`js/render.ts`, `js/index.ts`): every applied shot is
+Settled with the per-character shot memory (`js/render.ts`, `js/game.ts`): every applied shot is
 also kept per character in `Play.shots`, keyed by `lookKey` like the gaze, so a reload that
 replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
 - **Board.** Each living character's last shot stays drawn: 1.5 px at 75 % opacity in its team
@@ -286,7 +286,7 @@ replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
 - **Formula box.** See section 7, "Per-character formula".
 `window.__state()` gains `faint`, the number of faint paths, for the e2e test (ADR 15's hook
 stays read-only and the same on every peer).
-Also settled (`js/index.ts`): the host's own shot applies synchronously inside `room.shoot`, so
+Also settled (`js/game.ts`): the host's own shot applies synchronously inside `room.shoot`, so
 the Fire handler must not redraw afterwards. It only disables Fire, and refreshes on a refused
 shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
@@ -294,7 +294,7 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
 
 - **Trajectory draw.** When a shot is applied, the engine has already moved to the new state
   (`fire` returned the points and `__state` already reflects the outcome). The renderer draws the
-  arena as it was before the shot (`index.ts` keeps `sim.arena()` from just before applying) with
+  arena as it was before the shot (`game.ts` keeps `sim.arena()` from just before applying) with
   a growing prefix of the points, at constant pen speed: 700 ms, plus up to 700 ms more for long
   paths, using `requestAnimationFrame`. On the last frame it switches to the new arena, so kills
   and the new crater appear when the pen lands. A newer draw (next message, theme change) cancels
@@ -689,9 +689,9 @@ which is the current engine behaviour, so the existing disc scenarios need no ch
 Changes:
 - The host form gains no second button. The e2e clicks `#host-form button`, so either keep a
   single button or change the test to `#host-form button[type=submit]`.
-- `tests/e2e.mjs` gains `".css": "text/css"` in its MIME map for `static/style.css`.
+- `tests/e2e/helpers.mjs` gains `".css": "text/css"` in its MIME map for `static/style.css`.
 
-Settled in S1 (`static/index.html`, `static/style.css`): `index.ts` sets `data-field` (`xy`/`disc`) on
+Settled in S1 (`static/index.html`, `static/style.css`): `game.ts` sets `data-field` (`xy`/`disc`) on
 `#game`; CSS uses it for `--ratio` on the canvas and to show the field's notation in the mode labels
 (the radios take their visible text as accessible name, so the label stays in the name, WCAG 2.5.3; the "Function"/"Parametric" names in section 7 are dropped). The `#direction` fieldset carries
 `hidden` until a disc game starts (S7). "Seats" is hidden by CSS while
@@ -710,7 +710,7 @@ shows live under the preview and disables Insert while it applies. A value typed
 limits on `change` (blur or Enter), not per keystroke. Fire's slider-letter error names every letter: "a is a
 slider letter. ... or type a number." for one, "a and b are slider letters. ... or type numbers." for several.
 
-Settled in S3 (`js/index.ts`): the last-shot line also says "Team N ran out of time." for a timeout, "Team N left the game."
+Settled in S3 (`js/game.ts`): the last-shot line also says "Team N ran out of time." for a timeout, "Team N left the game."
 for a quit, and "fired a formula that failed, so the turn was skipped" for a shot that every peer's engine rejects; on the
 disc it says "counterclockwise" as well as "clockwise". The error line is emptied and refilled 50 ms later, so a repeated
 identical error is announced again; `aria-invalid` is set with the text and removed with it. Editing either input, a new
@@ -722,7 +722,7 @@ When a turn starts that is ours, `#turn-cue` (visually hidden, polite) says "You
 formula input gets focus. `#last-shot` and `#turn` are only written when their text changes, and the status code lives in `js/status.ts`.
 `aria-invalid` marks formula and slider errors only, and only the visible inputs.
 
-Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
+Settled in S7 (`js/game.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
@@ -737,7 +737,7 @@ file as a 1 em `img` with `alt=""` inside the `h1`, so the heading's name stays 
 paper colour, so a 1 px `--grid-major` hairline outlines it. `theme-color` is `--paper` per scheme. No web manifest: the site is not an installable app. e2e scenario AJ checks that every linked icon is served
 from `dist/` as an image.
 
-Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
+Settled in S8 (`js/game.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
 team's seat is away (the countdown beside it already gives the time). Both update when the set of disconnected seats changes. The `#absent` line is gone, since the roster and the status bar carry
 it. The guest-side state is not in the e2e test: the link is down for less than one tick on a quick reconnect, so a test
@@ -749,7 +749,7 @@ still leaves this page, although `quit` is then dropped and the seat stays held 
 - One new stylesheet (`static/style.css`) and one Google Fonts request. Without network access
   to Google, the fallbacks apply and nothing breaks.
 - `render.ts` grows: frame-aware grid, faces, labels and the animation prefix. It stays pure
-  drawing with no game state. Gaze is UI state passed in by `index.ts`.
+  drawing with no game state. Gaze is UI state passed in by `game.ts`.
 - ADR 15's fixed canvas sizes are replaced by a backing store that follows the displayed size
   times `devicePixelRatio`. The engine's arena constants are unchanged.
 - On a 390 px phone the faces are about 5 px in radius. Team identity there rests on cap colour

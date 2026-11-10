@@ -9,7 +9,7 @@ import { describeTrial, draw, lookAfterShot, lookKey, pickAt, playerName, toWorl
 import type { Disc, LastShot, Look, Pick, View } from "./render";
 import { clearError, setLive, showError } from "./status";
 
-/** A field's arena constants, which `js/index.ts` keeps for games (ADR 15). */
+/** A field's arena constants, which `js/game.ts` keeps for games (ADR 15). */
 export type Extents = { x: number; y: number; obstacles: number; minSize: number; maxSize: number };
 
 /** A press this close (CSS px) to the edge of a player or obstacle is on it, so small faces can be tapped. */
