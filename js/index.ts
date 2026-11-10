@@ -1,9 +1,10 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import init from "../pkg/index.js";
-import { BUILD_ID, BUILD_VERSION, DEFAULT_K, inviteFragment, isHostRun, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
-import type { Announce, Game as Room, OpenGame } from "./net";
+import { BUILD_ID, BUILD_VERSION, inviteFragment, isHostRun, joinGame, parseBot, parseInvite, parseLocal, selfId } from "./net";
+import type { Announce, Game as Room } from "./net";
 import { $, show } from "./dom";
 import "./help";
+import { FIELD_NAMES, FRAME_NAMES, games, lobby, passwordDialog } from "./lobby";
 import { acceptShot, clearEnded, dropGame, end, ended, onMessage, play, refresh, testArena } from "./game";
 import { clearError, seatName, setLive, short, showError, TITLE } from "./status";
 import "./about";
@@ -22,10 +23,6 @@ export const HOST_LEFT = ["The host left.", "The game can't continue without the
 const REMOVED = ["The host removed you from this game.", "Join another game from the lobby."] as const;
 const UNREACHABLE = ["Wrong password, or the host can't be reached.", "Check the password or the link with the host, then join again."] as const;
 const NO_HOST = ["The host can't be reached.", "The game may be gone. Join another one from the lobby."] as const;
-/** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
-const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
-/** Long and short names of a shot frame, shown after the field (ADR 20). */
-const FRAME_NAMES = { map: ["map-centred", "map"], player: ["player-centred", "player"] };
 
 /** What a seated peer keeps to rejoin: the room, its private token, its build, its seat id and the room password (ADR 24). */
 type Seat = { hostId: string; token: string; version: string; me: string; key?: string };
@@ -33,8 +30,6 @@ type Seat = { hostId: string; token: string; version: string; me: string; key?: 
 $("build").textContent = `v ${BUILD_VERSION}`;
 $("build").setAttribute("aria-label", `v ${BUILD_VERSION}, changelog, opens in a new tab`);
 
-// One lobby connection for the page's lifetime; the host withdraws its listing once the game starts.
-const lobby = joinLobby(renderLobby);
 export let room: Room | null = null;
 export let hostId = "";
 /** Our seat id in `start.peers`: `selfId`, or after a reload the id we had when the game started. */
@@ -52,8 +47,7 @@ let connected: string[] = [];
 let bots: string[] = [];
 /** Host: the local players' seat ids added in the waiting room, in the order they were added (ADR 22). */
 let locals: string[] = [];
-/** The open games the lobby last listed, and the offer of the room we are in (ADR 17, section 6). */
-let games: OpenGame[] = [];
+/** The offer of the room we are in (ADR 17, section 6). */
 let roomInfo: Announce | undefined;
 
 /** Forgets the stored seat and takes our own id as the seat id again, for a seat from an earlier game. */
@@ -62,120 +56,16 @@ export function dropSeat() {
     me = selfId;
 }
 
-function renderLobby(list: OpenGame[]) {
-    games = list;
-    $("no-games").hidden = list.length > 0;
-    $("games-table").hidden = list.length === 0;
-    $("games").replaceChildren(
-        ...list.map((g) => {
-            const tr = document.createElement("tr");
-            const cell = (text: string) => {
-                const td = tr.appendChild(document.createElement("td"));
-                td.textContent = text;
-                return td;
-            };
-            const name = cell(g.name);
-            if (g.locked) {
-                const lock = name.appendChild(document.createElement("span"));
-                lock.className = "lock";
-                lock.setAttribute("role", "img");
-                lock.setAttribute("aria-label", "Password required");
-            }
-            if (g.compatible) {
-                const [long, short] = FIELD_NAMES[g.field].map((name, i) => `${name}, ${FRAME_NAMES[g.frame][i]}`);
-                const field = cell("");
-                for (const [cls, name] of [["long", long], ["short", short]]) {
-                    const span = field.appendChild(document.createElement("span"));
-                    span.className = cls;
-                    span.textContent = name;
-                }
-                cell(`${g.players} of ${g.seats}`);
-                const full = g.players >= g.seats;
-                const join = document.createElement("button");
-                join.textContent = full ? "Full" : "Join";
-                join.disabled = full;
-                join.onclick = () => (g.locked ? askPassword(g.id) : enterRoom(g.id));
-                cell("").append(join);
-            } else {
-                tr.className = "muted";
-                cell("Different version. Reload the page.").colSpan = 3;
-            }
-            return tr;
-        }),
-    );
-}
-
-const hostField = $<HTMLSelectElement>("host-field");
-const hostSeats = $<HTMLInputElement>("host-seats");
-hostSeats.max = String(MAX_PLAYERS);
-hostField.onchange = () => {
-    // The xy field is exactly two players (ADR 5).
-    hostSeats.disabled = hostField.value === "xy";
-    if (hostSeats.disabled) hostSeats.value = "2";
-};
-const hostVisibility = $<HTMLSelectElement>("host-visibility");
-hostVisibility.onchange = () => {
-    $<HTMLInputElement>("host-password").disabled = hostVisibility.value !== "password";
-    $<HTMLInputElement>("host-share").disabled = hostVisibility.value === "public";
-};
-$<HTMLFormElement>("host-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const field = hostField.value === "xy" ? "xy" : "disc";
-    const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
-    // A password game is listed with a lock, and its typed password is stretched; a private link's
-    // random key is used as it is and never leaves the link (ADR 24).
-    const submit = $<HTMLButtonElement>("host-submit");
-    submit.disabled = true;
-    let password = "";
-    try {
-        if (hostVisibility.value === "link") password = newToken();
-        else if (hostVisibility.value === "password") password = await stretchPassword($<HTMLInputElement>("host-password").value, selfId);
-    } finally {
-        submit.disabled = false;
-    }
-    // While the password stretched, Join or a pasted invite may have entered another room.
-    if (room || $("lobby").hidden) return forget("host-password");
-    unlisted = hostVisibility.value === "link";
-    shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
-    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password", teams: [], k: DEFAULT_K };
-    forget("host-password");
+/** Hosts a game: advertises `next` unless it is `hidden` (a private link), and enters our own room with its `password`. */
+export function hostRoom(next: Announce, hidden: boolean, share: boolean, password: string) {
+    offer = next;
+    unlisted = hidden;
+    shareInvite = share;
     enterRoom(selfId, undefined, password);
-};
-
-// Password fields are masked; their Show toggle (aria-pressed) reveals the text (ADR 24).
-const reveal = (button: HTMLButtonElement, shown: boolean) => {
-    $<HTMLInputElement>(button.getAttribute("aria-controls") ?? "").type = shown ? "text" : "password";
-    button.setAttribute("aria-pressed", String(shown));
-};
-document.querySelectorAll<HTMLButtonElement>("button.reveal").forEach((button) => (button.onclick = () => reveal(button, button.getAttribute("aria-pressed") !== "true")));
-/** Empties a password field and masks it again, so a typed password does not stay on the page once used. */
-function forget(id: string) {
-    $<HTMLInputElement>(id).value = "";
-    reveal(document.querySelector<HTMLButtonElement>(`button.reveal[aria-controls="${id}"]`)!, false);
 }
-
-const passwordDialog = $<HTMLDialogElement>("password-dialog");
-/** The game whose password the dialog asks for. */
-let asking = "";
-function askPassword(id: string) {
-    asking = id;
-    passwordDialog.showModal();
-}
-// However the dialog closes (Join, Cancel, Escape, leaving the lobby), the typed password goes.
-passwordDialog.addEventListener("close", () => forget("join-password"));
-$<HTMLFormElement>("password-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const id = asking;
-    const password = await stretchPassword($<HTMLInputElement>("join-password").value, id);
-    // A second submit while this one stretched, Cancel or leaving the lobby closed the dialog already.
-    if (!passwordDialog.open) return;
-    passwordDialog.close();
-    enterRoom(id, undefined, password);
-};
-$("password-cancel").onclick = () => passwordDialog.close();
 
 /** Joins room `id`: our own when hosting, from a stored `seat` after a reload, with the room `password` of a private game (ADR 24). */
-function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
+export function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     hostId = id;
     roomKey = password;
     // The host's choice was made in the form; a guest waits to be told.
