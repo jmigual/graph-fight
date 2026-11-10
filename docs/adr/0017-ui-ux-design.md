@@ -804,3 +804,4 @@ still leaves this page, although `quit` is then dropped and the seat stays held 
 - No curve preview. Players learn from the frame-aware grid and from watching shots. A practice
   mode stays a possible later feature.
 - Player names other than the short id remain out of scope (it would be a protocol change).
+- The README images in `docs/img` are light theme only, taken at 2x by `scripts/screenshots.mjs`.
