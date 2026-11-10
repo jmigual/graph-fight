@@ -1,6 +1,9 @@
 //! The starter templates (ADR 17, section 8) are shared with the client in `js/starters.json`.
 //! Each one must parse with the right variable at the slider's min, default and max, and be
-//! finite at the start point.
+//! finite at the start point. For `r = f(θ)` that is the shooter's map angle `θ₀` in `[0, 2π)`
+//! (ADR 20), so it is checked at several of them.
+
+use std::f64::consts::{FRAC_PI_2, PI};
 
 use graph_fight::formula::Formula;
 use serde_json::{Map, Value};
@@ -55,8 +58,15 @@ fn starters_parse_and_are_finite_at_the_start() {
                 let src = substitute(expr.as_str().expect("expr"), sliders, pick);
                 let formula = Formula::parse(&src, var)
                     .unwrap_or_else(|e| panic!("{name} at {pick}: '{src}' does not parse: {e}"));
-                let y = formula.eval(0.0);
-                assert!(y.is_finite(), "{name} at {pick}: '{src}' is {y} at 0");
+                let starts: &[f64] = if var == "θ" {
+                    &[0.0, FRAC_PI_2, PI, 3.0 * FRAC_PI_2, 6.2]
+                } else {
+                    &[0.0]
+                };
+                for &start in starts {
+                    let y = formula.eval(start);
+                    assert!(y.is_finite(), "{name} at {pick}: '{src}' is {y} at {start}");
+                }
             }
         }
     }

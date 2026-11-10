@@ -457,16 +457,21 @@ slider value. The values are the defaults the sliders start at.
 | XY, function | Hop | `a*exp(-((x-b)/c)^2)` | a: -5, 5, 0.1, 3; b: 0, 20, 0.1, 5; c: 0.2, 5, 0.1, 1 |
 | XY, parametric | Straight line | `t`, `a*t` | a: -3, 3, 0.05, 0.5 |
 | XY, parametric | Cycloid | `t - a*sin(t)`, `a*(1 - cos(t))` | a: 0, 3, 0.1, 1.5 |
-| Disc, function | Spiral | `a*θ` | a: 0, 3, 0.1, 1 |
-| Disc, function | Circle | `a*sin(θ)` | a: 0, 10, 0.1, 5 |
-| Disc, function | Rose | `a*sin(b*θ)` | a: 0, 10, 0.1, 4; b: 1, 8, 1, 2 |
-| Disc, parametric | Straight shot | `t`, `a` | a: -1.57, 1.57, 0.01, 0 |
-| Disc, parametric | Bend | `t`, `a*t` | a: -0.3, 0.3, 0.005, 0.05 |
+| Disc, function | Spiral | `a*θ` | a: -3, 3, 0.1, 1 |
+| Disc, function | Wave | `a*sin(b*θ)` | a: 0, 5, 0.1, 1; b: 1, 8, 1, 4 |
+| Disc, parametric | Straight shot | `-t`, `0` | none |
+| Disc, parametric | Bend | `-t`, `a*t` | a: -0.3, 0.3, 0.005, 0.05 |
+
+Settled with ADR 20 (`js/starters.json`): disc shots are offset to start at the shooter in map
+polar coordinates, so the disc starters changed. Spiral allows negative `a` (inward). "Circle"
+(`a*sin(θ)`) no longer drew a circle and "Rose" no longer drew petals; one wavy orbit, "Wave",
+replaces both. A constant angle cancels out, so "Straight shot" is the line through the centre and
+has no slider, and "Bend" bends that line around the centre. There are 10 starters.
 
 Verification has two parts. The S5 unit test substitutes every starter at its min, default and
 max values and requires no slider letters left and at most 256 characters. A Rust test in
 `tests/starters.rs` substitutes the same values and runs `Formula::parse` with the mode's variable
-(`x`, `θ` or `t`), requiring a finite value at 0. The WASM build cannot run under the node test
+(`x`, `θ` or `t`), requiring a finite value at 0 (for `θ`, at several shooter angles `θ₀`, ADR 20). The WASM build cannot run under the node test
 runner, so the Rust test does not call `check`/`check_param`. The starters are shared, not copied:
 both tests read `js/starters.json`, and Rust substitutes with its own small tokenizer.
 

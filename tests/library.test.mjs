@@ -88,7 +88,7 @@ const good = newItem("good", "xy", "explicit", ["a*x"]).value;
 // Starters: every one at min, default and max has no slider letters left and fits in 256 characters.
 const seeded = loadItems(memory());
 assert.equal(seeded.items.length, starters.length, "every starter is valid");
-assert.equal(seeded.items.length, 11);
+assert.equal(seeded.items.length, 10);
 const expected = {
     Line: ["(-2)*x", "0.5*x", "2*x"],
     Parabola: ["(-0.5)*x^2 + (-3)*x", "(-0.05)*x^2 + 1*x", "0.5*x^2 + 3*x"],
@@ -111,7 +111,7 @@ assert.equal(loadItems(first).available, true);
 assert.equal(first.m.size, 1, "starters written on first visit");
 assert.deepEqual(loadItems(first).items, seeded.items, "round trip through storage");
 assert.equal(saveItems(seeded.items.slice(1), first), true);
-assert.equal(loadItems(first).items.length, 10, "deleted starter stays deleted");
+assert.equal(loadItems(first).items.length, 9, "deleted starter stays deleted");
 assert.equal(saveItems([], first), true);
 assert.deepEqual(loadItems(first).items, [], "an empty list is not reseeded");
 
@@ -181,7 +181,7 @@ assert.deepEqual(loadItems(blocked), { items: [], available: false });
 assert.equal(saveItems([good], blocked), false);
 const full = { getItem: () => null, setItem: () => { throw new Error("QuotaExceededError"); } };
 const inMemory = loadItems(full);
-assert.equal(inMemory.items.length, 11, "starters still shown when the first write fails");
+assert.equal(inMemory.items.length, 10, "starters still shown when the first write fails");
 assert.equal(inMemory.available, false);
 // Without a store argument the global `localStorage` is used; reading it may itself throw.
 Object.defineProperty(globalThis, "localStorage", { get() { throw new Error("SecurityError"); }, configurable: true });
