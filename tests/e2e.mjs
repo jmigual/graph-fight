@@ -1369,7 +1369,9 @@ const scenarios = {
             await page.click("#fire");
             await assertSynced(pages, turn + 1);
         }
-        assert.equal(restored, 2, "both teams' first characters came back");
+        // A team has 3 characters and plays 4 turns, so each revisits one at least. A stray hit on a random
+        // arena can kill a character and make the rest come round more often, so only a floor is certain.
+        assert.ok(restored >= 2, `both teams revisited a character (${restored} restored)`);
         return errors;
     },
     async AH() {
