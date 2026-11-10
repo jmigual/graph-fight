@@ -295,7 +295,8 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
             if (result.ok) fill(item.mode, result.value);
         };
         changed(false);
-        li.append(details, preview, note, actions);
+        // Insert and Delete show beside the name, so they come before the sliders in focus order too.
+        li.append(actions, details, preview, note);
         return li;
     }
 

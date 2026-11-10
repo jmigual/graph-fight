@@ -28,7 +28,8 @@ Amended by 0026: a header above the screens holds the Help button.
 Amended 2026-11-10 (UI audit): each screen is a centred block, and the game is as wide as its board
 needs, so the board grows with a wide window (sections 4 and 6). The empty lobby also offers a bot
 to play alone, in a dashed outline, and a hint under "Coordinates" says what each frame means
-(sections 4 and 6).
+(sections 4 and 6). On desktop the board stays in view while the side column scrolls, and each
+saved formula has Insert and Delete beside its name (sections 6 and 8).
 
 ## Context
 
@@ -346,7 +347,9 @@ start." Both see **Leave**. Room errors (`Could not start`) go to `#room-error` 
 **Game.** Desktop is a two-column grid, `minmax(0, 1fr) var(--side)` (`--side` is 24rem, 20rem
 from 960 to 1279 px). Left: status bar, board, then
 the last-shot line. Right: formula editor, roster, saved formulas. On phone it is one column:
-status bar (sticky top), board, editor, roster, saved formulas.
+status bar (sticky top), board, editor, roster, saved formulas. On desktop the left column is
+sticky, so the board stays in view while the side column scrolls (to a template, for example),
+except in the test arena (ADR 25), where the setup panel under the board must scroll.
 
 ```
 +-----------------------------------------------+------------------------+
@@ -515,9 +518,10 @@ formula (no sliders) has the same **Insert**.
 
 **List.** Only items for the current field are shown, grouped by mode, newest first. Each row has
 the name (Atkinson), the formula (STIX, `overflow-wrap: anywhere`), **Insert**, and a delete
-button with `aria-label="Delete <name>"`. Delete asks `confirm("Delete “<name>”?")` because it is
-the only destructive action. Names and formulas go in with `textContent` only. The empty state
-says: "Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x)."
+button with `aria-label="Delete <name>"`. Insert and Delete sit beside the name and formula, and
+come before a template's sliders in the DOM, so focus follows the visual order. Delete asks
+`confirm("Delete “<name>”?")` because it is the only destructive action. Names and formulas go
+in with `textContent` only. The empty state says: "Save a formula to reuse it. Letters like a or b become sliders, for example a*sin(b*x)."
 
 **Storage.** `localStorage["graph-fight.formulas"]` =
 `{ v: 1, items: [{ name, field, mode, exprs, sliders: { [letter]: { min, max, step, value } } }] }`.

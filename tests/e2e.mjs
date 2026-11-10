@@ -1663,8 +1663,33 @@ const scenarios = {
         assertCentred(await box(lobby, "#lobby"), "the lobby at 1920 px");
         await lobby.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(lobby, "#lobby")).sideways, false, "the lobby does not scroll sideways at 360 px");
+        // The game's board stays in view while the side column scrolls, but not the test arena's: its
+        // setup panel is under the board and must scroll into view (ADR 25).
+        await lobby.setViewportSize({ width: 1280, height: 800 });
+        await lobby.click("#test-open");
+        const cut = await lobby.evaluate(() =>
+            [...document.querySelectorAll("#test-panel :is(button, select, input)")]
+                .filter((el) => el.getClientRects().length)
+                .filter((el) => {
+                    el.scrollIntoView({ block: "nearest" });
+                    const r = el.getBoundingClientRect();
+                    return r.top < 0 || r.bottom > innerHeight;
+                })
+                .map((el) => el.id || el.textContent.trim()),
+        );
+        assert.deepEqual(cut, [], "every test-arena control scrolls into view");
         const { pages, errors } = await startGame(1, "xy", "AM", { bots: ["easy"], offline: true });
         const [host] = pages;
+        // In a game the board stays on screen while the page scrolls down the side column.
+        await host.setViewportSize({ width: 1280, height: 800 });
+        const scrolled = await host.evaluate(() => {
+            scrollTo(0, 600);
+            const r = document.getElementById("arena").getBoundingClientRect();
+            return { y: scrollY, top: r.top, bottom: r.bottom, height: innerHeight };
+        });
+        assert.ok(scrolled.y >= 600, `the page scrolls (${scrolled.y})`);
+        assert.ok(scrolled.top >= 0 && scrolled.bottom <= scrolled.height, `the board stays on screen (${scrolled.top}, ${scrolled.bottom})`);
+        await host.evaluate(() => scrollTo(0, 0));
         await host.setViewportSize({ width: 1920, height: 1080 });
         assertCentred(await box(host, "#game"), "the game at 1920 px");
         const board = await box(host, "#arena");

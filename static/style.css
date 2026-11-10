@@ -339,13 +339,16 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 
 .saved-group { margin-top: 1rem; }
 .saved-group h3 { margin: 0; font: 400 1rem/1.5 var(--font-math); color: var(--ink-soft); }
-.saved-item { padding: 0.75rem 0; border-bottom: 1px solid var(--grid-major); }
+/* Insert and Delete beside the name and formula; sliders, preview and note below at full width. */
+.saved-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.75rem; align-items: start; padding: 0.75rem 0; border-bottom: 1px solid var(--grid-major); }
+.saved-item > * { grid-column: 1; }
+.saved-item > .actions { grid-column: 2; grid-row: 1 / span 2; }
+.saved-item > :is(details, .preview, .error) { grid-column: 1 / -1; }
 .saved-name { display: block; font-weight: 700; }
 .saved-expr { display: block; font-size: 1.125rem; margin-bottom: 0.25rem; }
 .saved-item summary { min-height: var(--control-h); line-height: var(--control-h); cursor: pointer; }
 .saved-item .preview { margin: 0.5rem 0 0; font-size: 1.125rem; color: var(--ink-soft); }
 .saved-item .error { margin: 0.25rem 0 0; }
-.saved-item .actions { margin-top: 0.5rem; }
 
 .slider { display: grid; gap: 0.5rem; padding: 0.5rem 0; }
 .slider input[type=number] { width: 6rem; min-width: 0; }
@@ -383,6 +386,8 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
     .lobby-grid { grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem); gap: 4rem; }
     .about-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); gap: 3rem; }
     #game { grid-template-columns: minmax(0, 1fr) var(--side); gap: 2rem; }
+    /* The board stays in view while the side column scrolls; the test arena's setup panel under it must scroll. */
+    #game:not([data-mode=test]) .game-main { position: sticky; top: 0; align-self: start; }
 }
 
 @media (prefers-reduced-motion: reduce) {
