@@ -10,6 +10,8 @@ from the host), and relays `leave {peer}` for a seat it kicks, as for a quit.
 Amended by 0024: the listing carries `locked` (a password game), a private-link game is not listed,
 and a password or private-link game room is joined with Trystero's `password` option. The host may
 send a guest `{type: "share"}` (outside the sequence, accepted only from the host).
+Amended by 0028: the build version is the release number from `CHANGELOG.md`, or the next minor plus
+`-dev+<hash>` in any build without `GRAPH_FIGHT_LOBBY=live` (see "Version check").
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
 uses `graph-fight:lobby:dev` (see "Lobby topic per build").
 Superseded in part by 0020: `start` and the lobby listing also carry `frame: "map" | "player"`.
@@ -81,9 +83,10 @@ room builds a WebRTC mesh between every pair of visitors, O(n^2), so the lobby i
 - Dead relays are retried with a doubling delay (5 s up to 60 s); `leave()` stops reconnecting.
 
 Version check (peers on different builds would desync silently):
-- esbuild's `define` (ADR 19; webpack's DefinePlugin before) sets `__BUILD_VERSION__` to the short
-  commit hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` when the repository is
-  unavailable. `net.ts` exports it as `BUILD_VERSION`.
+- esbuild's `define` (ADR 19; webpack's DefinePlugin before) sets `__BUILD_VERSION__` per ADR 28:
+  the release number in the live build, otherwise the next minor plus `-dev+` and the short commit
+  hash, or a hash of `js/`, `src/`, `static/` and `Cargo.lock` when the repository is unavailable
+  (it was the bare hash before ADR 28). `net.ts` exports it as `BUILD_VERSION`.
 - Listings and `start` carry it. Lobby entries get `compatible: false` on a mismatch, kept in
   the list so the UI can grey them out ("different version - reload"). A peer receiving a
   `start` from another build leaves the room and gets `onVersionMismatch` instead of the

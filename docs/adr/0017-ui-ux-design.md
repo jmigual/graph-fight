@@ -6,6 +6,7 @@ and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the
 bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
 staying on the board and refilling the editor. Amended 2026-11-10: the formula inputs turn the
 whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
+Amended by 0028: the footer version is a link to `changelog.html` (section 7).
 Amended by 0022: the host's waiting room also has `#add-local`, each local player is a
 `#room-players` `li` "Local 1" with a Remove button, and on the host a local player's turn counts as
 ours (editor, Fire, focus, restore) with "Local 2's turn" in the status bar, tab title and turn cue
@@ -692,7 +693,7 @@ Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game 
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
-Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
+Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer>` outside the screens holds `<a id="build" href="./changelog.html" target="_blank" rel="noopener">` showing "v 0.3.0" or "v 0.4.0-dev+1a2b3c4" (`BUILD_VERSION`, set once at startup, per ADR 28; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, with `aria-label` "Version 0.3.0, view changelog, opens in a new tab" (a new tab keeps a game in progress connected); the e2e test compares it to the version the host announces and follows the link to the changelog page (ADR 28). Before ADR 28 it was a `<footer id="build">` showing the commit hash with the label "Build version 1a2b3c4".
 
 Settled with the logo and favicon (`static/favicon.svg`, `static/index.html`, `scripts/icons.mjs`): the mark is the title's
 motif on a 32-unit tile in the page's paper: two faint axes in `--grid-major`, a 3-unit `--ink` curve from a `--team-1` dot to a

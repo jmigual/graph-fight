@@ -1,6 +1,8 @@
 # 10. Hosting on GitHub Pages at graph-fight.marceigual.eu
 
 Status: Accepted (2026-11-09)
+Amended by 0028: after the build, a step fails the deploy unless `dist/` holds the version at the top of
+`CHANGELOG.md` and no `-dev+` version.
 
 ## Context
 

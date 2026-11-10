@@ -117,6 +117,8 @@ Local builds (`npm start`, `npm run build`, `npm run e2e`) use a separate dev lo
 `master`. The site is served at https://graph-fight.marceigual.eu. DNS and Pages settings are
 described in [docs/adr/0010](docs/adr/0010-hosting-github-pages-custom-domain.md).
 
+Releases are listed in [CHANGELOG.md](CHANGELOG.md), the source of the footer version and the changelog page; adding the entry is how a release is made ([docs/adr/0028](docs/adr/0028-release-versions-and-changelog.md)).
+
 ## 📐 Design decisions
 
 Decisions are recorded as ADRs: [docs/adr/README.md](docs/adr/README.md) (index of all ADRs; start there).
