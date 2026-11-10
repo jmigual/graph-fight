@@ -74,7 +74,8 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   - host to guests `{type: "lineup", size: S, teams: string[][], waiting: string[]}`, sent on join
     and on every change; accepted only from the host and only before `start`; `S` from 1 to 8,
     `teams.length` = `T` with `T ≥ 2` and `T × S ≤ 8`, each list at most `S` long, `waiting` the
-    joiners without a seat in join order, at most 32 of them, each id a seat id as in `start.peers`
+    joiners without a seat in join order, at most 32 of them (`MAX_WAITING`; the host sends the first
+    32 when more wait, and the rest still take seats in turn), each id a seat id as in `start.peers`
     (at most 64 characters, well-formed bot and local ids). Guests show `waiting` as it is rather than
     working it out from their own connections. Team mode only.
   - guest to host `{type: "team", team: t}`: "put me on side t", with `t` an integer below 8. The

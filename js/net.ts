@@ -37,7 +37,7 @@ const MAX_FRAME = 4096;
 export const MAX_PLAYERS = 8;
 /**
  * Most joiners a team-mode `lineup` lists as waiting for a seat (ADR 27). A full mesh of that many
- * WebRTC peers is already far past what a room handles; the host's `lineup` throws beyond it.
+ * WebRTC peers is already far past what a room handles; the host's `lineup` sends only the first ones.
  */
 export const MAX_WAITING = 32;
 /** Characters per player when a `start` or a listing has no `k` (ADR 27), and ADR 15's fixed count before it. */
@@ -585,7 +585,8 @@ export type Game = {
     share(peer: string): void;
     /**
      * Host only, before `start`, team mode (ADR 27): send the sides to every guest that is not kicked,
-     * outside the sequence. Throws on a lineup guests would drop, and once the game has started.
+     * outside the sequence. Only the first `MAX_WAITING` waiting joiners are sent. Throws on a lineup
+     * guests would drop otherwise, and once the game has started.
      */
     lineup(lineup: Lineup): void;
     /** Guest only, team mode (ADR 27): ask the host for a seat on side `team`; the next lineup shows the answer. */
@@ -832,10 +833,12 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         lineup(lineup) {
             if (!isHost) throw new Error("only the host sends the lineup");
             if (out.started()) throw new Error("lineup after start");
-            if (!parseLineup(lineup)) throw new Error("invalid lineup");
+            // Guests see the first MAX_WAITING joiners in line; the rest still wait on the host.
+            const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
+            if (!parseLineup(sent)) throw new Error("invalid lineup");
             const guests = Object.keys(room.getPeers()).filter((p) => !banned.has(p));
             // A lost one is replaced by the next, sent on every change.
-            action.send({ type: "lineup", ...lineup }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
+            action.send({ type: "lineup", ...sent }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
         },
         askTeam(team) {
             if (isHost) throw new Error("the host seats itself");
