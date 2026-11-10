@@ -1,6 +1,6 @@
 # 17. UI and UX design: graph paper, formula editor, saved formulas and templates
 
-Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4). The disc board
+Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4). The board
 follows ADR 20 (settled in section 4).
 
 ## Context
@@ -208,19 +208,24 @@ Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r =
 with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
 scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
 
-Settled with ADR 20 (`js/render.ts`): disc shots are in map polar coordinates, so the disc paper
-no longer follows the shooter. It is centred on the disc centre on every screen and every turn:
-circles every 1 unit (major every 5), rays every 30°, and the `θ = 0` axis along the map's `+x`
-from the centre with its arrowhead, the number 5 and the `θ = 0` label; the rays at a quarter turn
-are labelled `π/2`, `π`, `3π/2` near the rim. On our own turn the old arc and `π/2` beside the
-shooter are replaced by our `θ₀`: a line from the centre toward our face, an arc from the `θ = 0`
-axis to it labelled `θ₀ ≈ 0.61` (two decimals, the value in `[0, 2π)` the engine uses), and a short
-arc arrow about the centre just inside our face turning the chosen way (section 7). These are
-drawn above the obstacles, under the faces. While we aim, our face looks along that sweep: the
-direction from the centre to us turned +90° (counterclockwise) or -90° (clockwise). Section 7's
-"Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockwise down", seen from above the
-map rather than from the shooter. The resting gaze (toward the centre) and the gaze after a shot
-(from the shot's first points) are unchanged. The XY paper stays in the shooter's frame.
+Settled with ADR 20 (`js/render.ts`): shots are in map coordinates on both fields, so the graph
+paper no longer follows the shooter. It shows the map's own axes from the centre on every screen
+and every turn. On XY: lines every 1 unit (major every 5) through integer map coordinates, the
+`+x` axis (arrow at the right edge) and `+y` axis (arrow at the top) through the centre, and 5,
+10, 15 under `+x`. On the disc: circles every 1 unit (major every 5) and rays every 30° about the
+centre, the `θ = 0` axis along the map's `+x` with its arrowhead, the number 5 and the `θ = 0`
+label, and `π/2`, `π`, `3π/2` near the rim on the quarter-turn rays. On our own turn the old arc
+and `π/2` beside the shooter are replaced by where our formula starts and which way it sweeps,
+drawn above the obstacles and under the faces. On XY: a line from the `x` axis to our face, the
+label `x ≈ -7.32` (two decimals) on the far side of the axis and clear of the face, and a 40 px
+arrow from our face toward the other half. On the disc: a line from the centre toward our face,
+an arc from the `θ = 0` axis to it labelled `θ₀ ≈ 0.61` (the value in `[0, 2π)` the engine uses),
+and a short arc arrow about the centre just inside our face turning the chosen way (section 7).
+While we aim on the disc our face looks along that sweep: the direction from the centre to us
+turned +90° (counterclockwise) or -90° (clockwise); on XY the resting gaze already faces the sweep.
+Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockwise down", seen from
+above the map rather than from the shooter. The resting gaze (toward the centre) and the gaze after
+a shot (from the shot's first points) are unchanged.
 
 ### 5. Motion
 

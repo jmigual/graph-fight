@@ -12,9 +12,9 @@ export type LastShot = { team: number; exprs: string[]; points: Point[] };
 export type View = {
     field: Field;
     arena: Arena;
-    /** Team whose current player shoots; the XY grid is drawn in its frame. `null` when the game is over. */
+    /** Team whose current player shoots, `null` when the game is over. */
     current: number | null;
-    /** The current shooter is ours: on the disc we show its θ₀ and which way θ sweeps, and our face looks there. */
+    /** The current shooter is ours: we show where its formula starts (x or θ₀) and which way it sweeps; on the disc our face looks there. */
     mine: boolean;
     /** The chosen disc direction (ADR 14); counter-clockwise when absent. */
     cw?: boolean;
@@ -55,7 +55,7 @@ type Colour = (token: string) => string;
 
 export const lookKey = (team: number, player: number) => `${team}:${player}`;
 
-/** Unit vector toward the centre for a player at `pos`: the XY frame's +x, and the resting gaze. */
+/** Unit vector toward the centre for a player at `pos`: the resting gaze. */
 function ahead(field: Field, pos: Point): Point {
     if (field === "xy") return { x: pos.x > 0 ? -1 : 1, y: 0 };
     const d = Math.hypot(pos.x, pos.y);
@@ -158,19 +158,16 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     const team = view.current === null ? null : arena.teams[view.current];
     const shooter = team?.players[team.currentPlayer];
     const origin = shooter?.shape.pos ?? { x: 0, y: 0 };
-    // The XY paper is in the shooter's frame; the disc paper is the map's polar frame (ADR 20).
-    const frame = field === "disc" ? { x: 0, y: 0 } : origin;
-    const forward = field === "disc" ? { x: 1, y: 0 } : ahead(field, origin);
     const turn = view.cw ? -1 : 1;
-    const aiming = field === "disc" && view.mine && !!shooter;
+    const aiming = view.mine && !!shooter;
 
     ctx.save();
     if (field === "disc") {
         circle(w / 2, h / 2, arena.yMax * scale);
         ctx.clip();
     }
-    paper(ctx, colour, view, at, scale, frame, forward, w, h);
-    axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
+    paper(ctx, colour, view, at, scale, w, h);
+    axes(ctx, colour, text, rem, view, at, scale, w, h);
     ctx.fillStyle = colour("obstacle");
     for (const o of arena.obstacles) {
         circle(...at(o.pos), o.radius * scale);
@@ -186,8 +183,8 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
             ctx.arc(x, y, c.radius * scale, 0, 2 * Math.PI);
         }
         ctx.clip();
-        paper(ctx, colour, view, at, scale, frame, forward, w, h);
-        axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
+        paper(ctx, colour, view, at, scale, w, h);
+        axes(ctx, colour, text, rem, view, at, scale, w, h);
         ctx.restore();
     }
     ctx.restore();
@@ -201,7 +198,32 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         ctx.strokeRect(1, 1, w - 2, h - 2);
     }
 
-    if (aiming && shooter) {
+    if (aiming && shooter && field === "xy") {
+        // Our x, where y = f(x) starts, and the way x sweeps: toward the other half (ADR 20).
+        const [cx, cy] = at({ x: 0, y: 0 });
+        const [x, y] = at(origin);
+        const gap = shooter.shape.radius * scale + 8;
+        const dir = origin.x > 0 ? -1 : 1;
+        // The x label goes on the far side of the axis from our face, clear of the face.
+        const side = y < cy ? 1 : -1;
+        const ly = side > 0 ? Math.max(cy + 14, y + gap + 6) : Math.min(cy - 14, y - gap - 6);
+        ctx.strokeStyle = ctx.fillStyle = colour("ink-soft");
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (Math.abs(y - cy) > gap) {
+            ctx.moveTo(x, cy);
+            ctx.lineTo(x, y + side * gap);
+        }
+        ctx.moveTo(x + dir * gap, y);
+        ctx.lineTo(x + dir * (gap + 40), y);
+        ctx.stroke();
+        arrowhead(ctx, x + dir * (gap + 40), y, dir > 0 ? 0 : Math.PI);
+        ctx.font = `italic 14px ${MATH_FONT}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        text(`x ≈ ${origin.x.toFixed(2)}`, x, ly, colour("ink-soft"), 3);
+    }
+    if (aiming && shooter && field === "disc") {
         // Our θ₀ (the map angle where θ starts) and which way θ sweeps from it (ADR 20): only the
         // shooter knows the direction. Canvas angles are world angles negated.
         const [cx, cy] = at({ x: 0, y: 0 });
@@ -255,7 +277,7 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         t.players.forEach((player, pi) => {
             const ours = player === shooter;
             let look = view.looks.get(lookKey(ti, pi)) ?? restLook(field, player.shape.pos);
-            if (ours && aiming) {
+            if (ours && aiming && field === "disc") {
                 // Along our orbit about the centre: θ's sweep, counter-clockwise or clockwise.
                 look = lookAlong(look, { x: -turn * origin.y, y: turn * origin.x });
             }
@@ -277,38 +299,37 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 type At = (p: Point) => [number, number];
 type Text = (s: string, x: number, y: number, fill: string, halo: number) => void;
 
-/** Layers 1 and 2 without the axes: paper and the grid in the frame at `origin` (shooter on XY, centre on the disc). */
-function paper(ctx: CanvasRenderingContext2D, colour: Colour, view: View, at: At, scale: number, origin: Point, forward: Point, w: number, h: number) {
+/** Layers 1 and 2 without the axes: paper and the grid on the map's axes from the centre. */
+function paper(ctx: CanvasRenderingContext2D, colour: Colour, view: View, at: At, scale: number, w: number, h: number) {
     const { arena } = view;
     ctx.fillStyle = colour("paper");
     ctx.fillRect(0, 0, w, h);
-    const [ox, oy] = at(origin);
+    const [ox, oy] = at({ x: 0, y: 0 });
     ctx.lineWidth = 1;
     for (const major of [false, true]) {
         ctx.beginPath();
         if (view.field === "xy") {
-            for (let k = Math.ceil(-arena.xMax - origin.x); k <= arena.xMax - origin.x; k++) {
+            for (let k = Math.ceil(-arena.xMax); k <= arena.xMax; k++) {
                 if ((k % 5 === 0) !== major) continue;
                 ctx.moveTo(ox + k * scale, 0);
                 ctx.lineTo(ox + k * scale, h);
             }
-            for (let k = Math.ceil(-arena.yMax - origin.y); k <= arena.yMax - origin.y; k++) {
+            for (let k = Math.ceil(-arena.yMax); k <= arena.yMax; k++) {
                 if ((k % 5 === 0) !== major) continue;
                 ctx.moveTo(0, oy - k * scale);
                 ctx.lineTo(w, oy - k * scale);
             }
         } else {
-            const reach = Math.hypot(origin.x, origin.y) + arena.yMax;
+            const reach = arena.yMax;
             for (let k = 1; k <= reach; k++) {
                 if ((k % 5 === 0) !== major) continue;
                 ctx.moveTo(ox + k * scale, oy);
                 ctx.arc(ox, oy, k * scale, 0, 2 * Math.PI);
             }
             if (!major) {
-                const base = Math.atan2(-forward.y, forward.x);
                 for (let i = 1; i < 12; i++) {
                     ctx.moveTo(ox, oy);
-                    ctx.lineTo(ox + reach * scale * Math.cos(base + (i * Math.PI) / 6), oy + reach * scale * Math.sin(base + (i * Math.PI) / 6));
+                    ctx.lineTo(ox + reach * scale * Math.cos((i * Math.PI) / 6), oy + reach * scale * Math.sin((i * Math.PI) / 6));
                 }
             }
         }
@@ -317,33 +338,31 @@ function paper(ctx: CanvasRenderingContext2D, colour: Colour, view: View, at: At
     }
 }
 
-/** The axes through `origin`: +x and +y on XY, the θ = 0 ray on the disc, numbered 5, 10, 15; the disc also labels π/2, π, 3π/2. */
-function axes(ctx: CanvasRenderingContext2D, colour: Colour, text: Text, rem: number, view: View, at: At, scale: number, origin: Point, forward: Point, w: number, h: number) {
-    const [ox, oy] = at(origin);
+/** The map's axes from the centre: +x and +y on XY, the θ = 0 ray on the disc, numbered 5, 10, 15; the disc also labels π/2, π, 3π/2. */
+function axes(ctx: CanvasRenderingContext2D, colour: Colour, text: Text, rem: number, view: View, at: At, scale: number, w: number, h: number) {
+    const [ox, oy] = at({ x: 0, y: 0 });
     const ink = colour("ink-soft");
-    const [fx, fy] = [forward.x, -forward.y];
     ctx.strokeStyle = ctx.fillStyle = ink;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     let reach: number;
     if (view.field === "xy") {
-        reach = fx > 0 ? w - ox : ox;
+        reach = w - ox;
         ctx.moveTo(0, oy);
         ctx.lineTo(w, oy);
         ctx.moveTo(ox, h);
         ctx.lineTo(ox, 0);
         ctx.stroke();
-        arrowhead(ctx, fx > 0 ? w - 3 : 3, oy, fx > 0 ? 0 : Math.PI);
+        arrowhead(ctx, w - 3, oy, 0);
         arrowhead(ctx, ox, 3, -Math.PI / 2);
     } else {
-        reach = (Math.hypot(origin.x, origin.y) + view.arena.yMax) * scale - 3;
+        reach = view.arena.yMax * scale - 3;
         ctx.moveTo(ox, oy);
-        ctx.lineTo(ox + fx * reach, oy + fy * reach);
+        ctx.lineTo(ox + reach, oy);
         ctx.stroke();
-        arrowhead(ctx, ox + fx * reach, oy + fy * reach, Math.atan2(fy, fx));
+        arrowhead(ctx, ox + reach, oy, 0);
     }
-    // Numbers sit beside the axis, on its lower side.
-    const [nx, ny] = fx > 0 || (fx === 0 && fy > 0) ? [-fy, fx] : [fy, -fx];
+    // Numbers sit below the +x axis.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = `${0.8 * rem}px ${UI_FONT}`;
@@ -351,12 +370,12 @@ function axes(ctx: CanvasRenderingContext2D, colour: Colour, text: Text, rem: nu
     const free = reach - (view.field === "disc" ? 56 : 12);
     for (const k of [5, 10, 15]) {
         if (k * scale > free) break;
-        text(String(k), ox + fx * k * scale + nx * 10, oy + fy * k * scale + ny * 10, ink, 2);
+        text(String(k), ox + k * scale, oy + 10, ink, 2);
     }
     if (view.field === "disc") {
         ctx.font = `italic 14px ${MATH_FONT}`;
         const d = reach - 28;
-        text("θ = 0", ox + fx * d + nx * 12, oy + fy * d + ny * 12, ink, 3);
+        text("θ = 0", ox + d, oy + 12, ink, 3);
         ["π/2", "π", "3π/2"].forEach((s, i) => {
             const a = ((i + 1) * Math.PI) / 2;
             text(s, ox + d * Math.cos(a), oy - d * Math.sin(a), ink, 3);
