@@ -169,7 +169,8 @@ const scenarios = {
     async A() {
         const { pages, errors } = await startGame(2, "xy", "A");
         await assertSynced(pages, 0);
-        await assertRejected(pages, 0, "1/x");
+        // Team 0 shoots first from the left half, so sqrt(x) is undefined at its x (ADR 20).
+        await assertRejected(pages, 0, "sqrt(x)");
         await takeTurn(pages, 0, ["x"]);
         await takeTurn(pages, 1, ["t", "t"]);
         await takeTurn(pages, 2, ["-x"]);
@@ -206,7 +207,8 @@ const scenarios = {
     async C() {
         const { pages, errors } = await startGame(2, "disc", "C");
         await assertSynced(pages, 0);
-        await assertRejected(pages, 0, "1/θ");
+        // θ₀ is in [0, 2π) (ADR 20), so ln(-θ) is undefined at every shooter.
+        await assertRejected(pages, 0, "ln(-θ)");
         await takeTurn(pages, 0, ["t", "0"]);
         await takeTurn(pages, 1, ["3"]);
         // The host leaves: the guest must end the game.
@@ -492,7 +494,8 @@ const scenarios = {
         });
         await page.check("#mode-explicit");
         const shown = (n) => page.waitForFunction((k) => window.__errors.filter(([e]) => e !== "").length >= k, n);
-        await page.fill("#input-a", "1/x");
+        // Undefined at the first shooter's x, which is in the left half (ADR 20).
+        await page.fill("#input-a", "sqrt(x)");
         await page.click("#fire");
         await shown(1);
         assert.equal(await page.getAttribute("#input-a", "aria-invalid"), "true");
@@ -518,34 +521,35 @@ const scenarios = {
         return errors;
     },
     async M() {
-        // Direction (disc only): clockwise mirrors the shot across the shooter's axis to the centre.
+        // Direction (disc only): θ sweeps up from the shooter's map angle, or down when clockwise (ADR 20).
         const { pages, errors, seatsLine } = await startGame(2, "disc", "M", { seats: 3 });
         assert.equal(seatsLine, "1 seat open");
         await assertSynced(pages, 0);
-        // `r = t, θ = 0.5` is a straight ray 0.5 rad from the axis: to the left (counter-clockwise) or right.
+        // `r = 3` orbits the centre at the shooter's distance: it leaves at +90° from the outward
+        // radius counter-clockwise, at -90° clockwise.
         const aim = async (cw) => {
             const page = await shooter(pages);
             const before = JSON.parse(await state(page));
             const { pos } = before.arena.teams[before.current].players[before.arena.teams[before.current].currentPlayer].shape;
             assert.equal(await page.isVisible("#direction"), true);
             await page.check(cw ? "#dir-cw" : "#dir-ccw");
-            await page.check("#mode-parametric");
-            await page.fill("#input-a", "t");
-            await page.fill("#input-b", "0.5");
+            await page.check("#mode-explicit");
+            await page.fill("#input-a", "3");
             await page.click("#fire");
             await assertSynced(pages, before.turn + 1);
             const { shot } = JSON.parse(await state(page));
-            const [from, to] = shot.points;
             const d = Math.hypot(pos.x, pos.y);
-            const forward = { x: -pos.x / d, y: -pos.y / d };
+            for (const p of shot.points) assert.ok(Math.abs(Math.hypot(p.x, p.y) - d) < 1e-9, "the shot orbits the centre");
+            const [from, to] = shot.points;
+            const out = { x: pos.x / d, y: pos.y / d };
             const v = { x: to.x - from.x, y: to.y - from.y };
-            return Math.atan2(forward.x * v.y - forward.y * v.x, forward.x * v.x + forward.y * v.y);
+            return Math.atan2(out.x * v.y - out.y * v.x, out.x * v.x + out.y * v.y);
         };
         const ccw = await aim(false);
         const cw = await aim(true);
         assert.equal(await pages[0].isHidden("#direction"), false);
-        assert.ok(Math.abs(ccw - 0.5) < 0.05, `counter-clockwise turns left (${ccw})`);
-        assert.ok(Math.abs(cw + 0.5) < 0.05, `clockwise turns right (${cw})`);
+        assert.ok(Math.abs(ccw - Math.PI / 2) < 0.05, `counter-clockwise sweeps θ up (${ccw})`);
+        assert.ok(Math.abs(cw + Math.PI / 2) < 0.05, `clockwise sweeps θ down (${cw})`);
         return errors;
     },
     async N() {
