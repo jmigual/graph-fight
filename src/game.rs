@@ -117,7 +117,7 @@ impl From<GameError> for JsValue {
 }
 
 #[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Options {
     num_obstacles: usize,
     min_obstacle_size: f64,

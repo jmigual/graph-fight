@@ -3,7 +3,9 @@
 
 // tsify 0.5 deprecates `into_wasm_abi` and `from_wasm_abi` (they panic or throw on a failed
 // conversion, and unwinding leaks). `TrialShot` only serializes, so that conversion cannot fail;
-// the placed players and obstacles come from the client's own test arena.
+// the placed players and obstacles come from the client's own test arena. A malformed one (a
+// negative or fractional team, a missing field) is a serde error thrown at the wasm boundary
+// before `Game::sandbox` runs, not a `GameError`.
 #![expect(deprecated)]
 
 use rand::SeedableRng;
@@ -117,24 +119,11 @@ impl Game {
                 Team::from_positions(&positions, player_radius)
             })
             .collect();
-        let players_per_team = arena
-            .get_teams()
-            .iter()
-            .map(|t| t.players().len())
-            .collect();
-
         Ok(Game {
             arena,
             frame,
             // Only `init` reads the options, and a test arena never runs it.
-            ops: Options {
-                num_obstacles: 0,
-                min_obstacle_size: player_radius,
-                max_obstacle_size: player_radius,
-                players_per_team,
-                player_radius,
-                seed: 0,
-            },
+            ops: Options::default(),
             current_team: 0,
         })
     }
