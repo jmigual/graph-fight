@@ -91,7 +91,7 @@ assert.equal(seeded.items.length, starters.length, "every starter is valid");
 assert.equal(seeded.items.length, 10);
 const expected = {
     Line: ["(-2)*x", "0.5*x", "2*x"],
-    Parabola: ["(-0.5)*x^2 + (-3)*x", "(-0.05)*x^2 + 1*x", "0.5*x^2 + 3*x"],
+    Parabola: ["(-0.5)*(x - (-20))^2", "(-0.02)*(x - 0)^2", "0.5*(x - 20)^2"],
 };
 for (const item of seeded.items) {
     const at = (pick) => Object.fromEntries(Object.entries(item.sliders).map(([l, s]) => [l, { ...s, value: s[pick] }]));

@@ -457,18 +457,21 @@ slider value. The values are the defaults the sliders start at.
 | Field, mode | Name | Formula(s) | Sliders (min, max, step, value) |
 |---|---|---|---|
 | XY, function | Line | `a*x` | a: -2, 2, 0.05, 0.5 |
-| XY, function | Parabola | `a*x^2 + b*x` | a: -0.5, 0.5, 0.01, -0.05; b: -3, 3, 0.1, 1 |
+| XY, function | Parabola | `a*(x - b)^2` | a: -0.5, 0.5, 0.01, -0.02; b: -20, 20, 0.5, 0 |
 | XY, function | Wave | `a*sin(b*x)` | a: 0, 5, 0.1, 2; b: 0, 3, 0.05, 1 |
-| XY, function | Hop | `a*exp(-((x-b)/c)^2)` | a: -5, 5, 0.1, 3; b: 0, 20, 0.1, 5; c: 0.2, 5, 0.1, 1 |
-| XY, parametric | Straight line | `t`, `a*t` | a: -3, 3, 0.05, 0.5 |
-| XY, parametric | Cycloid | `t - a*sin(t)`, `a*(1 - cos(t))` | a: 0, 3, 0.1, 1.5 |
+| XY, function | Hop | `a*exp(-((x-b)/c)^2)` | a: -5, 5, 0.1, 3; b: -20, 20, 0.1, 0; c: 0.2, 5, 0.1, 1 |
+| XY, parametric | Straight line | `t*cos(a)`, `t*sin(a)` | a: -3.14, 3.14, 0.01, 0.5 |
+| XY, parametric | Cycloid | `d*(t - a*sin(t))`, `a*(1 - cos(t))` | a: 0, 3, 0.1, 1.5; d: -1, 1, 2, 1 |
 | Disc, function | Spiral | `a*θ` | a: -3, 3, 0.1, 1 |
 | Disc, function | Wave | `a*sin(b*θ)` | a: 0, 5, 0.1, 1; b: 1, 8, 1, 4 |
 | Disc, parametric | Straight shot | `-t`, `0` | none |
 | Disc, parametric | Bend | `-t`, `a*t` | a: -0.3, 0.3, 0.005, 0.05 |
 
-Settled with ADR 20 (`js/starters.json`): disc shots are offset to start at the shooter in map
-polar coordinates, so the disc starters changed. Spiral allows negative `a` (inward). "Circle"
+Settled with ADR 20 (`js/starters.json`): shots are in map coordinates, offset to start at the
+shooter, so some starters changed. On XY, `x` is the map's: Parabola puts its vertex at map
+`x = b`, and Hop its bump at map `x = b`. Parametric XY shots are not mirrored, so Straight line
+takes its direction as an angle `a` in the map, and Cycloid has `d = 1` to roll right or `-1` to
+roll left. Line and Wave are unchanged. Spiral allows negative `a` (inward). "Circle"
 (`a*sin(θ)`) no longer drew a circle and "Rose" no longer drew petals; one wavy orbit, "Wave",
 replaces both. A constant angle cancels out, so "Straight shot" is the line through the centre and
 has no slider, and "Bend" bends that line around the centre. There are 10 starters.
@@ -476,7 +479,8 @@ has no slider, and "Bend" bends that line around the centre. There are 10 starte
 Verification has two parts. The S5 unit test substitutes every starter at its min, default and
 max values and requires no slider letters left and at most 256 characters. A Rust test in
 `tests/starters.rs` substitutes the same values and runs `Formula::parse` with the mode's variable
-(`x`, `θ` or `t`), requiring a finite value at 0 (for `θ`, at several shooter angles `θ₀`, ADR 20). The WASM build cannot run under the node test
+(`x`, `θ` or `t`), requiring a finite value at the start: at several shooter positions `x` on
+both halves and angles `θ₀` (ADR 20), and at `t = 0`. The WASM build cannot run under the node test
 runner, so the Rust test does not call `check`/`check_param`. The starters are shared, not copied:
 both tests read `js/starters.json`, and Rust substitutes with its own small tokenizer.
 

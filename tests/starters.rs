@@ -1,7 +1,7 @@
 //! The starter templates (ADR 17, section 8) are shared with the client in `js/starters.json`.
 //! Each one must parse with the right variable at the slider's min, default and max, and be
-//! finite at the start point. For `r = f(θ)` that is the shooter's map angle `θ₀` in `[0, 2π)`
-//! (ADR 20), so it is checked at several of them.
+//! finite at the start point. For `y = f(x)` and `r = f(θ)` that is the shooter's map `x` or angle
+//! `θ₀` in `[0, 2π)` (ADR 20), so it is checked at several of them, on both XY halves.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
@@ -58,10 +58,10 @@ fn starters_parse_and_are_finite_at_the_start() {
                 let src = substitute(expr.as_str().expect("expr"), sliders, pick);
                 let formula = Formula::parse(&src, var)
                     .unwrap_or_else(|e| panic!("{name} at {pick}: '{src}' does not parse: {e}"));
-                let starts: &[f64] = if var == "θ" {
-                    &[0.0, FRAC_PI_2, PI, 3.0 * FRAC_PI_2, 6.2]
-                } else {
-                    &[0.0]
+                let starts: &[f64] = match var {
+                    "θ" => &[0.0, FRAC_PI_2, PI, 3.0 * FRAC_PI_2, 6.2],
+                    "x" => &[-19.7, -10.0, -0.3, 0.3, 10.0, 19.7],
+                    _ => &[0.0],
                 };
                 for &start in starts {
                     let y = formula.eval(start);
