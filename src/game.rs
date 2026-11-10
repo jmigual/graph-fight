@@ -318,6 +318,15 @@ impl Game {
         Err(GameError::NoValidLayout)
     }
 
+    /// The arena, read by a bot scoring its candidate shots (ADR 21).
+    pub(crate) fn arena(&self) -> &Arena {
+        &self.arena
+    }
+
+    pub(crate) fn frame(&self) -> Frame {
+        self.frame
+    }
+
     /// Runs `trace` for the current player and ends the turn unless it fails. With no living
     /// player to shoot (everyone eliminated) the shot is empty and nothing changes.
     fn shoot(

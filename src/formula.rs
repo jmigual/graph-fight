@@ -10,7 +10,7 @@ const MAX_DEPTH: usize = 64;
 
 /// Maximum formula length in characters; also bounds the depth of left-deep
 /// `+ - * /` chains, which the nesting limit does not see.
-const MAX_LEN: usize = 256;
+pub(crate) const MAX_LEN: usize = 256;
 
 /// Why a formula failed to parse.
 #[derive(Debug, Clone, PartialEq)]

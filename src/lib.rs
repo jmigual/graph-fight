@@ -1,3 +1,4 @@
+pub mod bot;
 pub mod formula;
 pub mod game;
 pub mod geometry;
