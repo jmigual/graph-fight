@@ -4,8 +4,9 @@
 //! reaches it, and the search fires only on the bot's copy, so the live game and every peer stay
 //! in lockstep (ADR 2). The host sends the chosen formulas like a human's.
 
-// tsify 0.5 deprecates `into_wasm_abi` (it panics on a failed conversion, and unwinding
-// leaks). `BotShot` only serializes, so the conversion cannot fail.
+// tsify 0.5 deprecates `into_wasm_abi` and `from_wasm_abi` (they panic or throw on a failed
+// conversion, and unwinding leaks). `BotShot` only serializes, so that conversion cannot fail;
+// `Starter` comes from the client's own `js/starters.json`, which `tests/starters.rs` checks.
 #![expect(deprecated)]
 
 use std::collections::BTreeMap;
@@ -56,16 +57,19 @@ pub struct BotShot {
     pub cw: bool,
 }
 
-/// A starter in `js/starters.json`; the keys the bot does not use are ignored.
-#[derive(Deserialize)]
-struct Starter {
+/// A starter template as listed in `js/starters.json`; the keys the bot does not use are ignored.
+#[derive(Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+pub struct Starter {
     field: String,
     exprs: Vec<String>,
+    #[tsify(type = "Record<string, Limits>")]
     sliders: BTreeMap<String, Limits>,
 }
 
-#[derive(Deserialize)]
-struct Limits {
+/// A slider's range in a starter template.
+#[derive(Deserialize, Tsify)]
+pub struct Limits {
     min: f64,
     max: f64,
 }
@@ -78,9 +82,7 @@ struct Template {
 
 /// The starter templates for the game's field. On the disc in the player frame the parametric
 /// starters' radial formula is negated: `r = −t` leaves the disc at once in that frame.
-fn templates(game: &Game) -> Vec<Template> {
-    let starters: Vec<Starter> = serde_json::from_str(include_str!("../js/starters.json"))
-        .expect("js/starters.json is a valid starter list (tests/starters.rs)");
+fn templates(game: &Game, starters: Vec<Starter>) -> Vec<Template> {
     let (field, negate) = match game.arena().field() {
         Field::Xy => ("xy", false),
         Field::Disc => ("disc", game.frame() == Frame::Player),
@@ -226,11 +228,12 @@ pub struct Bot {
 
 #[wasm_bindgen]
 impl Bot {
-    /// Starts a search for the current team of `game`, at `level`. The bot copies the game and
+    /// Starts a search for the current team of `game`, at `level`, over `starters`: the client's
+    /// `js/starters.json`, so the client and the bot share one list. The bot copies the game and
     /// seeds its generator from the operating system, never from the game.
     #[wasm_bindgen(constructor)]
-    pub fn new(game: &Game, level: Level) -> Bot {
-        Bot::with_rng(game, level, rand::make_rng())
+    pub fn new(game: &Game, level: Level, starters: Vec<Starter>) -> Bot {
+        Bot::with_rng(game, level, starters, rand::make_rng())
     }
 
     /// Simulates up to `budget` more candidates. Returns the shot once all of the level's
@@ -247,12 +250,12 @@ impl Bot {
 }
 
 impl Bot {
-    fn with_rng(game: &Game, level: Level, rng: SmallRng) -> Bot {
+    fn with_rng(game: &Game, level: Level, starters: Vec<Starter>, rng: SmallRng) -> Bot {
         let (candidates, noise) = level.search();
         Bot {
             rng,
             game: game.clone(),
-            templates: templates(game),
+            templates: templates(game, starters),
             candidates,
             noise,
             tried: 0,
@@ -260,10 +263,17 @@ impl Bot {
         }
     }
 
-    /// A bot with a fixed seed, for reproducible tests only.
+    /// A bot over `js/starters.json` with a fixed seed, for reproducible tests only.
     #[cfg(test)]
     fn with_test_seed(game: &Game, level: Level, seed: u64) -> Bot {
-        Bot::with_rng(game, level, rand::SeedableRng::seed_from_u64(seed))
+        let starters = serde_json::from_str(include_str!("../js/starters.json"))
+            .expect("js/starters.json is a starter list");
+        Bot::with_rng(
+            game,
+            level,
+            starters,
+            rand::SeedableRng::seed_from_u64(seed),
+        )
     }
 
     fn exprs(&self, template: usize, values: &[f64]) -> Vec<String> {

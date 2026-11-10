@@ -1,6 +1,8 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level } from "../pkg/index.js";
 import type { BotShot } from "../pkg/index.js";
+import { parseItem } from "./library";
+import starters from "./starters.json" with { type: "json" };
 import { BUILD_VERSION, isBot, joinGame, joinLobby, MAX_PLAYERS, parseBot, selfId } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
@@ -15,6 +17,8 @@ const TURN_MS = 60_000;
 const PLAYERS_PER_TEAM = 3;
 const PLAYER_RADIUS = 0.3;
 const BOT_LEVELS = { easy: Level.Easy, medium: Level.Medium, hard: Level.Hard };
+/** The templates bots search: the starters (ADR 17, section 8), checked like a saved list. */
+const BOT_TEMPLATES = starters.flatMap((s) => parseItem(s) ?? []);
 /** Candidates a bot simulates before yielding to the page: a few milliseconds on a desktop (ADR 21). */
 const BOT_CHUNK = 4;
 /** A bot fires no sooner than this after its turn starts, so the others can follow the game. */
@@ -308,7 +312,7 @@ async function playBot(p: Play) {
     const turn = p.turn;
     const due = Date.now() + BOT_MIN_MS;
     const live = () => play === p && !p.over && p.turn === turn;
-    const bot = new Bot(p.sim, BOT_LEVELS[level]);
+    const bot = new Bot(p.sim, BOT_LEVELS[level], BOT_TEMPLATES);
     try {
         let shot: BotShot | undefined;
         while (!(shot = bot.think(BOT_CHUNK))) {
