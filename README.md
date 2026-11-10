@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="static/favicon.svg" alt="" width="80" height="80">
+
 # Graph Fight
 
 **Shoot your friends with math.** A worms-like game where every shot is a formula.
