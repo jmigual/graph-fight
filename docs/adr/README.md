@@ -24,6 +24,7 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 | [0018](0018-reconnect-watchdog.md) | Reconnect watchdog | Accepted; amends 0016 | A seated guest whose host link stays down 25 s leaves and rejoins the game room (wait doubling: 25, 50, 100 s), and ends the game "Host unreachable." after 3 min; works around a Trystero 0.26.0 stale-offer stall; guests leave the room when the game ends. |
 | [0019](0019-esbuild-instead-of-webpack.md) | esbuild instead of webpack | Accepted; supersedes 0013 and bundling in 0009 | `wasm-pack --target web` + `scripts/build.mjs` (esbuild ESM bundle, `await init()`); `tsc --noEmit` (TypeScript 7) inside `npm run build`. |
 | [0020](0020-shot-frame-map-or-player.md) | Shot frame: map- or player-centred | Accepted; supersedes in part 0004, 0005, 0008, 0012, 0014, 0015 | Host option `frame` (`Frame { Map, Player }`, in `start` and the lobby listing), default map-centred; player-centred is the ADR 4/5 shooter frame. Map-centred: formulas in map coordinates offset to pass through the shooter (Graphwar): `y = f(x) − f(x_p) + y_p` with `x` sweeping toward the other half, no mirror; disc `θ₀` in `[0, 2π]`, `r = f(θ) − f(θ₀) + r_p` over one turn, clockwise sweeps θ down; parametric modes offset by their value at `t = 0`; negative `r` crosses the centre. |
+| [0021](0021-bots.md) | Bot players, run by the host | Proposed; amends 0008, 0012, 0015, 0016, 0017 | The host adds Easy/Medium/Hard bots to seats (`bot:<level>:<n>` in `start.peers`, never bound by the seat book) and relays their shots like a human's; the search over the starters runs in Rust (`Bot`, chunked `think`) on a copy of the game with its own OS-seeded RNG. |
 
 ## Where to look
 
@@ -35,6 +36,7 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 - Network: lobby 0012 (0006 for rooms); wire messages 0007 then 0012; turn authority and clock 0012, 0015; reconnection/rejoin/leave 0016, 0018
 - Client flow, arena constants, `window.__state()` test hook: 0015
 - UI/UX, theme, board drawing, formula editor, saved formulas, selectors for e2e: 0017
+- Bots (seat ids, search, levels, solo play): 0021
 - Build (esbuild, wasm-pack web target, TypeScript type check), test, CI, deploy, hosting: 0019, 0009, 0010 (0013 is superseded)
 
 When the text of an ADR says "Superseded in part", read the superseding ADR for the current rule.
