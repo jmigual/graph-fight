@@ -87,7 +87,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const SECTIONS = ["lobby", "room", "game", "end"];
 const show = (...names: string[]) => SECTIONS.forEach((s) => ($(s).hidden = !names.includes(s)));
 $("build").textContent = `v ${BUILD_VERSION}`;
-$("build").setAttribute("aria-label", `Build version ${BUILD_VERSION}`);
+$("build").setAttribute("aria-label", `Version ${BUILD_VERSION}, view changelog, opens in a new tab`);
 
 // One lobby connection for the page's lifetime; the host withdraws its listing once the game starts.
 const lobby = joinLobby(renderLobby);

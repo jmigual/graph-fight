@@ -75,6 +75,11 @@ main {
 }
 
 footer { padding: 0 var(--gutter) 1rem; color: var(--ink-soft); font-size: 0.8rem; overflow-wrap: anywhere; }
+footer a { color: inherit; }
+
+a { color: var(--mark); }
+.changelog h1 { margin-bottom: 1.5rem; }
+.changelog time { font: 400 1rem/1.5 var(--font-ui); color: var(--ink-soft); }
 
 noscript { display: block; padding: 1rem var(--gutter); }
 

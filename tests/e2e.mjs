@@ -191,12 +191,17 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     return { pages, errors, seatsLine };
 }
 
-/** Every page's `#build` footer shows the announced build version with an accessible name (ADR 17). */
+/**
+ * Every page's `#build` footer link shows the announced build version, `x.y.z` or `x.y.z-dev+<hash>`
+ * (ADR 28), and names it with the changelog it opens (ADR 17).
+ */
 async function assertBuild(pages, version) {
-    assert.ok(version, "the host announced a version");
+    assert.match(version ?? "", /^\d+\.\d+\.\d+(-dev\+\w+)?$/, "the host announced a version");
     for (const page of pages) {
         assert.equal(await text(page, "#build"), `v ${version}`);
-        assert.equal(await page.getByLabel(`Build version ${version}`).count(), 1);
+        const link = page.getByRole("link", { name: `Version ${version}, view changelog` });
+        assert.equal(await link.count(), 1);
+        assert.equal(await link.getAttribute("href"), "./changelog.html");
     }
 }
 
@@ -1352,6 +1357,23 @@ const scenarios = {
         assert.equal(await width("favicon-32.png"), 32);
         assert.equal(await width("apple-touch-icon.png"), 180);
         return [];
+    },
+    async changelog() {
+        // The footer version opens the changelog in a new tab, newest version first, with a way back (ADR 28).
+        const errors = [];
+        const page = await (await browser.newContext()).newPage();
+        page.on("pageerror", (e) => errors.push(`page: ${e}`));
+        await page.goto(url);
+        const link = page.getByRole("link", { name: /^Version \S+, view changelog/ });
+        const [log] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+        await log.waitForLoadState();
+        assert.equal(new URL(log.url()).pathname, "/changelog.html");
+        const shown = (await log.locator("main h2").allInnerTexts()).map((t) => t.split(" ")[0]);
+        assert.deepEqual(shown.filter((v) => ["0.1.0", "0.2.0", "0.3.0"].includes(v)), ["0.3.0", "0.2.0", "0.1.0"]);
+        assert.equal(await log.getByRole("heading", { level: 1 }).innerText(), "Changelog");
+        await log.getByRole("link", { name: "Back to the game" }).click();
+        await log.waitForSelector("#build");
+        return errors;
     },
 };
 
