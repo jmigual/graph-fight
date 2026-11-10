@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 — 2026-11-10
+- Every screen is centred, and the board grows to fill a wide window and stays in view while you scroll during a game.
+- In the editor, Fire sits right after the formula, Insert sits beside each saved formula, and the turn state is clearer.
+- When a game ends, the result shows instead of the editor.
+- An empty lobby suggests adding a bot and explains the coordinates, and the waiting room's player rows are ruled.
+
 ## 0.5.0 — 2026-11-10
 - A test arena, opened from the lobby, tries formulas offline: place players and obstacles anywhere, fire from any player and see what the shot hits, as often as you like.
 - The lobby has an About section below the host form with a short description, a demo video and a link to the GitHub repo; the footer links it too.
