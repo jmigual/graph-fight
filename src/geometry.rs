@@ -136,7 +136,7 @@ impl Rectangle {
                     )
                 };
 
-                let mut all_recs = if n % 2 == 0 {
+                let mut all_recs = if n.is_multiple_of(2) {
                     (recs.0.partition(n / 2), recs.1.partition(n / 2))
                 } else {
                     (recs.0.partition(n / 2 + 1), recs.1.partition(n / 2))
@@ -157,7 +157,7 @@ impl Rectangle {
     }
 
     pub fn collision_circle(&self, other: &Circle) -> bool {
-        other.collision_rec(&self)
+        other.collision_rec(self)
     }
 
     pub fn inside(&self, pos: &Point) -> bool {
@@ -187,7 +187,7 @@ mod tests {
         let a = Circle::new(Point::new(0.0, 0.0), 5.0);
         let b = Circle::new(Point::new(10.0, 10.0), 5.0);
 
-        assert_eq!(a.collision_circle(&b), false);
+        assert!(!a.collision_circle(&b));
     }
 
     #[test]
@@ -195,7 +195,7 @@ mod tests {
         let a = Circle::new(Point::new(0.0, 0.0), 5.0);
         let b = Circle::new(Point::new(5.0, 0.0), 5.0);
 
-        assert_eq!(a.collision_circle(&b), true);
+        assert!(a.collision_circle(&b));
     }
 
     #[test]
@@ -211,8 +211,8 @@ mod tests {
 
         for t in pos {
             let b = Rectangle::new(t.into(), 10.0, 10.0);
-            assert_eq!(a.collision_rec(&b), true);
-            assert_eq!(b.collision_rec(&a), true);
+            assert!(a.collision_rec(&b));
+            assert!(b.collision_rec(&a));
         }
     }
 
@@ -229,8 +229,8 @@ mod tests {
 
         for t in pos {
             let b = Rectangle::new(t.into(), 5.0, 5.0);
-            assert_eq!(a.collision_rec(&b), false);
-            assert_eq!(b.collision_rec(&a), false);
+            assert!(!a.collision_rec(&b));
+            assert!(!b.collision_rec(&a));
         }
     }
 
@@ -252,8 +252,8 @@ mod tests {
 
         for t in pos {
             let b = Circle::new(t.into(), 4.0);
-            assert_eq!(a.collision_circle(&b), true);
-            assert_eq!(b.collision_rec(&a), true);
+            assert!(a.collision_circle(&b));
+            assert!(b.collision_rec(&a));
         }
     }
 
@@ -274,8 +274,8 @@ mod tests {
 
         for t in pos {
             let b = Circle::new(t.into(), 2.0);
-            assert_eq!(a.collision_circle(&b), false);
-            assert_eq!(b.collision_rec(&a), false);
+            assert!(!a.collision_circle(&b));
+            assert!(!b.collision_rec(&a));
         }
     }
 
@@ -330,7 +330,7 @@ mod tests {
         let a = Rectangle::new((0.0, 0.0).into(), 10.0, 10.0);
 
         let parts = a.partition(4);
-        let expect = vec![(-2.5, -2.5), (2.5, -2.5), (-2.5, 2.5), (2.5, 2.5)];
+        let expect = [(-2.5, -2.5), (2.5, -2.5), (-2.5, 2.5), (2.5, 2.5)];
 
         for (p, e) in parts.iter().zip(expect.iter()) {
             let result = approx_eq!(f64, p.pos.x, e.0) && approx_eq!(f64, p.pos.y, e.1);

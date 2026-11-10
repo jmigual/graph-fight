@@ -41,8 +41,8 @@ read game state.
   sending, Fire stays disabled until the host's broadcast is applied or a send error is reported.
   The host's `onShotRequest` accepts a request only from the current team's peer with the
   current `turn`.
-- **Test hook.** `window.__state()` returns `{turn, current, me, arena, shot}` (the arena from
-  `game.arena()`, `me` our team, `shot` the last applied shot `{team, exprs, points}`, so a test can check a trajectory:
+- **Test hook.** `window.__state()` returns `{turn, current, me, arena, shot, faint}` (the arena from
+  `game.arena()`, `me` our team, `shot` the last applied shot `{team, exprs, cw, points}`, `faint` the number of older shot paths on the board (ADR 17, section 4), so a test can check a trajectory:
   `null` at the start, after a timeout and after a formula that failed, and unchanged after a leave) or `null` before the game starts. It is read-only. The e2e test
   (`npm run e2e`) serves `dist/`, drives pages through the real Nostr lobby and Trystero WebRTC,
   and after every turn requires `{turn, current, arena, shot}` to be identical on all pages.

@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/library.test.mjs
 import assert from "node:assert/strict";
 import {
-    decimals, defaultSlider, findSliders, formatValue, loadItems, newItem, parseItem, saveItems, sliderLetters, snapValue, STORAGE_KEY, substitute,
+    autoSymbols, decimals, defaultSlider, findSliders, formatValue, loadItems, newItem, parseItem, saveItems, sliderLetters, snapValue, STORAGE_KEY, substitute,
 } from "../js/library.ts";
 import starters from "../js/starters.json" with { type: "json" };
 
@@ -12,6 +12,20 @@ assert.deepEqual(sliderLetters(["t - a*sin(t)", "b*(1 - cos(t))"]), ["a", "b"], 
 assert.deepEqual(sliderLetters(["A*x"]), ["A"], "uppercase is a slider");
 assert.deepEqual(sliderLetters(["x*t*e*x2*t1*e5"]), [], "x, t, e are reserved, with or without digits");
 assert.deepEqual(sliderLetters(["pi*e + theta*θ"]), [], "constants and the angle variable");
+// `th` and `π` are parser aliases: two letters or non-ASCII, so they are never sliders and substitution leaves them.
+assert.deepEqual(sliderLetters(["a*th + π*th2"]), ["a"], "th, th2 and π are not slider letters");
+assert.deepEqual(findSliders(["2th", "3π"]), { ok: true, value: [] }, "digits before them are not glue");
+// Typing the whole word theta or pi gives the symbol; the caret follows the text.
+assert.deepEqual(autoSymbols("r = theta/2", 11), { text: "r = θ/2", caret: 7 }, "caret after the word moves left");
+assert.deepEqual(autoSymbols("2*pi", 4), { text: "2*π", caret: 3 });
+assert.deepEqual(autoSymbols("pi*x", 2), { text: "π*x", caret: 1 }, "caret right after the word");
+assert.deepEqual(autoSymbols("theta*pi", 3), { text: "θ*π", caret: 1 }, "caret inside the word lands after the symbol");
+assert.deepEqual(autoSymbols("pi+pi", 5), { text: "π+π", caret: 3 }, "every occurrence");
+assert.deepEqual(autoSymbols("pi+theta+x", 0), { text: "π+θ+x", caret: 0 }, "caret before them stays");
+for (const same of ["th", "the", "thet", "pix", "xpi", "pi2", "theta2", "thetas", "tanh(x)", "sin(x)", "spi", "π", "θ", "constructor", "", "2th"]) {
+    assert.deepEqual(autoSymbols(same, same.length), { text: same, caret: same.length }, same);
+}
+assert.deepEqual(autoSymbols("2pi", 3), { text: "2π", caret: 2 }, "a digit before is not part of the word");
 // Function and constant names are single tokens: their letters are never sliders.
 for (const f of ["atan(x)", "asin(x)", "acos(x)", "sinh(x)", "cosh(x)", "tanh(x)", "sqrt(x)", "abs(x)", "exp(x)", "ln(x)", "log10(x)", "floor(x)", "ceil(x)", "tan(x)", "amp*x", "a1b"]) {
     assert.deepEqual(sliderLetters([f]), [], f);
@@ -35,6 +49,11 @@ assert.equal(findSliders(["a2"]).ok, true, "a2 is one slider named a2");
 const sl = (min, max, step, value) => ({ min, max, step, value });
 const sub = (exprs, sliders) => substitute(exprs, sliders).value;
 assert.deepEqual(sub(["a*x"], { a: sl(-10, 10, null, 1.5) }), ["1.5*x"]);
+// Typed theta and pi become θ and π, which are never slider letters, and substitution leaves them.
+const typed = autoSymbols("a*theta + pi", 12).text;
+assert.deepEqual(sliderLetters([typed]), ["a"]);
+assert.deepEqual(sub([typed], { a: sl(-10, 10, null, 2) }), ["2*θ + π"]);
+assert.deepEqual(sub(["a*th + π*theta"], { a: sl(-10, 10, null, 2) }), ["2*th + π*theta"], "th, theta and π stay");
 assert.deepEqual(sub(["x^a"], { a: sl(-10, 10, null, -2) }), ["x^(-2)"], "negatives in parentheses");
 assert.deepEqual(sub(["-a"], { a: sl(-10, 10, null, -2) }), ["-(-2)"]);
 assert.deepEqual(sub(["a+a"], { a: sl(-10, 10, null, 3) }), ["3+3"], "every occurrence");

@@ -31,6 +31,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          GRAPH_FIGHT_LOBBY: live
+      - name: Check the build announces on the live lobby topic
+        run: |
+          grep -q '"graph-fight:lobby"' dist/index.js
+          ! grep -q '"graph-fight:lobby:dev"' dist/index.js
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

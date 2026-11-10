@@ -134,7 +134,7 @@ impl Arena {
 
     pub fn add_teams<R: Rng + ?Sized>(
         &mut self,
-        players_per_team: &Vec<usize>,
+        players_per_team: &[usize],
         player_size: f64,
         rng: &mut R,
     ) -> Result<(), String> {
@@ -158,7 +158,7 @@ impl Arena {
                     Point::new(r * theta.cos(), r * theta.sin())
                 }
             };
-            team.add_players(*team_size, player_size, &self, rng, sample)?;
+            team.add_players(*team_size, player_size, self, rng, sample)?;
             self.teams.push(team);
         }
 
@@ -167,14 +167,14 @@ impl Arena {
 
     /// True if there is a collision with a player
     pub fn collision_with_player(&self, shape: &Circle) -> bool {
-        self.teams.iter().any(|t| t.collision_with_player(&shape))
+        self.teams.iter().any(|t| t.collision_with_player(shape))
     }
 
     /// True if there is a collision with an obstacle
     pub fn collision_with_obstacle(&self, shape: &Circle) -> bool {
         self.obstacles
             .iter()
-            .any(|o| o.collision_circle(&shape))
+            .any(|o| o.collision_circle(shape))
     }
 
     /// True if the point is inside an obstacle and not inside any crater, i.e. a shot stops here.

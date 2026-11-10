@@ -114,9 +114,9 @@
             </fieldset>
 
             <label class="formula"><span id="label-a" class="math"></span>
-              <input id="input-a" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="error"></label>
+              <input id="input-a" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="formula-hint error"></label>
             <label id="wrap-b" class="formula" hidden><span id="label-b" class="math"></span>
-              <input id="input-b" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="error"></label>
+              <input id="input-b" class="math" autocomplete="off" maxlength="256" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="send" aria-describedby="formula-hint error"></label>
             <p id="error" class="error" role="alert"></p>
 
             <div id="helpers" class="helpers" role="group" aria-label="Insert">
@@ -147,6 +147,7 @@
                 </div>
               </details>
             </div>
+            <p id="formula-hint" class="hint">Type pi for π.<span id="theta-hint"> Type theta (or th) for θ.</span></p>
 
             <fieldset id="direction" class="segmented" hidden>
               <legend>Direction</legend>
@@ -187,6 +188,7 @@
         </div>
       </section>
     </main>
+    <footer id="build"></footer>
 
     <script type="module" src="./index.js"></script>
   </body>

@@ -56,6 +56,9 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
         page.on("websocket", (ws) =>
             ws.on("framesent", (f) => {
                 const frame = String(f.payload);
+                // The host's lobby announcement carries the version the lobby checks (ADR 12).
+                const announced = frame.startsWith('["EVENT"') && /\\"version\\":\\"([^"\\]+)\\"/.exec(frame);
+                if (announced) page.announced = announced[1];
                 if (frame.startsWith('["REQ"') && !frame.startsWith('["REQ","lobby"')) page.subscriptions++;
             }),
         );
@@ -118,6 +121,8 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     // Everyone sees the game before anyone joins, so with fewer seats than guests all still find a free seat.
     const joins = guests.map((guest) => guest.locator("#games tr", { hasText: name }).getByRole("button", { name: "Join", disabled: false }));
     await Promise.all(joins.map((join) => join.waitFor({ timeout: SETUP_MS })));
+    // The footer shows the version the host announced, on the lobby screen...
+    await assertBuild(pages, host.announced);
     // With a game listed, the empty-list text gives way to the table.
     for (const guest of guests) assert.deepEqual(await guest.evaluate(() => [document.getElementById("no-games").hidden, document.getElementById("games-table").hidden]), [true, false]);
     await Promise.all(joins.map((join) => join.click({ timeout: 5000 })));
@@ -127,7 +132,18 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     const seatsLine = await text(host, "#room-seats");
     await host.click("#start");
     for (const page of pages) await page.waitForSelector("#game:not([hidden]), #end:not([hidden])", { timeout: SETUP_MS });
+    // ...and on the game screen.
+    await assertBuild(pages, host.announced);
     return { pages, errors, seatsLine };
+}
+
+/** Every page's `#build` footer shows the announced build version with an accessible name (ADR 17). */
+async function assertBuild(pages, version) {
+    assert.ok(version, "the host announced a version");
+    for (const page of pages) {
+        assert.equal(await text(page, "#build"), `v ${version}`);
+        assert.equal(await page.getByLabel(`Build version ${version}`).count(), 1);
+    }
 }
 
 /** Waits until exactly one page can fire and returns it. */
@@ -202,6 +218,7 @@ const scenarios = {
         await pages[1].click("#quit");
         await pages[0].waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(pages[0], "#end-message"), /win/i);
+        await assertBuild([pages[0]], pages[0].announced); // the end screen too
         return errors;
     },
     async B() {
@@ -381,14 +398,14 @@ const scenarios = {
         assert.deepEqual(await caret(), ["input-a", 4, 4], "without a selection the caret goes between the brackets");
         await input.fill("");
         await key("π").click();
-        assert.equal(await input.inputValue(), "pi");
+        assert.equal(await input.inputValue(), "π", "the π button inserts pi, which is typed as π");
         await key("√").click();
         await key("( )").click();
         await key("^").click();
-        assert.equal(await input.inputValue(), "pisqrt((^))");
+        assert.equal(await input.inputValue(), "πsqrt((^))");
         await page.locator("#helpers summary").click();
         await key("floor").click();
-        assert.equal(await input.inputValue(), "pisqrt((^floor()))");
+        assert.equal(await input.inputValue(), "πsqrt((^floor()))");
         // The variable follows the field and mode; the parametric buttons target the last focused input.
         assert.equal(await text(page, "#insert-var"), "x");
         await page.check("#mode-parametric");
@@ -726,6 +743,145 @@ const scenarios = {
         await assertSynced(pages, 3);
         assert.equal((await guest.locator("#roster .id").allInnerTexts())[2], "Bot 1, medium", "the replayed roster names the bot");
         for (let turn = 3; turn < 6; turn++) await play(turn);
+        return errors;
+    },
+    async U() {
+        // The host's own shot is drawn with the pen like everyone else's: a redraw of the unchanged
+        // shot after Fire (the shot is applied synchronously on the host) must not cut the animation.
+        const { pages, errors } = await startGame(2, "xy", "U");
+        const [host] = pages;
+        assert.equal(await host.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), false);
+        await assertSynced(pages, 0);
+        // The first shooter is random: let the guest go first if it is up.
+        if (!(await host.isEnabled("#fire"))) await takeTurn(pages, 0, ["x"]);
+        const { turn } = JSON.parse(await state(host));
+        await host.check("#mode-explicit");
+        await host.fill("#input-a", "0");
+        // The canvas at four instants: the pen is still moving 150 and 300 ms after Fire, and rests at the end.
+        // Fire is clicked in the same evaluate, so no round trip sits before the first frame.
+        const frames = await host.evaluate(async () => {
+            const canvas = document.getElementById("arena");
+            const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+            document.getElementById("fire").click();
+            const out = [canvas.toDataURL()];
+            await wait(150);
+            out.push(canvas.toDataURL());
+            await wait(150);
+            out.push(canvas.toDataURL());
+            await wait(1500);
+            out.push(canvas.toDataURL());
+            return out;
+        });
+        assert.notEqual(frames[0], frames[1], "the pen is still drawing 150 ms after Fire");
+        assert.notEqual(frames[1], frames[2], "and 300 ms after Fire");
+        assert.notEqual(frames[2], frames[3], "the final frame replaces the pen");
+        await assertSynced(pages, turn + 1);
+        return errors;
+    },
+    async V() {
+        // Each character remembers its last shot (ADR 17): its path stays on the board while it lives,
+        // and on its next turn its formulas, mode and direction fill the editor again, not the last
+        // shooter's. A rejoined page gets both back from the host's replay (ADR 16).
+        const { pages, errors } = await startGame(2, "disc", "V");
+        const memory = new Map();
+        let restored = 0;
+        const editor = (page) =>
+            page.evaluate(() => ({
+                parametric: document.getElementById("mode-parametric").checked,
+                a: document.getElementById("input-a").value,
+                b: document.getElementById("input-b").value,
+                cw: document.getElementById("dir-cw").checked,
+            }));
+        const characterOf = ({ current, arena }) => `${current}:${arena.teams[current].currentPlayer}`;
+        // Parametric rays, clockwise, alternate with steep explicit curves that leave the disc at once, two
+        // rounds each. A character fires every third round of its team, so the shape it last fired
+        // differs from the previous shooter's, and a restore that skipped the mode or direction shows.
+        const fire = async (page, turn) => {
+            const key = characterOf(JSON.parse(await state(page)));
+            const known = memory.get(key);
+            if (known) {
+                assert.deepEqual(await editor(page), known, `turn ${turn}: the editor holds the last shot of character ${key}`);
+                restored++;
+            }
+            const next = Math.floor(turn / 4) % 2 === 1 ? { parametric: true, a: "t", b: `0.0${turn}`, cw: true } : { parametric: false, a: `${100 + turn}*θ`, b: "", cw: false };
+            await page.check(next.parametric ? "#mode-parametric" : "#mode-explicit");
+            await page.check(next.cw ? "#dir-cw" : "#dir-ccw");
+            await page.fill("#input-a", next.a);
+            if (next.parametric) await page.fill("#input-b", next.b);
+            await page.click("#fire");
+            memory.set(key, next);
+            await assertSynced(pages, turn + 1);
+        };
+        await assertSynced(pages, 0);
+        // Five rounds: every character fires once, and the first two of each team twice.
+        for (let turn = 0; turn < 10; turn++) await fire(await shooter(pages), turn);
+        assert.ok(restored >= 4, `formulas were restored on later turns (${restored})`);
+        const { faint } = JSON.parse(await state(pages[0]));
+        assert.ok(faint > 1, `older paths stay on the board (${faint})`);
+        // Reload the guest on its own turn: the replay brings the paths and its formulas back.
+        const guest = pages[1];
+        let turn = 10;
+        while (JSON.parse(await state(guest)).current !== JSON.parse(await state(guest)).me) await fire(await shooter(pages), turn++);
+        const before = JSON.parse(await state(guest));
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.reload();
+        await guest.waitForFunction((t) => window.__state()?.turn === t && !document.getElementById("fire").disabled, turn, { timeout: SETUP_MS });
+        assert.equal(JSON.parse(await state(guest)).faint, before.faint, "the replay restores the older paths");
+        assert.deepEqual(await editor(guest), memory.get(characterOf(before)), "the replay restores the character's formula");
+        return errors;
+    },
+    async W() {
+        // A rejoin replays the game onto the turn we are already on (ADR 16): a formula typed meanwhile
+        // must survive it, though the character's last shot would be restored by a fresh start.
+        const { pages, errors } = await startGame(2, "disc", "W");
+        const guest = pages[1];
+        await assertSynced(pages, 0);
+        // Each team's characters fire once (6 turns), so on the guest's next turn its character has a shot to restore.
+        let turn = 0;
+        const guestUp = async () => {
+            const { current, me } = JSON.parse(await state(guest));
+            return current === me;
+        };
+        while (turn < 6 || !(await guestUp())) await takeTurn(pages, turn, ["t", "0"]), turn++;
+        await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
+        await guest.fill("#input-a", "draft");
+        // The replay's start puts the direction back to counter-clockwise: that shows it ran.
+        await guest.check("#dir-cw");
+        const links = await guest.evaluate(() => {
+            window.__pcs.forEach(window.__drop);
+            return window.__pcs.length;
+        });
+        await guest.waitForFunction((n) => window.__pcs.length > n && window.__pcs.at(-1).connectionState === "connected", links, { timeout: SETUP_MS });
+        await guest.waitForFunction(() => document.getElementById("dir-ccw").checked, null, { timeout: SETUP_MS });
+        await assertSynced(pages, turn);
+        assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
+        return errors;
+    },
+    async AH() {
+        // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
+        // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.
+        // The hint offers theta only where θ is the variable.
+        const { pages, errors } = await startGame(2, "disc", "AH");
+        await assertSynced(pages, 0);
+        const hint = (page) => page.locator("#theta-hint").isVisible();
+        const first = await shooter(pages);
+        assert.equal(await hint(first), true, "disc function: the hint mentions theta");
+        await first.check("#mode-parametric");
+        assert.equal(await hint(first), false, "parametric: it does not");
+        const typeAndFire = async (typed, shown, turn) => {
+            const page = await shooter(pages);
+            await page.check("#mode-explicit");
+            await page.fill("#input-a", "");
+            await page.locator("#input-a").pressSequentially(typed);
+            assert.equal(await page.inputValue("#input-a"), shown);
+            assert.equal(await page.locator("#input-a").evaluate((el) => el.selectionStart), shown.length, "the caret stays at the end");
+            await page.click("#fire");
+            await assertSynced(pages, turn + 1);
+        };
+        // The shots climb steeply and leave the disc at once, so none can kill and the turn always advances.
+        await typeAndFire("1000*theta", "1000*θ", 0);
+        await typeAndFire("1000*th", "1000*th", 1);
+        await typeAndFire("1000*pi*th", "1000*π*th", 2);
         return errors;
     },
 };

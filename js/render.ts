@@ -6,8 +6,8 @@ import type { Field, Frame } from "./net";
 /** Where a face looks: a unit world vector, and the side of its cap brim (1 right, -1 left). */
 export type Look = { dir: Point; side: 1 | -1 };
 
-/** The last applied shot: the shooting team, its formula(s) and its trajectory in world coordinates. */
-export type LastShot = { team: number; exprs: string[]; points: Point[] };
+/** An applied shot: the shooting team, its formula(s), its disc direction and its trajectory in world coordinates. */
+export type LastShot = { team: number; exprs: string[]; cw: boolean; points: Point[] };
 
 export type View = {
     field: Field;
@@ -20,7 +20,10 @@ export type View = {
     mine: boolean;
     /** The chosen disc direction (ADR 14); counter-clockwise when absent. */
     cw?: boolean;
+    /** The newest shot: drawn with the pen, labelled, and at full weight. */
     shot: LastShot | null;
+    /** Each player's last shot, keyed by `lookKey`; those of living players but the newest are drawn faint. */
+    shots: Map<string, LastShot>;
     /** Gaze set by each player's last shot, keyed by `lookKey`; others look toward the centre. */
     looks: Map<string, Look>;
     /** Teams whose seat holder is disconnected (ADR 16). */
@@ -56,6 +59,16 @@ const LABEL_MAX = 32;
 type Colour = (token: string) => string;
 
 export const lookKey = (team: number, player: number) => `${team}:${player}`;
+
+/** The shots to draw faint: each living player's last one, except `newest` (ADR 17, section 4). */
+export function olderPaths(shots: Map<string, LastShot>, arena: Arena, newest: LastShot | null): LastShot[] {
+    return arena.teams.flatMap((t, ti) =>
+        t.players.flatMap((pl, pi) => {
+            const shot = shots.get(lookKey(ti, pi));
+            return shot && shot !== newest && pl.alive ? [shot] : [];
+        }),
+    );
+}
 
 /** Unit vector toward the centre for a player at `pos`: the player frame's +x (XY) or θ = 0 (disc), and the resting gaze. */
 function ahead(field: Field, pos: Point): Point {
@@ -277,6 +290,17 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
         ctx.textBaseline = "middle";
         text(`θ₀ ≈ ${theta0.toFixed(2)}`, cx + (a + 36) * Math.cos(-theta0 / 2), cy + (a + 36) * Math.sin(-theta0 / 2), colour("ink-soft"), 3);
     }
+
+    // Older paths: thinner and a quarter transparent, in the team colour, under the newest.
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.75;
+    for (const old of olderPaths(view.shots, arena, view.shot)) {
+        ctx.strokeStyle = colour(`team-${(old.team % 8) + 1}`);
+        ctx.beginPath();
+        old.points.forEach((p, i) => (i === 0 ? ctx.moveTo(...at(p)) : ctx.lineTo(...at(p))));
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
 
     const shot = view.shot;
     if (shot && shot.points.length > 0) {

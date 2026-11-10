@@ -1,7 +1,7 @@
 // Formula editor helpers and the saved formulas panel (ADR 17, sections 7 and 8). DOM only; the
 // logic (slider letters, substitution, storage) lives in library.ts.
 import type { Field } from "./net";
-import { decimals, formatValue, LIMIT, loadItems, MAX_NAME, newItem, saveItems, sliderLetters, snapValue, substitute } from "./library";
+import { autoSymbols, decimals, formatValue, LIMIT, loadItems, MAX_NAME, newItem, saveItems, sliderLetters, snapValue, substitute } from "./library";
 import type { Item, LibraryError, Mode, Slider } from "./library";
 
 /** The variable button's text per field and mode (the parser accepts t in every parametric mode). */
@@ -93,6 +93,19 @@ function initHelpers() {
         target.focus();
         target.dispatchEvent(new Event("input", { bubbles: true }));
     });
+}
+
+/** Types `theta` as `θ` and `pi` as `π` in the formula inputs, keeping the caret where it was. */
+function initAutoSymbols() {
+    for (const input of inputs()) {
+        input.addEventListener("input", (e) => {
+            if ((e as InputEvent).isComposing) return;
+            const { text, caret } = autoSymbols(input.value, input.selectionStart ?? input.value.length);
+            if (text === input.value) return;
+            input.value = text;
+            input.setSelectionRange(caret, caret);
+        });
+    }
 }
 
 /** A number input; `step="any"` so the browser never flags a fractional entry. */
@@ -210,6 +223,7 @@ function sliderRow(letter: string, s: Slider, changed: (commit: boolean) => void
 /** Sets up the helper buttons and the saved formulas panel. `refresh` follows the field and mode. */
 export function initEditor(): { refresh(field: Field, parametric: boolean): void } {
     initHelpers();
+    initAutoSymbols();
     const loaded = loadItems();
     const items = loaded.items;
     const list = $("saved-list");
@@ -333,6 +347,7 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
     return {
         refresh(f, parametric) {
             $("insert-var").textContent = VARIABLE[f][parametric ? "parametric" : "explicit"];
+            $("theta-hint").hidden = !(f === "disc" && !parametric);
             if (f !== field || !list.hasChildNodes()) {
                 field = f;
                 render();

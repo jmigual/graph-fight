@@ -50,6 +50,8 @@ npm run e2e        # browser P2P test (Playwright); needs public relays
 
 Run `npx playwright install chromium` once before the first `npm run e2e`.
 
+Local builds (`npm start`, `npm run build`, `npm run e2e`) use a separate dev lobby; only the deploy workflow announces on the live one (`GRAPH_FIGHT_LOBBY=live`).
+
 ## Deployment
 
 `.github/workflows/pages.yml` tests, builds and deploys `dist/` to GitHub Pages on every push to

@@ -3,7 +3,9 @@
 Status: Accepted (2026-11-09). Amends ADR 15 (canvas size constants, section 4). The board
 follows ADR 20 (settled in section 4). Amended by 0021: the host's waiting room has `#bot-level`
 and `#add-bot`, each bot is a `#room-players` `li` with a Remove button, and the roster names a
-bot "Bot 1, hard" where a human's short id goes.
+bot "Bot 1, hard" where a human's short id goes. Section 4 also settles each character's last shot
+staying on the board and refilling the editor. Amended 2026-11-10: the formula inputs turn the
+whole words `theta` and `pi` into `θ` and `π` as the user types (section 7).
 
 ## Context
 
@@ -234,6 +236,26 @@ Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockw
 above the map rather than from the shooter, in the map-centred frame. The resting gaze (toward the
 centre) and the gaze after a shot (from the shot's first points) are the same in both frames.
 
+Settled with the per-character shot memory (`js/render.ts`, `js/index.ts`): every applied shot is
+also kept per character in `Play.shots`, keyed by `lookKey` like the gaze, so a reload that
+replays the log (ADR 16) rebuilds it. Display only; nothing travels. Two uses:
+- **Board.** Each living character's last shot stays drawn: 1.5 px at 75 % opacity in its team
+  token (`--team-1`..`--team-8`), under the newest shot, which keeps its 2.5 px full-colour
+  stroke, its label and its pen animation. Measured against `--paper`, the faint strokes are at
+  least 3.18:1 in the light theme and 3.95:1 in the dark one, above WCAG 1.4.11's 3:1 (at 50 %
+  they fell to 2.07:1 and 2.53:1, so that was rejected); the thinner line keeps older paths
+  reading as older. During the animation the previous newest is already one of the faint paths.
+  A character's path goes with its death, at the final frame of the shot that killed it; a newest
+  shot is drawn even if its shooter died of it. A turn without a shot (timeout, failed formula)
+  leaves every path faint. With 8 teams that is at most 24 thin lines, and the label stays on the
+  newest only. `olderPaths` in `render.ts` picks them.
+- **Formula box.** See section 7, "Per-character formula".
+`window.__state()` gains `faint`, the number of faint paths, for the e2e test (ADR 15's hook
+stays read-only and the same on every peer).
+Also settled (`js/index.ts`): the host's own shot applies synchronously inside `room.shoot`, so
+the Fire handler must not redraw afterwards. It only disables Fire, and refreshes on a refused
+shot, or a redraw of the unchanged shot would end the pen on its final frame.
+
 ### 5. Motion
 
 - **Trajectory draw.** When a shot is applied, the engine has already moved to the new state
@@ -338,16 +360,28 @@ before start), it stands alone.
   `r(t), θ(t)` on the disc. The accessible names are "Function" and "Parametric". Ids are unchanged.
 - **Inputs** `#input-a`/`#input-b` with the labels from `LABELS` ("y =", "x(t) =", ...), plus
   `maxlength="256"` (the parser cap; `θ` is one UTF-16 unit), `spellcheck="false"`,
-  `autocapitalize="off"`, `autocorrect="off"`, `enterkeyhint="send"`, `aria-describedby="error"`.
+  `autocapitalize="off"`, `autocorrect="off"`, `enterkeyhint="send"`, `aria-describedby="formula-hint error"`.
   Enter fires (the form submits).
+  - **Typed symbols.** On `input` (not while composing), each whole identifier `theta` or `pi`
+    becomes `θ` or `π` (`autoSymbols` in `library.ts`, the same identifier rule as the slider
+    tokens), so `pix`, `theta2` and `2*pi` keep their other letters and digits. The caret keeps its
+    place in the text. `th` is not replaced, since `theta` passes through it; the parser accepts
+    it as a second alias of `θ` (ADR 3). Assigning `value` ends the browser's undo for that input.
+    Stored saved formulas and templates keep `theta` and `pi` as text. Insert converts them, because
+    `fill()` dispatches `input`; the per-character refill (section 4) assigns the value without an
+    event, which is harmless because typed text is already converted. Keyboards that compose whole
+    words (for example Gboard) may show `θ`/`π` only after the next non-composing input.
+  - **Hint** `#formula-hint`, under the helper buttons and named by both inputs' `aria-describedby`:
+    "Type pi for π." and, on the disc function only (where `θ` is the variable), "Type theta (or
+    th) for θ." `refresh(field, parametric)` shows the second sentence.
 - **Helper buttons**, `role="group"` with the label "Insert", placed between the inputs and the
   Save/Fire row:
   - Always visible: the mode variable (`x` on XY function, `θ` on disc function, `t` in either
     parametric mode, relabelled by `setMode`), `π`, `e`, `( )`, `^`, `√`, `sin`, `cos`, `tan`,
     `abs`, `exp`, `ln`.
   - In a `<details>` "More": `asin acos atan sinh cosh tanh log10 floor ceil`.
-  - Inserted text is what the parser accepts: `π` inserts `pi` (the parser rejects the `π`
-    character), `θ` inserts `θ`, `√` inserts `sqrt()`.
+  - Inserted text is what the parser accepts: `π` inserts `pi` (the typed-symbols rule then shows
+    it as `π`), `θ` inserts `θ`, `√` inserts `sqrt()`.
   - Target: the last focused of `#input-a`/`#input-b` (default `#input-a`).
   - Behaviour, using the native `setRangeText`. Functions, `√` and `( )`: with a selection, wrap
     it (`sin(` + selection + `)`, caret after `)`). Without one, insert `sin()` with the caret
@@ -377,8 +411,17 @@ before start), it stands alone.
   - Keyboard: native radio-group arrows. Changing it redraws only our board: the θ arc arrow, the
     `π/2` label and our face's gaze. Nothing is sent until Fire; the shot then carries the
     engine change's direction flag.
-  - It resets to counterclockwise when a game starts and otherwise keeps its value across turns.
-    Saved formulas do not store a direction, and Insert leaves the toggle alone.
+  - It resets to counterclockwise when a game starts and otherwise keeps its value across turns,
+    except when `restore` sets it (next item). Saved formulas do not store a direction, and Insert
+    leaves the toggle alone.
+  - **Per-character formula.** Every applied shot is kept in `Play.shots` per character (keyed by
+    `lookKey`, rebuilt by a log replay; nothing travels). When one of our characters' turn starts,
+    `restore` puts that character's last shot in the editor: the mode radio, both expressions (the
+    second is emptied for an explicit shot) and the CW/CCW radio (hidden on XY). A character that
+    has not fired leaves the editor as it is, so it may hold the previous shooter's text, but one
+    that has fired never gets another's. `restore` runs only for a turn later than the last one it
+    ran for with this host (module state that outlives `startGame`): a rejoin replays turns we
+    already lived, and must not overwrite what we typed since. A reload starts fresh, so it restores.
 
 ### 8. Saved formulas and templates
 
@@ -632,6 +675,8 @@ formula input gets focus. `#last-shot` and `#turn` are only written when their t
 Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game starts, hidden on XY, and `#dir-ccw` is
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
+
+Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
 
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current

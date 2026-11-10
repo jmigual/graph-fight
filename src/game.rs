@@ -131,6 +131,10 @@ impl Game {
     /// length of `players_per_team`. The `seed` is used to generate the initial positions of the
     /// obstacles and players.
     #[wasm_bindgen(constructor)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "flat wasm-bindgen constructor, the public JS API (ADR 0008)"
+    )]
     pub fn new(
         field: Field,
         frame: Frame,
@@ -187,7 +191,7 @@ impl Game {
                 num_obstacles,
                 min_obstacle_size,
                 max_obstacle_size,
-                players_per_team: players_per_team.iter().cloned().collect(),
+                players_per_team: players_per_team.to_vec(),
                 player_radius,
                 seed,
             },
@@ -352,7 +356,7 @@ impl Game {
 
     pub fn next_team(&mut self) {
         let teams = self.arena.get_teams_mut();
-        assert!(teams.len() > 0);
+        assert!(!teams.is_empty());
 
         for i in 1..teams.len() {
             let idx = (self.current_team + i) % teams.len();

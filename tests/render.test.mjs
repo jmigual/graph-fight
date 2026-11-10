@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/render.test.mjs
 import assert from "node:assert/strict";
-import { lookAfterShot, shotLabel, shotText } from "../js/render.ts";
+import { lookAfterShot, lookKey, olderPaths, shotLabel, shotText } from "../js/render.ts";
 
 const line = (from, dx, dy, n = 40) => Array.from({ length: n }, (_, i) => ({ x: from.x + dx * i * 0.05, y: from.y + dy * i * 0.05 }));
 
@@ -33,5 +33,14 @@ assert.equal(shotText("xy", ["1+".repeat(40) + "x"]).length, 4 + 81, "the text i
 const long = shotLabel("xy", ["1+".repeat(40) + "x"]);
 assert.equal(Array.from(long).length, 33);
 assert.ok(long.endsWith("…"));
+
+// Older paths: each living player's last shot but the newest; a dead player's path is dropped.
+const arena = { teams: [{ players: [{ alive: true }, { alive: false }] }, { players: [{ alive: true }] }] };
+const shot = (team) => ({ team, exprs: ["x"], cw: false, points: [] });
+const [a, b, c] = [shot(0), shot(0), shot(1)];
+const shots = new Map([[lookKey(0, 0), a], [lookKey(0, 1), b], [lookKey(1, 0), c]]);
+assert.deepEqual(olderPaths(shots, arena, c), [a], "the newest and the dead player's are left out");
+assert.deepEqual(olderPaths(shots, arena, null), [a, c], "with no newest shot every living player's path stays");
+assert.deepEqual(olderPaths(new Map(), arena, null), []);
 
 console.log("render tests ok");
