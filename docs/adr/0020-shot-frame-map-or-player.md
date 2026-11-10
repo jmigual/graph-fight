@@ -1,7 +1,8 @@
 # 20. Shot frame: map-centred (default) or player-centred, chosen by the host
 
 Status: Accepted (2026-11-10); supersedes in part 0004 (anchoring), 0005 (polar frame), 0008
-(constructor), 0012 and 0015 (`start` and lobby listing fields) and 0014 (shot direction)
+(constructor), 0012 and 0015 (`start` and lobby listing fields) and 0014 (shot direction). Refined by
+0025: a player-frame shooter at the disc centre, which only the test arena can place, faces `+x`.
 
 ## Context
 

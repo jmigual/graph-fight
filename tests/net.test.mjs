@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
 import { pbkdf2Sync } from "node:crypto";
-import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
+import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -41,6 +41,46 @@ for (const bad of [
     { ...start, version: undefined },
     { ...start, version: "v".repeat(65) },
 ]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
+
+// Team mode (ADR 27): `teams` gives each seat's side and `k` the characters per player. Without
+// them a start is free-for-all with 3, exactly as before.
+assert.equal(JSON.stringify(parseGameMsg(start)), JSON.stringify(start), "a free-for-all start is unchanged");
+const teamStart = { ...start, peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1], k: 2 };
+for (const good of [
+    teamStart,
+    { ...start, k: 1 },
+    { ...start, k: 3 },
+    { ...start, peers: ["h", "p", "q"], teams: [1, 1, 0] },
+    { ...start, field: "xy", peers: ["h", "p", "q", "r"], teams: [0, 1, 0, 1] },
+    { ...start, field: "xy", peers: ["h", "p", "q"], teams: [0, 1, 0], k: 1 },
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 1, 2, 3, 0, 1, 2, 3], k: 3 },
+    { ...start, peers: ["h", "p", "q", "r", "s"], teams: [0, 0, 1, 1, 2], k: 3 },
+]) assert.deepEqual(parseGameMsg(good), good, JSON.stringify(good));
+for (const bad of [
+    { ...start, k: 0 },
+    { ...start, k: 4 },
+    { ...start, k: 1.5 },
+    { ...start, k: "2" },
+    { ...start, k: null },
+    { ...teamStart, teams: "0101" },
+    { ...teamStart, teams: null },
+    { ...teamStart, teams: [0, 1, 0] },
+    { ...teamStart, teams: [0, 1, 0, 1, 0] },
+    { ...teamStart, teams: [0, 1, 0, 1.5] },
+    { ...teamStart, teams: [0, 1, 0, -1] },
+    { ...teamStart, teams: [0, 1, 0, "1"] },
+    { ...teamStart, teams: [0, 2, 0, 2] },
+    { ...teamStart, teams: [0, 0, 0, 0] },
+    { ...teamStart, field: "xy", teams: [0, 1, 2, 1] },
+    // T × S over the seat cap (MAX_PLAYERS), whatever k is.
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 },
+    { ...start, peers: ["h", "p", "q", "r", "s", "t", "u"], teams: [0, 0, 0, 1, 1, 1, 2], k: 1 },
+    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 2 },
+    { ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 3 },
+    { ...start, field: "xy", peers: Array(6).fill("p"), teams: [0, 0, 0, 0, 0, 1], k: 3 },
+]) assert.equal(parseGameMsg(bad), undefined, JSON.stringify(bad));
+assert.throws(() => outbox().stamp({ ...teamStart, teams: [0, 0, 0, 0] }), Error, "the host's relay refuses what peers would drop");
+assert.throws(() => outbox().stamp({ ...start, peers: Array(MAX_PLAYERS).fill("p"), teams: [0, 0, 0, 1, 1, 1, 2, 2], k: 2 }), Error, "nor a start over the seat cap");
 
 // Routing: only the host's sequenced broadcasts are delivered; the host also takes bare shot
 // requests from others; nothing else gets through.
@@ -84,6 +124,53 @@ assert.deepEqual(routeIncoming("h", "p", "h", { type: "share" }), { kind: "share
 assert.equal(routeIncoming("h", "p", "q", { type: "share" }), undefined, "a share from a non-host");
 assert.equal(routeIncoming("h", "h", "p", { type: "share" }), undefined, "a share sent to the host");
 for (const bad of [{ share: true }, { type: "Share" }, "share", { seq: 1, msg: { type: "share" } }]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
+// Team mode's waiting room (ADR 27): the sides come from the host only, and only before `start`.
+const lineup = { type: "lineup", size: 2, teams: [["h", "bot:easy:1"], ["local:1"]], waiting: [] };
+assert.deepEqual(routeIncoming("h", "p", "h", lineup), { kind: "lineup", lineup: { size: 2, teams: lineup.teams, waiting: [] } });
+assert.equal(routeIncoming("h", "p", "h", lineup, true), undefined, "a lineup after start");
+assert.equal(routeIncoming("h", "p", "q", lineup), undefined, "a lineup from a non-host");
+assert.equal(routeIncoming("h", "h", "p", lineup), undefined, "a lineup sent to the host");
+for (const good of [
+    { ...lineup, teams: [[], []] },
+    { ...lineup, size: 1, teams: Array(MAX_PLAYERS).fill(["p"]) },
+    { ...lineup, size: 4, teams: [["a", "b", "c", "d"], []] },
+    { ...lineup, size: 1, teams: [["h"], ["p"]], waiting: ["q", "r"] },
+    { ...lineup, waiting: Array(MAX_WAITING).fill("w") },
+]) assert.deepEqual(routeIncoming("h", "p", "h", good), { kind: "lineup", lineup: { size: good.size, teams: good.teams, waiting: good.waiting } }, JSON.stringify(good));
+for (const bad of [
+    { ...lineup, size: 0 },
+    { ...lineup, size: 1.5 },
+    { ...lineup, size: "2" },
+    { ...lineup, size: undefined },
+    { ...lineup, teams: undefined },
+    { ...lineup, teams: [["h"]] },
+    { ...lineup, teams: ["h", "p"] },
+    { ...lineup, size: 3, teams: [[], [], []] },
+    { ...lineup, size: 1, teams: [["h", "p"], []] },
+    { ...lineup, teams: [["h", 7], []] },
+    { ...lineup, teams: [["h".repeat(65)], []] },
+    { ...lineup, teams: [["bot:hard:9"], []] },
+    { ...lineup, teams: [["local:0"], []] },
+    { ...lineup, waiting: undefined },
+    { ...lineup, waiting: "q" },
+    { ...lineup, waiting: [7] },
+    { ...lineup, waiting: ["q".repeat(65)] },
+    { ...lineup, waiting: ["bot:hard:9"] },
+    { ...lineup, waiting: Array(MAX_WAITING + 1).fill("w") },
+    { seq: 1, msg: lineup },
+]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
+// A guest asks the host for a side; only the host takes it, and only before `start`.
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "team", team: 1 }), { kind: "team", team: 1 });
+assert.deepEqual(routeIncoming("h", "h", "p", { type: "team", team: MAX_PLAYERS - 1 }), { kind: "team", team: MAX_PLAYERS - 1 });
+assert.equal(routeIncoming("h", "h", "p", { type: "team", team: 1 }, true), undefined, "a team request after start");
+assert.equal(routeIncoming("h", "p", "q", { type: "team", team: 1 }), undefined, "a team request at a non-host");
+assert.equal(routeIncoming("h", "p", "h", { type: "team", team: 1 }), undefined, "a team request from the host");
+for (const team of [undefined, -1, MAX_PLAYERS, 0.5, "1", null]) assert.equal(routeIncoming("h", "h", "p", { type: "team", team }), undefined, String(team));
+// The other messages do not depend on whether the game has started.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "kick" }, true), { kind: "kicked" });
+assert.deepEqual(routeIncoming("h", "h", "p", shot, true), { kind: "request", shot });
 
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
@@ -221,7 +308,7 @@ gated(parseGameMsg(oldStart));
 assert.deepEqual(seen, ["start", "mismatch:v0", "shot", "mismatch:v0"]);
 
 // Lobby listings: shape and size caps.
-const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false };
+const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false, teams: [], k: 3 };
 assert.deepEqual(parseListing(listing, "v1"), listing);
 assert.deepEqual(parseListing({ ...listing, frame: "player" }, "v1"), { ...listing, frame: "player" });
 assert.deepEqual(parseListing({ ...listing, locked: true }, "v1"), { ...listing, locked: true }, "a password game (ADR 24)");
@@ -239,6 +326,37 @@ for (const bad of [
     { ...listing, locked: 1 },
     { ...listing, locked: null },
 ]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
+// Team mode (ADR 27): `teams` counts the players on each side, `k` is the characters per player.
+for (const good of [
+    { ...listing, k: 1 },
+    { ...listing, players: 3, seats: 4, teams: [2, 1], k: 2 },
+    { ...listing, players: 0, seats: 4, teams: [0, 0] },
+    { ...listing, field: "disc", players: 4, seats: 6, teams: [2, 1, 1] },
+    { ...listing, field: "disc", players: MAX_PLAYERS, seats: MAX_PLAYERS, teams: [2, 2, 2, 2] },
+]) assert.deepEqual(parseListing(good, "v1"), good, JSON.stringify(good));
+for (const bad of [
+    { ...listing, teams: undefined },
+    { ...listing, teams: null },
+    { ...listing, teams: "" },
+    { ...listing, teams: [1] },
+    { ...listing, players: 3, seats: 4, teams: [1, 1, 1] },
+    { ...listing, players: 3, seats: 6, teams: [1, 1, 1] }, // XY has exactly two sides, as in `start`
+    { ...listing, players: 3, seats: 4, teams: [3, 0] },
+    { ...listing, players: 3, seats: 4, teams: [1, 1] },
+    { ...listing, players: 3, seats: 4, teams: [2.5, 0.5] },
+    { ...listing, players: 1, seats: 4, teams: [2, -1] },
+    { ...listing, players: 1, seats: 4, teams: [1, "0"] },
+    { ...listing, players: 0, seats: 0, teams: [0, 0] },
+    { ...listing, k: undefined },
+    { ...listing, k: 0 },
+    { ...listing, k: 4 },
+    { ...listing, k: "3" },
+]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
+// A build before ADR 27 sends neither: a free-for-all with 3, only listed as another version.
+const { teams: _teams, k: _k, ...untamed } = listing;
+assert.deepEqual(parseListing({ ...untamed, version: "v0" }, "v1"), { ...listing, version: "v0" });
+assert.equal(parseListing({ ...listing, version: "v0", teams: [1] }, "v1"), undefined, "teams that are there must be valid");
+assert.equal(parseListing({ ...listing, version: "v0", k: 9 }, "v1"), undefined, "a k that is there must be valid");
 assert.equal(parseListing({ ...listing, version: "v0", frame: "q" }, "v1"), undefined, "a frame that is there must be valid");
 assert.equal(parseListing({ ...listing, version: "v0", locked: "yes" }, "v1"), undefined, "a locked flag that is there must be a boolean");
 // A build before ADR 24 sends no `locked`: it reads as unlocked, and is only listed as another version.

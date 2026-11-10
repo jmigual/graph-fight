@@ -4,6 +4,10 @@ Status: Accepted (2026-11-09)
 Amended by 0021: the module also exports `Bot` (`new Bot(game, level, starters)`,
 `think(budget)`), `Level` and `Starter`, a bot's search on its own copy of a `Game`; `Game` itself
 is unchanged.
+Amended by 0025: `Game.sandbox(field, frame, x_max, y_max, player_radius, players, obstacles)` builds
+a test arena from hand-placed players and obstacles, `fire_from`/`fire_param_from` fire from any
+player without changing the game and return `TrialShot {points, hits, obstacles}`, and
+`with_random_obstacles` redraws the obstacles; new `GameError` and `FireError` variants go with them.
 Superseded in part by 0020: the constructor takes `frame: Frame` (`Map` or `Player`) right after
 `field`.
 Superseded in part by 0014: `fire` returns `FireError` (including `UndefinedAtShooter`); the shooter validates with `check`/`check_param`; `fire`/`fire_param` take a `clockwise` direction flag.

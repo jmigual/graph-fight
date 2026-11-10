@@ -28,6 +28,10 @@ export type View = {
     looks: Map<string, Look>;
     /** Teams whose seat holder is disconnected (ADR 16). */
     absent: number[];
+    /** Test arena (ADR 25): what the newest shot hit, players by `lookKey` and obstacles by index, ringed in `--danger`. */
+    hits?: { players: string[]; obstacles: number[] };
+    /** Test arena: the selected obstacle, ringed in `--mark`. */
+    picked?: number;
 };
 
 // Used only when the stylesheet lacks a token: the light palette of ADR 17.
@@ -38,6 +42,8 @@ const FALLBACK: Record<string, string> = {
     grid: "#CFE0D5",
     "grid-major": "#A3C2AE",
     obstacle: "#3A4743",
+    mark: "#2347B5",
+    danger: "#B42318",
     face: "#FFD54A",
     "face-line": "#2B2118",
     "team-1": "#C2410C",
@@ -109,6 +115,48 @@ export function shotLabel(field: Field, exprs: string[]): string {
     const text = shotText(field, exprs);
     const chars = Array.from(text);
     return chars.length > LABEL_MAX ? `${chars.slice(0, LABEL_MAX).join("")}…` : text;
+}
+
+// The test arena (ADR 25): board coordinates, what a press is on, and a shot's words.
+/** A hand-placed obstacle: its centre and radius, as `Game.sandbox` takes it. */
+export type Disc = { x: number; y: number; r: number };
+/** What a press on the board is on: a player as `[team, index]`, or an obstacle by index. */
+export type Pick = { player: [number, number] } | { obstacle: number };
+
+/** The world point under the CSS pixel (`x`, `y`) of a board `width` px wide: the inverse of `paint`'s mapping. */
+export function toWorld(x: number, y: number, width: number, xMax: number, yMax: number): Point {
+    const scale = width / (2 * xMax);
+    return { x: x / scale - xMax, y: yMax - y / scale };
+}
+
+/**
+ * What `p` is on: of the players (of `radius`) whose edge is within `slack` of it, the one with the
+ * nearest centre; else the same among the obstacles; else `null`. Players are drawn above obstacles.
+ */
+export function pickAt(teams: Point[][], obstacles: Disc[], p: Point, radius: number, slack: number): Pick | null {
+    const nearest = <T>(items: [T, Point, number][]) =>
+        items
+            .map(([item, q, r]) => [item, Math.hypot(q.x - p.x, q.y - p.y), r] as const)
+            .filter(([, d, r]) => d - r <= slack)
+            .sort((a, b) => a[1] - b[1])[0]?.[0];
+    const player = nearest(teams.flatMap((spots, t) => spots.map((q, i): [[number, number], Point, number] => [[t, i], q, radius])));
+    if (player) return { player };
+    const obstacle = nearest(obstacles.map((o, i): [number, Point, number] => [i, o, o.r]));
+    return obstacle === undefined ? null : { obstacle };
+}
+
+/** How the test arena names a player, 0-based indices in: "Team 1 player 2". */
+export const playerName = (team: number, i: number) => `Team ${team + 1} player ${i + 1}`;
+
+/** "a", "a and b", "a, b and c". */
+const and = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
+
+/** The words for a test shot, the board's text alternative: who fired what, whom it hit and where it stopped. */
+export function describeTrial(field: Field, shooter: [number, number], exprs: string[], cw: boolean, hits: [number, number][], obstacles: number[]) {
+    let text = `${playerName(...shooter)} fired ${shotText(field, exprs)}${field === "disc" ? (cw ? ", clockwise" : ", counterclockwise") : ""}.`;
+    text += hits.length ? ` It hit ${and(hits.map(([t, i]) => playerName(t, i)))}.` : " It hit no player.";
+    if (obstacles.length) text += ` It stopped in obstacle${obstacles.length > 1 ? "s" : ""} ${and(obstacles.map((i) => String(i + 1)))}.`;
+    return text;
 }
 
 let frame = 0;
@@ -216,6 +264,17 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     } else {
         ctx.strokeRect(1, 1, w - 2, h - 2);
     }
+    // Test arena: the obstacles the shot stopped in, and the selected one just outside.
+    ctx.lineWidth = 2.5;
+    arena.obstacles.forEach((o, i) => {
+        const [x, y] = at(o.pos);
+        for (const [token, gap, on] of [["danger", 3, view.hits?.obstacles.includes(i)], ["mark", 7, view.picked === i]] as const) {
+            if (!on) continue;
+            ctx.strokeStyle = colour(token);
+            circle(x, y, o.radius * scale + gap);
+            ctx.stroke();
+        }
+    });
 
     if (aiming && shooter && map && field === "xy") {
         // Our x, where y = f(x) starts, and the way x sweeps: toward the other half (ADR 20).
@@ -335,6 +394,13 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
             const state = !player.alive ? "dead" : view.absent.includes(ti) ? "away" : "here";
             const [x, y] = at(player.shape.pos);
             const top = face(ctx, colour, x, y, player.shape.radius * scale, ti, look, state, ours, text);
+            if (view.hits?.players.includes(lookKey(ti, pi))) {
+                // Test arena: a ring around a player the shot hit.
+                ctx.strokeStyle = colour("danger");
+                ctx.lineWidth = 2.5;
+                circle(x, y, player.shape.radius * scale + 8);
+                ctx.stroke();
+            }
             tags.push([String(ti + 1), x, top, colour(`team-${(ti % 8) + 1}`)]);
         }),
     );

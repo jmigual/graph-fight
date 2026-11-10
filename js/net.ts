@@ -35,6 +35,15 @@ const MAX_FRAME = 4096;
 
 /** Upper bound on players in a room; also bounds `start.peers`. */
 export const MAX_PLAYERS = 8;
+/**
+ * Most joiners a team-mode `lineup` lists as waiting for a seat (ADR 27). A full mesh of that many
+ * WebRTC peers is already far past what a room handles; the host's `lineup` sends only the first ones.
+ */
+export const MAX_WAITING = 32;
+/** Characters per player when a `start` or a listing has no `k` (ADR 27), and ADR 15's fixed count before it. */
+export const DEFAULT_K = 3;
+/** Most characters per player a host may choose (ADR 27). */
+const MAX_K = 3;
 /** Longest formula the Rust parser accepts. */
 const MAX_EXPR = 256;
 /** Longest id, seed or name accepted off the wire. */
@@ -54,19 +63,28 @@ export type BotLevel = "easy" | "medium" | "hard";
 /** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
 export type Frame = "map" | "player";
 
-/** What a host advertises in the lobby; `locked` games need a password to join (ADR 24). */
-export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean };
+/**
+ * What a host advertises in the lobby; `locked` games need a password to join (ADR 24). `teams` is
+ * `[]` in a free-for-all, else the players on each side, and `k` the characters per player (ADR 27).
+ */
+export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean; teams: number[]; k: number };
 /** The lobby wire format: `id` is the host's peer id and names the game room. */
 export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
 export type OpenGame = Listing & { compatible: boolean };
 
-export type Start = { type: "start"; seed: string; field: Field; frame: Frame; peers: string[]; version: string };
+/**
+ * `teams[i]` is the side of `peers[i]` in team mode, absent in a free-for-all; `k` is the characters
+ * per player, absent when it is 3, so a free-for-all start with the default is as before ADR 27.
+ */
+export type Start = { type: "start"; seed: string; field: Field; frame: Frame; peers: string[]; version: string; teams?: number[]; k?: number };
 /** `cw` is the disc shot direction: clockwise when true, counter-clockwise when false (ADR 14). */
 export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string]; cw: boolean };
 export type Timeout = { type: "timeout"; turn: number };
 export type Leave = { type: "leave"; peer: string };
 export type GameMsg = Start | Shot | Timeout | Leave;
+/** Team mode's waiting room (ADR 27): the seat ids on each side, at most `size` per side, then the joiners waiting for a seat, in join order. */
+export type Lineup = { size: number; teams: string[][]; waiting: string[] };
 /** What the host broadcasts: `start` is seq 0, every later message is the previous seq + 1. */
 export type Relayed = { seq: number; msg: GameMsg };
 
@@ -77,6 +95,27 @@ const isField = (v: unknown): v is Field => v === "xy" || v === "disc";
 const isFrame = (v: unknown): v is Frame => v === "map" || v === "player";
 const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
+const isK = (v: unknown): v is number => isCount(v, MAX_K) && v > 0;
+
+/** True for a number of sides `T` the field takes in team mode (ADR 27): at least 2, exactly 2 on XY. */
+const isSideCount = (count: number, field: Field) => count >= 2 && (field === "disc" || count === 2);
+
+/**
+ * True when `teams` gives each of `count` seats a side `0 … T−1`, every side used, `T` a side count
+ * for `field`, and `T × S` within `MAX_PLAYERS` seats, S being the largest side (ADR 27).
+ */
+function isTeams(teams: unknown, count: number, field: Field): teams is number[] {
+    if (!Array.isArray(teams) || teams.length !== count || !teams.every((t) => isCount(t, count - 1))) return false;
+    const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
+    return isSideCount(sizes.length, field) && !sizes.includes(0) && sizes.length * Math.max(...sizes) <= MAX_PLAYERS;
+}
+
+/**
+ * True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T` sides of `seats / T`
+ * seats, `T` a side count for `field`, adding up to `players`.
+ */
+const isSideCounts = (v: unknown, field: Field, seats: number, players: number): v is number[] =>
+    Array.isArray(v) && (v.length === 0 || (isSideCount(v.length, field) && v.length <= seats && seats % v.length === 0 && v.every((n) => isCount(n, seats / v.length)) && v.reduce((a, b) => a + b, 0) === players));
 
 /** A bot's seat id in `start.peers` (ADR 21). Trystero peer ids are alphanumeric, so no peer has one. */
 const BOT_ID = /^bot:(easy|medium|hard):([1-7])$/;
@@ -103,20 +142,34 @@ export function parseLocal(id: string): number | undefined {
 /** A seat the host's page plays, a bot's or a local player's: the seat book never binds it to a peer (ADR 21, 22). */
 export const isHostRun = (id: string) => isBot(id) || isLocal(id);
 
+/** A seat id as `start.peers` holds it: a short text, and a well-formed id in the bot and local namespaces. */
+const isSeatId = (p: unknown): p is string => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p));
+
+/**
+ * The lineup in `v` (ADR 27) if `T ≥ 2` sides of `size` seats fit in `MAX_PLAYERS`, each listing at
+ * most `size` seat ids, and at most `MAX_WAITING` seat ids wait.
+ */
+function parseLineup(v: Record<string, unknown>): Lineup | undefined {
+    const { size, teams, waiting } = v;
+    if (!isCount(size, MAX_PLAYERS) || size < 1 || !Array.isArray(teams) || teams.length < 2 || teams.length * size > MAX_PLAYERS) return undefined;
+    if (!Array.isArray(waiting) || waiting.length > MAX_WAITING || !waiting.every(isSeatId)) return undefined;
+    return teams.every((t) => Array.isArray(t) && t.length <= size && t.every(isSeatId)) ? { size, teams, waiting } : undefined;
+}
+
 /**
  * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
  * turn it away as another version instead of it being dropped. A `start` seat that begins with
  * `bot:` must be a well-formed bot id (ADR 21), and one that begins with `local:` a well-formed
- * local player's id (ADR 22).
+ * local player's id (ADR 22). `teams` and `k` (ADR 27) are kept only when present.
  */
 export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start": {
             const frame = v.frame === undefined ? "map" : v.frame;
-            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p) && (!isBot(p) || BOT_ID.test(p)) && (!isLocal(p) || LOCAL_ID.test(p)))) {
-                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version };
+            if (isText(v.seed) && isField(v.field) && isFrame(frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every(isSeatId) && (v.k === undefined || isK(v.k)) && (v.teams === undefined || isTeams(v.teams, v.peers.length, v.field))) {
+                return { type: "start", seed: v.seed, field: v.field, frame, peers: v.peers, version: v.version, ...(v.teams !== undefined && { teams: v.teams }), ...(v.k !== undefined && { k: v.k }) };
             }
             return undefined;
         }
@@ -135,29 +188,37 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12, 16, 23, 24). A payload from the host must be
+ * Decides what to do with a game-room payload (ADR 12, 16, 23, 24, 27). A payload from the host must be
  * a sequenced broadcast, our private seat token `{seat}`, `{type: "kick"}`, which removes us from
- * the game, or `{type: "share"}`, which lets us share the invite link; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
- * as a request; everything else is dropped.
+ * the game, `{type: "share"}`, which lets us share the invite link, or, until the game has
+ * `started`, team mode's `{type: "lineup"}`; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
+ * as a request, and until the game has `started` a `{type: "team"}` request; everything else is dropped.
  */
 export function routeIncoming(
     hostId: string,
     self: string,
     from: string,
     data: unknown,
+    started = false,
 ):
     | { kind: "relayed"; seq: number; msg: GameMsg }
     | { kind: "seat"; token: string }
     | { kind: "kicked" }
     | { kind: "share" }
+    | { kind: "lineup"; lineup: Lineup }
     | { kind: "request"; shot: Shot }
     | { kind: "rejoin"; token: string }
     | { kind: "quit" }
+    | { kind: "team"; team: number }
     | undefined {
     if (from === hostId) {
         if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
         if (isObj(data) && data.type === "kick") return { kind: "kicked" };
         if (isObj(data) && data.type === "share") return { kind: "share" };
+        if (isObj(data) && data.type === "lineup") {
+            const lineup = started ? undefined : parseLineup(data);
+            return lineup && { kind: "lineup", lineup };
+        }
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
@@ -165,6 +226,7 @@ export function routeIncoming(
     if (self !== hostId || !isObj(data)) return undefined;
     if (data.type === "rejoin") return isText(data.token) ? { kind: "rejoin", token: data.token } : undefined;
     if (data.type === "quit") return { kind: "quit" };
+    if (data.type === "team") return !started && isCount(data.team, MAX_PLAYERS - 1) ? { kind: "team", team: data.team } : undefined;
     const msg = parseGameMsg(data);
     return msg?.type === "shot" ? { kind: "request", shot: msg } : undefined;
 }
@@ -193,8 +255,9 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
 
 /**
  * Returns the listing if `v` has the right shape and sizes, otherwise undefined. A listing from
- * another build than `version` may lack `frame` (builds before ADR 20) or `locked` (before ADR 24);
- * they read as `map` and unlocked, and it is only ever shown as incompatible (ADR 12).
+ * another build than `version` may lack `frame` (builds before ADR 20), `locked` (before ADR 24) or
+ * `teams` and `k` (before ADR 27); they read as `map`, unlocked, `[]` and 3, and it is only ever
+ * shown as incompatible (ADR 12).
  */
 export function parseListing(v: unknown, version: string): Listing | undefined {
     if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
@@ -203,8 +266,10 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
     const old = v.version !== version;
     const frame = v.frame === undefined && old ? "map" : v.frame;
     const locked = v.locked === undefined && old ? false : v.locked;
-    if (!isFrame(frame) || typeof locked !== "boolean") return undefined;
-    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked };
+    const teams = v.teams === undefined && old ? [] : v.teams;
+    const k = v.k === undefined && old ? DEFAULT_K : v.k;
+    if (!isFrame(frame) || typeof locked !== "boolean" || !isSideCounts(teams, v.field, v.seats, v.players) || !isK(k)) return undefined;
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked, teams, k };
 }
 
 /** An invite link's fragment (ADR 24): the host's id, the room password and our build. */
@@ -464,6 +529,14 @@ export type GameHandlers = {
     onKicked(): void;
     /** The host lets us share its invite link (ADR 24). */
     onShare?(): void;
+    /** Before `start`, team mode (ADR 27): the host's sides as they are now. */
+    onLineup?(lineup: Lineup): void;
+    /**
+     * Host only, before `start`, team mode (ADR 27): room peer `peer`, not kicked, asks for a seat on
+     * side `team`, an integer below `MAX_PLAYERS`. The handler honours it only for a seated peer and
+     * a side with an open seat, and sends the new lineup.
+     */
+    onTeamRequest?(peer: string, team: number): void;
     /**
      * We joined without a seat and the host link never came up, even after joining the room again
      * once (ADR 24): 3 × `REJOIN_MS` in all. With a password, a wrong one looks the same as a host
@@ -510,6 +583,14 @@ export type Game = {
     kick(seat: string): void;
     /** Host only: tell `peer` it may share the invite link (ADR 24). Sent outside the sequence, like a kick. */
     share(peer: string): void;
+    /**
+     * Host only, before `start`, team mode (ADR 27): send the sides to every guest that is not kicked,
+     * outside the sequence. Only the first `MAX_WAITING` waiting joiners are sent. Throws on a lineup
+     * guests would drop otherwise, and once the game has started.
+     */
+    lineup(lineup: Lineup): void;
+    /** Guest only, team mode (ADR 27): ask the host for a seat on side `team`; the next lineup shows the answer. */
+    askTeam(team: number): void;
     /**
      * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
      * not connected; on another peer, the host while its link is down.
@@ -659,8 +740,13 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         action.send({ type: "kick" }, { target: peer }).catch((err) => console.warn("kick send failed", err));
     }
 
+    // A guest that applied `start`; the host knows from its outbox.
+    let applied = false;
     const accept = sequencer(
-        versionGate(BUILD_ID, handlers.onMessage, (hostVersion) => {
+        versionGate(BUILD_ID, (msg) => {
+            if (msg.type === "start") applied = true;
+            handlers.onMessage(msg);
+        }, (hostVersion) => {
             leave();
             handlers.onVersionMismatch(hostVersion);
         }),
@@ -673,7 +759,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
 
     function onData(data: JsonValue, peerId: string) {
         if (banned.has(peerId)) return;
-        const routed = routeIncoming(hostId, selfId, peerId, data);
+        const routed = routeIncoming(hostId, selfId, peerId, data, applied || out.started());
         if (routed?.kind === "relayed") {
             accept(routed.seq, routed.msg);
         } else if (routed?.kind === "seat") {
@@ -684,6 +770,10 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             handlers.onKicked();
         } else if (routed?.kind === "share") {
             handlers.onShare?.();
+        } else if (routed?.kind === "lineup") {
+            handlers.onLineup?.(routed.lineup);
+        } else if (routed?.kind === "team") {
+            handlers.onTeamRequest?.(peerId, routed.team);
         } else if (routed && seats) {
             // Requests count only from the peer holding a seat now, and act for that seat.
             if (routed.kind === "rejoin") {
@@ -739,6 +829,21 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
             if (!isHost) throw new Error("only the host shares its invite");
             // A lost one only hides the link from that guest.
             action.send({ type: "share" }, { target: peer }).catch((err) => console.warn("share send failed", err));
+        },
+        lineup(lineup) {
+            if (!isHost) throw new Error("only the host sends the lineup");
+            if (out.started()) throw new Error("lineup after start");
+            // Guests see the first MAX_WAITING joiners in line; the rest still wait on the host.
+            const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
+            if (!parseLineup(sent)) throw new Error("invalid lineup");
+            const guests = Object.keys(room.getPeers()).filter((p) => !banned.has(p));
+            // A lost one is replaced by the next, sent on every change.
+            action.send({ type: "lineup", ...sent }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
+        },
+        askTeam(team) {
+            if (isHost) throw new Error("the host seats itself");
+            // A lost request changes nothing; the next lineup shows the sides as they are.
+            action.send({ type: "team", team }, { target: hostId }).catch((err) => console.warn("team request failed", err));
         },
         absent() {
             if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];

@@ -31,6 +31,8 @@ pub enum FireError {
     /// The curve is not a finite point at the start of its range (for example `1/x`), so it
     /// cannot be anchored at the shooter.
     UndefinedAtShooter,
+    /// A test arena shot names a player that does not exist (ADR 25).
+    UnknownPlayer,
 }
 
 impl From<ParseError> for FireError {
@@ -44,6 +46,7 @@ impl fmt::Display for FireError {
         match self {
             FireError::Parse(e) => e.fmt(f),
             FireError::UndefinedAtShooter => f.write_str("The formula is undefined at the shooter"),
+            FireError::UnknownPlayer => f.write_str("There is no such player"),
         }
     }
 }
@@ -183,7 +186,13 @@ fn trace(
         (Frame::Player, Field::Xy) if origin.x > 0. => [[-1., 0.], [0., 1.]],
         (Frame::Player, Field::Disc) => {
             let norm = origin.x.hypot(origin.y);
-            let (cos, sin) = (-origin.x / norm, -origin.y / norm);
+            // A shooter at the centre has no direction to it and faces +x, as the board draws it.
+            // Only a test arena (ADR 25) can put one there: games place disc players at r >= R/2.
+            let (cos, sin) = if norm == 0. {
+                (1., 0.)
+            } else {
+                (-origin.x / norm, -origin.y / norm)
+            };
             let flip = if clockwise { -1. } else { 1. };
             [[cos, -flip * sin], [sin, flip * cos]]
         }

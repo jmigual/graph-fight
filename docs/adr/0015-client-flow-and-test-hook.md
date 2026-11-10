@@ -7,6 +7,8 @@ Amended by 0022: the host may add local players; `start.peers` is the host, then
 `seats − 1 − bots − locals`, then the local players, then the bots, and `players` counts them all.
 Amended by 0024: the host picks a visibility (Public, Password, Private link); Join on a locked game
 asks for the password, and an invite link joins directly.
+Amended by 0027: the announce also carries `teams` (`[]` in a free-for-all) and `k` (characters per
+player); the 3 players per team are `DEFAULT_K` in `js/net.ts`, no longer a constant in `js/index.ts`.
 Superseded in part by 0020: the host also announces `frame` (`{name, field, frame, players, seats}`)
 and sends it in `start`.
 Superseded in part by 0016: "host left" now comes from the host's relayed `leave`; seated peers keep their seat when a link drops.

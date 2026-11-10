@@ -18,6 +18,10 @@
   <body>
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
 
+    <header class="site-bar">
+      <button id="help-open" type="button" class="secondary" aria-haspopup="dialog">Help</button>
+    </header>
+
     <main>
       <section id="lobby">
         <header class="masthead">
@@ -86,6 +90,29 @@
             </form>
           </section>
         </div>
+        <p class="actions"><button id="test-open" type="button" class="secondary">Test arena</button>
+          <span class="hint">Try formulas on your own, with players and obstacles where you want them. It stays on this page.</span></p>
+        <section id="about" aria-labelledby="about-heading">
+          <h2 id="about-heading">About</h2>
+          <div class="about-grid">
+            <div id="about-text">
+              <p>Graph fight! is a worms-like artillery game where every shot is a formula. Play against friends in your browser, or alone against bots; there is no server. It is inspired by <a href="https://graphwar.com/graphwar_1/index.html" target="_blank" rel="noopener">Graphwar<span class="sr-only">, opens in a new tab</span></a>.</p>
+              <ul>
+                <li>On your turn, type a formula such as <span class="math">y = sin(x)</span>.</li>
+                <li>The shot follows its graph from your character until it hits a player (they die), an obstacle (it leaves a crater) or the edge of the field.</li>
+                <li>The last team standing wins.</li>
+              </ul>
+              <p>Play on an XY field with 2 players or on a polar disc with 2 to 8.</p>
+              <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="Source code on GitHub, opens in a new tab">Source code on GitHub</a></p>
+            </div>
+            <figure>
+              <video id="about-video" muted loop playsinline controls preload="none" poster="./demo-poster.jpg" aria-label="Demo: a solo game against a bot" aria-describedby="about-caption">
+                <source src="./demo.webm" type="video/webm">
+              </video>
+              <figcaption id="about-caption" class="hint">A solo game against a bot. The clip opens on the lobby and the waiting room, then plays two turns, each a formula and the shot that follows it.</figcaption>
+            </figure>
+          </div>
+        </section>
       </section>
 
       <section id="room" hidden>
@@ -135,8 +162,59 @@
           </div>
           <div class="timer-bar" aria-hidden="true"><div id="timer-fill"></div></div>
           </div>
+          <div class="status test-only">
+            <h2 id="test-heading">Test arena</h2>
+            <button id="test-exit" type="button" class="secondary">Back to lobby</button>
+          </div>
           <canvas id="arena" width="800" height="400" role="img" aria-label="Board"></canvas>
           <p id="last-shot" aria-live="polite"></p>
+          <section id="test-panel" class="test-only" aria-labelledby="test-heading">
+            <p class="hint">Click or tap the board to place a player or an obstacle, drag a player to move it, and choose the player to fire from. Players are never out and obstacles keep no craters, so a shot can be repeated.</p>
+            <div class="test-setup">
+              <label class="field"><span>Field</span>
+                <select id="test-field">
+                  <option value="xy">XY plane</option>
+                  <option value="disc">Polar disc</option>
+                </select>
+              </label>
+              <label class="field"><span>Coordinates</span>
+                <select id="test-frame">
+                  <option value="map">Map-centred (like Graphwar)</option>
+                  <option value="player">Player-centred</option>
+                </select>
+              </label>
+            </div>
+            <fieldset class="segmented">
+              <legend>Place</legend>
+              <label><input type="radio" name="place" id="place-player" value="player" checked> Player</label>
+              <label><input type="radio" name="place" id="place-obstacle" value="obstacle"> Obstacle</label>
+            </fieldset>
+            <label class="field"><span>Team <span id="test-swatch" class="swatch" aria-hidden="true">1</span></span>
+              <select id="test-team"></select></label>
+            <label class="field"><span>Obstacle radius <output id="obstacle-size-value">1.0</output></span>
+              <input id="obstacle-size" type="range" min="0.2" max="2" step="0.1" value="1"></label>
+            <form id="test-coords">
+              <fieldset>
+                <legend>Position</legend>
+                <label class="field"><span class="math">x</span><input id="test-x" type="number" step="any" required></label>
+                <label class="field"><span class="math">y</span><input id="test-y" type="number" step="any" required></label>
+                <div class="actions">
+                  <button type="submit" class="secondary">Place at x, y</button>
+                  <button id="test-move" type="button" class="secondary">Move selected to x, y</button>
+                </div>
+              </fieldset>
+            </form>
+            <p id="test-error" class="error" role="alert"></p>
+            <div class="actions">
+              <button id="random-obstacles" type="button" class="secondary">Random obstacles</button>
+              <button id="clear-obstacles" type="button" class="secondary">Clear obstacles</button>
+              <button id="clear-paths" type="button" class="secondary">Clear paths</button>
+            </div>
+            <h3 id="test-items-heading" tabindex="-1">On the board</h3>
+            <ul id="test-items"></ul>
+            <p id="test-empty" class="hint">Nothing yet.</p>
+            <button id="remove-selected" type="button" class="secondary">Remove selected</button>
+          </section>
         </div>
 
         <div class="game-side">
@@ -226,7 +304,283 @@
         </div>
       </section>
     </main>
-    <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a></footer>
+    <footer><a id="build" href="./changelog.html" target="_blank" rel="noopener"></a> <span aria-hidden="true">·</span> <a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="GitHub, opens in a new tab">GitHub</a></footer>
+
+    <!-- In-app help (ADR 26): a modal dialog opened by #help-open or by a #help-… link. Every section has an id. -->
+    <dialog id="help" aria-labelledby="help-title">
+      <div class="help-head">
+        <h2 id="help-title">Help</h2>
+        <form method="dialog"><button id="help-close" class="primary">Close</button></form>
+      </div>
+      <nav aria-label="Help topics">
+        <ul>
+          <li><a href="#help-play">How to play</a></li>
+          <li><a href="#help-formulas">Writing formulas</a></li>
+          <li><a href="#help-coordinates">Coordinates</a></li>
+          <li><a href="#help-tools">Formula tools</a></li>
+          <li><a href="#help-modes">Bots, local players, kick, private games</a></li>
+          <li><a href="#help-arena">Test arena</a></li>
+          <li><a href="#help-reconnect">Reconnecting and versions</a></li>
+        </ul>
+      </nav>
+
+      <section id="help-play">
+        <h3>How to play</h3>
+        <p>Each player controls a team of 3 characters. You aim by writing a formula; your shot follows its curve and kills every character it touches. The last team with a character standing wins.</p>
+        <h4 id="help-turns">Turns and the timer</h4>
+        <ul>
+          <li>Teams take turns in team order. Within a team the characters take turns too: after a team's turn (a shot or a timeout), its next living character is up the next time it is the team's turn.</li>
+          <li>The status bar says whose turn it is ("Your turn", "Team 2 is aiming"), and the tab title starts with "Your turn" when it is yours. You can type while you wait; only Fire is disabled.</li>
+          <li>A turn lasts 60 seconds. The bar under the status drains and the number turns red under 10 s. When it reaches 0 the host skips the turn and nobody shoots. The timer keeps running while this help is open.</li>
+          <li>Fire checks your formula first. A formula that cannot be used shows an error under the boxes and does not cost the turn.</li>
+        </ul>
+        <h4 id="help-teams">Teams and the field</h4>
+        <ul>
+          <li>The XY plane has 2 teams: Team 1 on the left half, Team 2 on the right. The polar disc has 2 to 8 teams, each in its own sector of the disc.</li>
+          <li>A team is told apart by its number, its cap colour and its face, never by colour alone. The roster lists the teams and how many characters each has left.</li>
+        </ul>
+        <h4 id="help-kills">What kills, and what stops a shot</h4>
+        <ul>
+          <li>A shot kills every character whose head it touches, teammates included. It never kills the character that fired it, and it flies on through the characters it kills.</li>
+          <li>Obstacles are the shaded circles. A shot that enters one stops there and leaves a crater, drawn as a hole. Later shots pass through a crater as if the obstacle were not there.</li>
+          <li>A shot also ends at the edge of the field, where the formula stops being a number (for example <code>sqrt</code> of a negative, or a division by zero), and at a jump in the curve (for example <code>floor(x)</code>).</li>
+        </ul>
+        <h4 id="help-end">How a game ends</h4>
+        <ul>
+          <li>When only one team has characters left, it wins: "You win." or "Team 2 wins.". If the last characters die together, the game is a draw.</li>
+          <li>Leave game (it asks first) takes your team out of the game. If the host leaves, the game ends for everyone. Back to lobby appears when it is over.</li>
+        </ul>
+        <h4 id="help-host-join">Hosting and joining</h4>
+        <ul>
+          <li>The lobby lists open games. Join one, or fill in Host a game: a name, the field (XY plane with 2 players, or polar disc with 2 to 8), the coordinates (see <a href="#help-coordinates">Coordinates</a>) and, for the disc, the seats.</li>
+          <li>The host waits in the waiting room and presses Start, which needs at least 2 players. If more people join than there are seats, the first to join play.</li>
+          <li>There is no game server. Players connect directly to each other, and only formulas and control messages are sent. Public Nostr relays are used to find open games.</li>
+        </ul>
+      </section>
+
+      <section id="help-formulas">
+        <h3>Writing formulas</h3>
+        <h4 id="help-variables">The variable</h4>
+        <ul>
+          <li>XY plane, <code>y = f(x)</code>: the variable is <code>x</code>.</li>
+          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. You can type <code>θ</code>, <code>theta</code> or <code>th</code>. The box turns a typed <code>theta</code> into θ as you type; <code>th</code> is accepted as it is.</li>
+          <li>Parametric, on either field: the variable is <code>t</code> in both boxes, <code>x(t)</code> and <code>y(t)</code> or <code>r(t)</code> and <code>θ(t)</code>.</li>
+          <li>Any other name is an error ("Unknown name 'foo'"), and a single other letter such as <code>y</code> or <code>a</code> is taken for a slider letter (see Formula tools). <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
+        </ul>
+        <h4 id="help-constants">Constants and functions</h4>
+        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Both <code>pi</code> and <code>π</code> are accepted. The box turns a typed <code>pi</code> into π as you type, as on Desmos, and the π button inserts it.</p>
+        <p>Functions, always with parentheses, as in <code>sin(x)</code>; angles are in radians and <code>ln</code> is the natural logarithm:</p>
+        <p id="help-functions"><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> <code>sinh</code> <code>cosh</code> <code>tanh</code> <code>sqrt</code> <code>abs</code> <code>exp</code> <code>ln</code> <code>log10</code> <code>floor</code> <code>ceil</code></p>
+        <h4 id="help-operators">Operators and precedence</h4>
+        <p>The operators are <code>+ - * / ^</code> and parentheses; spaces are ignored. From the tightest binding to the loosest:</p>
+        <ol>
+          <li>Parentheses and function calls.</li>
+          <li><code>^</code>, which groups from the right and takes a signed exponent: <code>2^3^2</code> is <code>2^9</code>, and <code>2^-1</code> is 0.5.</li>
+          <li>Unary minus: <code>-x^2</code> is <code>-(x^2)</code>, and <code>(-x)^2</code> is the square of <code>-x</code>.</li>
+          <li><code>*</code> and <code>/</code>, from the left.</li>
+          <li><code>+</code> and <code>-</code>, from the left.</li>
+        </ol>
+        <h4 id="help-no-implicit">No implicit multiplication</h4>
+        <p>Write every product with <code>*</code>: <code>2*x</code>, not <code>2x</code>, and <code>2*(x+1)</code>, not <code>2(x+1)</code>. Numbers are digits with an optional point (<code>.5</code> is fine); write <code>1000</code>, not <code>1e3</code>.</p>
+        <h4 id="help-length">Length</h4>
+        <p>A formula has at most <strong id="help-max-len">256</strong> characters. The boxes stop accepting more, and a template whose values make it longer is not inserted.</p>
+        <h4 id="help-undefined">Undefined at the shooter</h4>
+        <p>A shot starts at the shooter, so the formula must be a finite number at its starting point. If it is not, Fire says "The formula is undefined at the shooter" and the turn is kept. Where the starting point is depends on the coordinates (see <a href="#help-coordinates">Coordinates</a>). For example, on a map-centred XY game <code>ln(x)</code> can be fired from the right half but not from the left half, where <code>x</code> is negative.</p>
+      </section>
+
+      <section id="help-coordinates">
+        <h3>Coordinates</h3>
+        <p>Every shot is a curve that starts exactly at the shooter. The host's Coordinates option decides what <code>x</code>, <code>y</code>, <code>r</code> and <code>θ</code> mean:</p>
+        <ul>
+          <li><strong>Map-centred</strong> (the default, like Graphwar): the formula is written in the map's own coordinates, the same for every player. The curve is then moved so that it passes through the shooter.</li>
+          <li><strong>Player-centred</strong>: the formula is written in a frame at the shooter, whose first axis points toward the centre of the map.</li>
+        </ul>
+        <p>The lobby and the waiting room show which one a game uses. The map is the XY plane, 40 wide and 20 high with the origin at the centre (<code>x</code> from -20 to 20, <code>y</code> from -10 to 10), or the polar disc of radius 10 around the centre. One grid square is one unit on both axes, so slopes look as they are.</p>
+
+        <h4 id="help-coords-xy">XY plane, map-centred</h4>
+        <p>With the shooter at <code>(x<sub>p</sub>, y<sub>p</sub>)</code>:</p>
+        <p><code>y = f(x) − f(x<sub>p</sub>) + y<sub>p</sub></code></p>
+        <ul>
+          <li><code>x</code> starts at <code>x<sub>p</sub></code> and sweeps toward the other half of the map, across its whole width: upward for a shooter on the left half (<code>x<sub>p</sub> ≤ 0</code>), downward for one on the right. <code>f</code> is evaluated at the real map <code>x</code>.</li>
+          <li>Subtracting <code>f(x<sub>p</sub>)</code> and adding <code>y<sub>p</sub></code> is what puts the curve through the shooter: at <code>x = x<sub>p</sub></code> the height is <code>y<sub>p</sub></code>.</li>
+        </ul>
+        <p>So <code>y = 3</code> flies flat: <code>f</code> is the same everywhere, so nothing is added to <code>y<sub>p</sub></code> (any constant does the same). And <code>y = x</code> has slope 1: the height changes by exactly as much as <code>x</code> does, a 45° line. Seen from the left it rises to the right. A shooter on the right sweeps <code>x</code> downward, so the same line runs left and down. <code>y = x^2</code> is a parabola with its vertex on the map's <code>x = 0</code> line, shifted up or down to pass through the shooter.</p>
+        <figure class="help-figure">
+          <svg viewBox="0 0 320 180" role="img" aria-labelledby="help-xy-caption">
+            <defs><marker id="help-xy-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="head"/></marker></defs>
+            <rect x="10" y="10" width="300" height="150" class="edge"/>
+            <line x1="10" y1="85" x2="310" y2="85" class="soft"/>
+            <line x1="160" y1="10" x2="160" y2="160" class="soft"/>
+            <line x1="70" y1="85" x2="70" y2="110" class="soft dash"/>
+            <line x1="70" y1="110" x2="270" y2="110" class="curve"/>
+            <line x1="70" y1="110" x2="170" y2="10" class="curve"/>
+            <circle cx="70" cy="110" r="4" class="dot"/>
+            <line x1="82" y1="150" x2="130" y2="150" class="soft" marker-end="url(#help-xy-arrow)"/>
+            <text x="138" y="154">x</text>
+            <text x="70" y="78" text-anchor="middle">x<tspan dy="3" font-size="9">p</tspan></text>
+            <text x="70" y="128" text-anchor="middle">shooter</text>
+            <text x="274" y="114">y = 3</text>
+            <text x="176" y="24">y = x</text>
+            <text x="160" y="175" text-anchor="middle">x = 0</text>
+          </svg>
+          <figcaption id="help-xy-caption">XY plane, map-centred. The shooter stands left of the centre line, at <code>x<sub>p</sub></code>. <code>y = 3</code> runs flat from the shooter and <code>y = x</code> climbs at 45°; <code>x</code> sweeps to the right, toward the other half.</figcaption>
+        </figure>
+
+        <h4 id="help-coords-polar">Polar disc, map-centred</h4>
+        <p>The shooter is at distance <code>r<sub>p</sub></code> from the centre and at angle <code>θ<sub>0</sub></code>, measured counterclockwise from the map's right-hand axis and taken in <code>[0, 2π]</code>.</p>
+        <p><code>r = f(θ) − f(θ<sub>0</sub>) + r<sub>p</sub></code></p>
+        <ul>
+          <li><code>θ</code> sweeps one full turn from <code>θ<sub>0</sub></code>: upward, from <code>θ<sub>0</sub></code> to <code>θ<sub>0</sub> + 2π</code>, with Counterclockwise, and downward, from <code>θ<sub>0</sub></code> to <code>θ<sub>0</sub> − 2π</code>, with Clockwise (the Direction setting under the boxes). <code>f</code> is evaluated at the real <code>θ</code>. One turn reaches every direction.</li>
+          <li>The range matters for formulas that do not repeat every 2π, such as <code>θ^2</code>, <code>ln(θ)</code> or <code>1/θ</code>: a shooter just below the right-hand axis starts at <code>θ<sub>0</sub></code> close to 2π, not close to 0.</li>
+          <li>A negative <code>r</code> is the point on the opposite side of the centre, so a shot can pass through the centre to the far side.</li>
+          <li>Clockwise is a mirror image of Counterclockwise across the line from the centre through the shooter only when <code>f</code> is symmetric about <code>θ<sub>0</sub></code>; it always is for parametric shots.</li>
+        </ul>
+        <p>Examples: <code>r = 3</code> orbits the centre at the shooter's own distance and comes back round to the shooter (any constant does the same). <code>r = θ</code> spirals outward from the shooter, and inward with Clockwise (through the centre if you stand closer than 2π). And the parametric shot <code>r(t) = -t</code>, <code>θ(t) = 0</code> flies straight from the shooter through the centre to the far side.</p>
+        <figure class="help-figure">
+          <svg viewBox="0 0 220 200" role="img" aria-labelledby="help-polar-caption">
+            <defs><marker id="help-polar-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L8 4L0 8z" class="head"/></marker></defs>
+            <circle cx="110" cy="100" r="90" class="edge"/>
+            <line x1="110" y1="100" x2="200" y2="100" class="soft"/>
+            <line x1="110" y1="100" x2="71.4" y2="54" class="soft dash"/>
+            <path d="M135 100 A25 25 0 0 0 93.9 80.9" class="soft"/>
+            <path d="M71.4 54 A60 60 0 0 0 50 100" class="curve" marker-end="url(#help-polar-arrow)"/>
+            <line x1="71.4" y1="54" x2="167.9" y2="169" class="soft dash"/>
+            <circle cx="110" cy="100" r="2.5" class="dot"/>
+            <circle cx="71.4" cy="54" r="4" class="dot"/>
+            <text x="172" y="94" text-anchor="middle">θ = 0</text>
+            <text x="128" y="66">θ<tspan dy="3" font-size="9">0</tspan></text>
+            <text x="84" y="84" text-anchor="end">r<tspan dy="3" font-size="9">p</tspan></text>
+            <text x="140" y="150" text-anchor="end">r = −t</text>
+          </svg>
+          <figcaption id="help-polar-caption">Polar disc, map-centred. The shooter is at distance <code>r<sub>p</sub></code> from the centre and at angle <code>θ<sub>0</sub></code> from the <code>θ = 0</code> axis. The solid arrow is the sweep of <code>θ</code> for Counterclockwise, one full turn in all. The dashed line through the centre is the parametric shot <code>r(t) = -t</code>, <code>θ(t) = 0</code>.</figcaption>
+        </figure>
+
+        <h4 id="help-coords-param">Parametric shots</h4>
+        <p>Both coordinates are offset by their value at <code>t = 0</code>, so the shot starts at the shooter whatever the formulas are at <code>t = 0</code>. <code>t</code> runs from 0 to 40 on the XY plane and from 0 to 20 on the disc.</p>
+        <ul>
+          <li>XY: the point is <code>(x(t) − x(0) + x<sub>p</sub>, y(t) − y(0) + y<sub>p</sub>)</code>. The formulas alone decide the direction, and nothing is mirrored: <code>x(t) = t</code> goes right and <code>x(t) = −t</code> goes left, from either side.</li>
+          <li>Disc: the radius is <code>r(t) − r(0) + r<sub>p</sub></code> and the angle is <code>θ<sub>0</sub> + (θ(t) − θ(0))</code>, or <code>θ<sub>0</sub> − (θ(t) − θ(0))</code> with Clockwise.</li>
+          <li>Undefined at the shooter means that <code>x(0)</code>, <code>y(0)</code>, <code>r(0)</code> or <code>θ(0)</code> is not a finite number, as for <code>1/t</code>.</li>
+        </ul>
+        <p>For the explicit modes, undefined at the shooter means that <code>f(x<sub>p</sub>)</code> (XY) or <code>f(θ<sub>0</sub>)</code> (disc) is not finite.</p>
+
+        <h4 id="help-coords-player">Player-centred</h4>
+        <p>The formula is written in a frame at the shooter, whose first axis points toward the centre of the map. The curve is drawn in that frame and moved so that its start sits on the shooter: <code>x = 0</code> for <code>f(x)</code>, <code>θ = 0</code> for <code>f(θ)</code> and <code>t = 0</code> for the parametric modes. That start is where "undefined at the shooter" applies. The ranges are as above, with <code>θ</code> running from 0 to 2π.</p>
+        <ul>
+          <li>XY plane: <code>x</code> points toward the centre, so the frame is mirrored for a shooter on the right half. <code>y = x</code> climbs in both teams' frames: to the right for the left team and to the left for the right team. The curve is <code>y = f(x) − f(0)</code> from the shooter, and a parametric shot is mirrored the same way.</li>
+          <li>Polar disc: <code>θ = 0</code> points from the shooter to the centre. <code>r = θ</code> starts at the shooter along that line. Counterclockwise turns to the shooter's left as it faces the centre, and Clockwise mirrors the whole shot across the line through the shooter and the centre. In the parametric mode, <code>r(t) = t</code>, <code>θ(t) = 0</code> flies straight at the centre and on to the far side, and <code>r(t) = −t</code> flies away from the centre and out of the disc.</li>
+        </ul>
+
+        <h4 id="help-coords-hints">What the board shows on your turn</h4>
+        <p>The graph paper follows the coordinates, and every player sees the same axes. A map-centred board draws the map's own axes; on the disc they carry <code>θ = 0</code>, <code>π/2</code>, <code>π</code> and <code>3π/2</code>. A player-centred board draws axes through the current shooter, on every turn: on the XY plane the arrow on the horizontal one points toward the centre, and on the disc the <code>θ = 0</code> axis points toward the centre. The numbers 5, 10 and 15 mark the distance along an axis. On your own turn only (other players do not see yours) the board also marks where your formula starts:</p>
+        <ul>
+          <li>XY, map-centred: a vertical line to the horizontal axis at your character, the label <code>x ≈ -8.00</code> (your <code>x<sub>p</sub></code> to two decimals) and an arrow showing which way <code>x</code> sweeps.</li>
+          <li>Disc, map-centred: a line from the centre to your character, an arc at the centre from the <code>θ = 0</code> axis to that line labelled <code>θ₀ ≈ 2.35</code> (radians), and an arc with an arrow just inside your character showing which way <code>θ</code> sweeps. The arrow flips when you change Direction.</li>
+          <li>Disc, player-centred: an arc arrow by your character for the way <code>θ</code> grows, and <code>π/2</code> on the ray a quarter turn that way.</li>
+        </ul>
+      </section>
+
+      <section id="help-tools">
+        <h3>Formula tools</h3>
+        <h4 id="help-helpers">Helper buttons</h4>
+        <ul>
+          <li>The row of buttons under the formula boxes types for you, into the box you used last. The first button is the variable of the current mode (<code>x</code>, <code>θ</code> or <code>t</code>). The π button inserts π, √ types <code>sqrt(</code>, and the rest type their own name.</li>
+          <li>The buttons for <code>( )</code>, √ and the functions wrap the text you have selected, as in <code>sin(</code> selection <code>)</code>. With nothing selected they type the pair of parentheses and put the cursor between them. <strong>More</strong> opens the rest of the functions.</li>
+          <li>The pair of options above the formula boxes switches between a function (<code>y = f(x)</code> or <code>r = f(θ)</code>) and a parametric shot. On the disc, Direction picks Counterclockwise or Clockwise (see <a href="#help-coordinates">Coordinates</a>); it is shown on the disc only and starts at Counterclockwise in every game.</li>
+        </ul>
+        <h4 id="help-saved">Saved formulas</h4>
+        <ul>
+          <li>Save opens a row for a name, which starts as the formula itself. Saving keeps the field, the mode and the text of the boxes. It does not check the formula, so you can save unfinished work; Fire checks it.</li>
+          <li>The list shows the formulas of the field you are playing, grouped by mode, newest first. Insert puts a formula in the boxes and switches to its mode. Delete asks before it removes one.</li>
+          <li>They are kept in this browser. If it cannot save them, the page says so and they last until you close the tab.</li>
+        </ul>
+        <h4 id="help-templates">Templates and sliders</h4>
+        <p>A saved formula with letters like <code>a</code> or <code>b</code> in it is a template: each such letter becomes a slider, and you pick its value instead of retyping the formula.</p>
+        <ul>
+          <li><strong>Which letters:</strong> one ASCII letter, optionally followed by digits (<code>a</code>, <code>B</code>, <code>k2</code>), except <code>x</code>, <code>t</code> and <code>e</code>, which are the variables and the constant. Longer words such as <code>amp</code> are not sliders. A formula that still has slider letters cannot be fired: Fire says to insert it from its template or to type numbers.</li>
+          <li><strong>Glued numbers:</strong> <code>2a</code> is refused when you save, because filling in the value would silently change the formula. Write <code>2*a</code>.</li>
+          <li><strong>Per slider:</strong> a value box to type the exact value, a slider with its lowest and highest value at each end, and an optional step. The limits start at -10 and 10, the value at 1, and the step is empty.</li>
+          <li><strong>Step:</strong> optional, as on Desmos. Empty means any value in between; a step makes the slider move in jumps of that size, counted from the lowest value.</li>
+          <li><strong>Limits:</strong> typing a value outside them widens the limits to include it. The lowest must stay below the highest, the step above 0, and every number at most 1,000,000 in size; otherwise the edit is refused and the old limits stay.</li>
+          <li><strong>Preview:</strong> the line under a template, <code>→ 1.5*sin(0.5*x)</code>, is the exact text that Insert will put in the boxes.</li>
+          <li><strong>Insert</strong> replaces each slider letter with its value, putting a negative value in parentheses (<code>x^(-2)</code>), switches to the template's mode and replaces the boxes. The result is an ordinary formula that you can edit before firing. If the result would be over the length limit above, nothing is inserted.</li>
+          <li><strong>Your own template:</strong> type a formula that uses slider letters, for example <code>a*sin(b*x)</code>, and Save it. It shows up in the list with its sliders open, ready to adjust. Sliders and their limits are saved as you change them.</li>
+        </ul>
+        <h4 id="help-starters">Starter templates</h4>
+        <p>The first time you open the game, these templates are in your list. A deleted starter stays deleted. They are written for map-centred games; in a player-centred disc game the two radial ones (<code>-t</code>) point away from the centre, so use <code>r(t) = t</code> there.</p>
+        <ul>
+          <li>XY, function: <strong>Line</strong> <code>a*x</code>. <strong>Parabola</strong> <code>a*(x - b)^2</code>, with its vertex at map <code>x = b</code>. <strong>Wave</strong> <code>a*sin(b*x)</code>. <strong>Hop</strong> <code>a*exp(-((x-b)/c)^2)</code>, a bump at map <code>x = b</code>.</li>
+          <li>XY, parametric: <strong>Straight line</strong> <code>t*cos(a)</code>, <code>t*sin(a)</code>, a line at angle <code>a</code> in radians. <strong>Cycloid</strong> <code>d*(t - a*sin(t))</code>, <code>a*(1 - cos(t))</code>, rolling right with <code>d = 1</code> and left with <code>d = -1</code>.</li>
+          <li>Disc, function: <strong>Spiral</strong> <code>a*θ</code>. <strong>Wave</strong> <code>a*sin(b*θ)</code>, a wavy orbit around the centre.</li>
+          <li>Disc, parametric: <strong>Straight shot</strong> <code>-t</code>, <code>0</code> (no sliders), the line through the centre. <strong>Bend</strong> <code>-t</code>, <code>a*t</code>, which bends that line around the centre.</li>
+        </ul>
+        <h4 id="help-memory">Each character's last formula</h4>
+        <ul>
+          <li>The game remembers the last shot of every character. It stays on the board as a thinner, fainter path in the team's colour, under the newest shot.</li>
+          <li>When your character's turn starts, the boxes fill with that character's last shot: the mode, both formulas and, on the disc, the direction. A character that has not fired yet leaves the boxes as they are. It never gets another character's formula back once it has fired.</li>
+          <li>The memory is rebuilt when you reload and rejoin. A rejoin in the middle of a turn does not overwrite what you typed meanwhile.</li>
+        </ul>
+      </section>
+
+      <section id="help-modes">
+        <h3>Other ways to play</h3>
+        <h4 id="help-bots">Bots</h4>
+        <ul>
+          <li>The host adds bots in the waiting room: pick a Bot level (Easy, Medium, the default, or Hard) and press Add bot. Each bot takes a seat, shows in the list as "Bot 1, hard", and has a Remove button. Start needs at least 2 players, bots included.</li>
+          <li>The host's page plays the bots. A bot tries the starter templates for the field with different slider values (and both directions on the disc) and fires the one that scores best: enemies killed count for it and its own team's deaths count against it. It fires no sooner than 1.5 seconds into its turn.</li>
+          <li>The levels differ in how many tries a bot makes and how far its aim is off.</li>
+          <li>To play alone, host a game, add bots to the other seats and press Start. This keeps working without a network once the page has loaded. Bots never leave; if the host leaves, the game ends.</li>
+        </ul>
+        <h4 id="help-local">Local players</h4>
+        <ul>
+          <li>Several people can share the host's screen. In the waiting room the host presses Add local player; each one is a seat called "Local 1", "Local 2" and so on, with a Remove button. They take turns using the host's formula boxes, and each one's characters get their own formulas back.</li>
+          <li>With local players in the game the status bar says "Local 2's turn", and "Host's turn" for the host's own. A win reads "Local 2 wins." or "Host wins.". Guests see a local team like any other, "Team 3 is aiming".</li>
+          <li>Only the host can add local players, not guests. Bots and local players together can fill all the seats but one.</li>
+        </ul>
+        <h4 id="help-kick">Kick</h4>
+        <ul>
+          <li>Only the host can remove a guest. In the waiting room, press Remove next to the guest. In a game, press Kick on the guest's team in the roster; it asks first, "Kick Team 2? Their team will be out.". It cannot kick the host, bots or local players.</li>
+          <li>The kicked guest sees "The host removed you from this game." Everyone else reads "Team 2 left the game.", the team is out, and if it was its turn the turn passes on.</li>
+          <li>A kick does not keep anyone out for good: a reload gives a new identity, and the person can join a public game's waiting room again. To keep someone out, host a private game with a new password or link.</li>
+        </ul>
+        <h4 id="help-private">Private games</h4>
+        <ul>
+          <li>The host form has a Visibility choice: Public (the default), Password or Private link. A password needs 1 to 64 characters, and the Show button reveals what you typed.</li>
+          <li>A password game is listed in the lobby with a padlock, and Join asks for the password in a dialog. A guest with the wrong one never connects: after 75 seconds it reads "Wrong password, or the host can't be reached."</li>
+          <li>A private-link game is not listed at all. The host's waiting room shows the invite link with a Copy invite link button; opening the link joins the game. A password game has an invite link too, which carries a key derived from the password, not the password itself.</li>
+          <li>The secret in the link is after the <code>#</code>, so it never reaches a web server, and the page removes it from the address bar as soon as the link is opened. The link also carries the build, and it says "Different version." if yours differs. Opening a link in the middle of a game says to finish or leave that game first.</li>
+          <li>The host decides whether guests may copy the invite link: the box "Guests can share the invite link" is off by default.</li>
+          <li>The password is stretched before it is used, but anyone can read the encrypted join messages from the public relays and try guesses offline. A short password can still be guessed; for a game that must stay closed, prefer the private link or a long password.</li>
+        </ul>
+      </section>
+
+      <section id="help-arena">
+        <h3>Test arena</h3>
+        <p>The test arena is a practice board for trying formulas on your own: press Test arena in the lobby, and Back to lobby leaves it. It works offline and sends nothing, and the setup is not saved.</p>
+        <ul>
+          <li><strong>Field and coordinates:</strong> pick them as in the host form. Changing the field starts again with an empty board; changing the coordinates keeps what you placed.</li>
+          <li><strong>Placing:</strong> choose Player or Obstacle under Place, then click or tap an empty spot on the board. A player gets the team chosen under Team: 2 teams on the XY plane, up to 8 on the disc. An obstacle gets the radius set by the slider, 0.2 to 2. A player must be fully inside the field and may not overlap another player or an obstacle; otherwise nothing changes and a message says why.</li>
+          <li><strong>Dragging:</strong> drag a player to move it; it only moves through valid spots, and letting go on an invalid one says why. Dragging also selects it.</li>
+          <li><strong>Selecting:</strong> clicking a player selects it and makes it the one that fires; clicking an obstacle selects the obstacle only. The On the board list does the same from the keyboard, with one button per player and obstacle.</li>
+          <li><strong>Position:</strong> the <code>x</code> and <code>y</code> fields give exact spots. Place at x, y puts what Place chooses there, and Move selected to x, y moves the selection. Choosing something fills the fields with its position.</li>
+          <li><strong>Removing:</strong> Delete or Backspace removes the selected item, as does Remove selected. Clear paths wipes the drawn shots.</li>
+          <li><strong>Obstacles are optional:</strong> the arena starts empty, with none, which is a fine place to test. Random obstacles fills it with the number and sizes of a real game, and Clear obstacles removes them all.</li>
+          <li><strong>Firing:</strong> a shot can be fired from any player, of any team, with the normal formula boxes and Fire. The first player you place is the one that fires; click another player to switch. The path is drawn and every player it hit gets a ring, but nobody is out and obstacles keep no craters, so you can repeat the same shot. Changing the setup clears the old paths.</li>
+        </ul>
+      </section>
+
+      <section id="help-reconnect">
+        <h3>Reconnecting and versions</h3>
+        <ul>
+          <li>A guest who reloads the page or loses the connection keeps the seat. The page rejoins the game and the host replays it to you ("Rejoining…"). The seat is kept in this tab, so use the same tab. Meanwhile the timer skips your turns.</li>
+          <li>If a guest's link to the host stays down, the page leaves and rejoins the game room by itself, and gives up with "Host unreachable." after 3 minutes.</li>
+          <li>A guest who closes the tab looks like a dropped connection, so the team stays in until the game ends. Use Leave game to leave.</li>
+          <li>The host is different: if the host reloads or closes the tab, the game ends for everyone.</li>
+          <li>The footer shows the version of the game, such as v 0.5.0, and links to the changelog, which opens in a new tab so a running game is not disturbed. Development builds show a longer id.</li>
+          <li>All players must run the same build of the game. A game from another build is listed as "Different version. Reload the page.", and a game that finds a different build ends with "Different version.": reload the page, then join again.</li>
+        </ul>
+      </section>
+    </dialog>
 
     <script type="module" src="./index.js"></script>
   </body>

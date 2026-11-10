@@ -1,5 +1,6 @@
 mod arena;
 mod player;
+mod sandbox;
 mod shot;
 mod team;
 
@@ -12,6 +13,7 @@ use crate::{formula::Formula, utils};
 
 pub use self::arena::Arena;
 pub use self::player::Player;
+pub use self::sandbox::{PlacedObstacle, PlacedPlayer, TrialShot};
 pub use self::shot::{FireError, Shot};
 pub use self::team::Team;
 
@@ -63,6 +65,16 @@ pub enum GameError {
     DiscPlayerTooLarge,
     /// No collision-free layout was found within the retry budget.
     NoValidLayout,
+    /// A test arena's team index is 8 or more (ADR 25).
+    TeamOutOfRange,
+    /// A test arena's player is not fully inside the field.
+    PlayerOutside,
+    /// A test arena's obstacle is outside the field (on a disc, not fully inside it).
+    ObstacleOutside,
+    /// A test arena's player touches an obstacle.
+    PlayerOnObstacle,
+    /// Two of a test arena's players touch.
+    PlayersOverlap,
 }
 
 impl fmt::Display for GameError {
@@ -83,6 +95,11 @@ impl fmt::Display for GameError {
                 "The player radius must be at most half the disc radius"
             }
             GameError::NoValidLayout => "Could not find a valid initial configuration",
+            GameError::TeamOutOfRange => "There are at most 8 teams",
+            GameError::PlayerOutside => "A player must be fully inside the field",
+            GameError::ObstacleOutside => "An obstacle must be inside the field",
+            GameError::PlayerOnObstacle => "A player can't touch an obstacle",
+            GameError::PlayersOverlap => "Players can't touch each other",
         })
     }
 }
@@ -100,7 +117,7 @@ impl From<GameError> for JsValue {
 }
 
 #[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Options {
     num_obstacles: usize,
     min_obstacle_size: f64,
@@ -228,11 +245,7 @@ impl Game {
     /// mirrors the shot across the shooter-to-centre axis (player frame); XY ignores it.
     /// On an error nothing changes and the turn is not consumed.
     pub fn fire(&mut self, expr: &str, clockwise: bool) -> Result<Shot, FireError> {
-        let var = match self.arena.field() {
-            Field::Xy => "x",
-            Field::Disc => "θ",
-        };
-        let f = Formula::parse(expr, var)?;
+        let f = Formula::parse(expr, self.variable())?;
         let frame = self.frame;
         self.shoot(|arena, shooter| shot::explicit(arena, shooter, &f, frame, clockwise))
     }
@@ -329,6 +342,14 @@ impl Game {
 
     pub(crate) fn frame(&self) -> Frame {
         self.frame
+    }
+
+    /// The variable of an explicit formula: `x` on the XY field, `θ` on the disc.
+    fn variable(&self) -> &'static str {
+        match self.arena.field() {
+            Field::Xy => "x",
+            Field::Disc => "θ",
+        }
     }
 
     /// Runs `trace` for the current player and ends the turn unless it fails. With no living
