@@ -41,7 +41,7 @@ impl Team {
         self.players.reserve(team_size);
 
         for _ in 0..team_size {
-            let shape = self.find_random_pos(player_size, &arena, rng, &sample)?;
+            let shape = self.find_random_pos(player_size, arena, rng, &sample)?;
             self.players.push(Player::from_circle(shape));
         }
 
@@ -76,7 +76,7 @@ impl Team {
     pub fn collision_with_player(&self, shape: &Circle) -> bool {
         self.players
             .iter()
-            .any(|p| p.shape().collision_circle(&shape))
+            .any(|p| p.shape().collision_circle(shape))
     }
 
     /// The player whose turn it is, or `None` if that player is dead (or the team is empty).
@@ -131,7 +131,7 @@ impl Team {
             let pos = sample(rng, player_size);
             let shape = Circle::new(pos, player_size);
 
-            if self.is_valid_pos(&shape, &arena) {
+            if self.is_valid_pos(&shape, arena) {
                 return Ok(shape);
             }
         }
