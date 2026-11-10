@@ -926,6 +926,54 @@ const scenarios = {
         assert.deepEqual(await editor(guest), memory.get(characterOf(before)), "the replay restores the character's formula");
         return errors;
     },
+    async Help() {
+        // The help (ADR 26): a Help button, #help-... deep links and Escape, at phone width, then mid-game.
+        const errors = [];
+        const phone = await (await browser.newContext({ viewport: { width: 390, height: 800 } })).newPage();
+        phone.on("pageerror", (e) => errors.push(`phone: ${e}`));
+        const isOpen = () => phone.evaluate(() => document.getElementById("help").open);
+        const closed = () => phone.waitForFunction(() => !document.getElementById("help").open && location.hash === "");
+        await phone.goto(`${url}#help-coordinates`);
+        assert.equal(await isOpen(), true, "a #help-... address opens the help on load");
+        const inView = (id) =>
+            phone.evaluate((id) => {
+                const r = document.getElementById(id).getBoundingClientRect();
+                const d = document.getElementById("help").getBoundingClientRect();
+                return r.top >= d.top && r.top < d.bottom;
+            }, id);
+        assert.equal(await inView("help-coordinates"), true, "the section is shown");
+        assert.equal(await phone.evaluate(() => { const d = document.getElementById("help"); return d.scrollWidth <= d.clientWidth; }), true, "no horizontal scroll at phone width");
+        await phone.keyboard.press("Escape");
+        await closed();
+        // A hash change in the open page deep-links too, and the link works again after a close.
+        await phone.evaluate(() => (location.hash = "#help-formulas"));
+        await phone.waitForFunction(() => document.getElementById("help").open);
+        assert.equal(await inView("help-formulas"), true, "a hash change shows its section");
+        await phone.keyboard.press("Escape");
+        await closed();
+        await phone.click("#help-open");
+        assert.equal(await isOpen(), true, "the Help button opens the help");
+        await phone.click("#help-close");
+        assert.equal(await isOpen(), false, "Close closes it");
+        // Unrelated fragments (an invite link, ADR 24) do not open it.
+        await phone.evaluate(() => (location.hash = "#join=abc&key=def&v=1"));
+        assert.equal(await isOpen(), false);
+
+        // Mid-game: the page that is not shooting reads the help while the other fires.
+        const { pages, errors: gameErrors } = await startGame(2, "xy", "Help");
+        await assertSynced(pages, 0);
+        const first = await shooter(pages);
+        const reader = pages.find((p) => p !== first);
+        await reader.click("#help-open");
+        const before = JSON.parse(await state(reader));
+        await takeTurn(pages, 0, ["x"]);
+        assert.equal(await reader.evaluate(() => document.getElementById("help").open), true, "the help stays open while a turn is applied");
+        assert.equal(JSON.parse(await state(reader)).turn, before.turn + 1, "the game goes on behind the help");
+        await reader.keyboard.press("Escape");
+        await reader.waitForFunction(() => !document.getElementById("help").open);
+        await takeTurn(pages, 1, ["-x"]);
+        return [...errors, ...gameErrors];
+    },
     async W() {
         // A rejoin replays the game onto the turn we are already on (ADR 16): a formula typed meanwhile
         // must survive it, though the character's last shot would be restored by a fresh start.
