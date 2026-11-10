@@ -7,6 +7,9 @@ Each shot is a formula path:
 - XY field (2 players): `y = f(x)` or parametric `x(t)`, `y(t)`.
 - Polar disc field (2-8 players): `r = f(θ)` or parametric `r(t)`, `θ(t)`.
 
+The host picks the coordinates: centred on the map, like Graphwar (the default), or on the player
+who shoots. Either way a shot starts at the player.
+
 There is no server. Players connect peer-to-peer over WebRTC (Trystero), and a lobby on public
 Nostr relays lets them find each other.
 
