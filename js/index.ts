@@ -94,7 +94,7 @@ let offer: Announce | null = null;
 /** Host: a private-link game, which is never announced (ADR 24). */
 let unlisted = false;
 /** The room password of the game we host or joined, "" for a public one (ADR 24). */
-let key = "";
+let roomKey = "";
 let connected: string[] = [];
 /** Host: the bot seat ids added in the waiting room, in the order they were added (ADR 21). */
 let bots: string[] = [];
@@ -191,7 +191,7 @@ $("password-cancel").onclick = () => passwordDialog.close();
 /** Joins room `id`: our own when hosting, from a stored `seat` after a reload, with the room `password` of a private game (ADR 24). */
 function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     hostId = id;
-    key = password;
+    roomKey = password;
     me = seat?.me ?? selfId;
     connected = [];
     bots = [];
@@ -203,7 +203,7 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
     $("room-title").textContent = roomInfo?.name || "Waiting room";
     $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${FRAME_NAMES[roomInfo.frame][0]}, ${roomInfo.seats} seats` : "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
-    $<HTMLInputElement>("invite-link").value = key ? `${location.origin}${location.pathname}${inviteFragment(id, key)}` : "";
+    $<HTMLInputElement>("invite-link").value = roomKey ? `${location.origin}${location.pathname}${inviteFragment(id, roomKey)}` : "";
     $("copy-status").textContent = "";
     room = joinGame(id, {
         onMessage,
@@ -211,7 +211,7 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
         onKicked: () => end(...REMOVED),
-        onUnreachable: () => (key ? end(...UNREACHABLE) : end(...NO_HOST)),
+        onUnreachable: () => (roomKey ? end(...UNREACHABLE) : end(...NO_HOST)),
         onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
@@ -219,7 +219,7 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
             if (play) refresh(play);
         },
         onSeat(token) {
-            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me, key } satisfies Seat));
+            sessionStorage.setItem(SEAT_KEY, JSON.stringify({ hostId, token, version: BUILD_VERSION, me, key: roomKey } satisfies Seat));
         },
         onPeerJoin(peer) {
             // A peer announcing a bot's or a local player's id is never seated (ADR 21, 22).
@@ -236,7 +236,7 @@ function enterRoom(id: string, seat?: Seat, password = seat?.key ?? "") {
             if (peer === hostId && (!play || !sessionStorage.getItem(SEAT_KEY))) end(...HOST_LEFT);
             else roomChanged();
         },
-    }, seat?.token, key || undefined);
+    }, seat?.token, roomKey || undefined);
     roomChanged();
     show("room");
 }
@@ -288,7 +288,7 @@ function roomChanged() {
     $<HTMLButtonElement>("start").disabled = players < 2;
     $("bots").hidden = !offer;
     for (const id of ["add-bot", "add-local"]) $<HTMLButtonElement>(id).disabled = !offer || hostRun >= offer.seats - 1;
-    $("invite").hidden = !offer || !key;
+    $("invite").hidden = !offer || !roomKey;
     if (offer && !unlisted) lobby.announce({ ...offer, players });
 }
 
