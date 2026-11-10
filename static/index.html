@@ -365,7 +365,7 @@
           <li>XY plane, <code>y = f(x)</code>: the variable is <code>x</code>.</li>
           <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. You can type <code>θ</code>, <code>theta</code> or <code>th</code>. The box turns a typed <code>theta</code> into θ as you type; <code>th</code> is accepted as it is.</li>
           <li>Parametric, on either field: the variable is <code>t</code> in both boxes, <code>x(t)</code> and <code>y(t)</code> or <code>r(t)</code> and <code>θ(t)</code>.</li>
-          <li>Any other name is an error ("Unknown name 'y'"); <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
+          <li>Any other name is an error ("Unknown name 'foo'"), and a single other letter such as <code>y</code> or <code>a</code> is taken for a slider letter (see Formula tools). <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
         </ul>
         <h4 id="help-constants">Constants and functions</h4>
         <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Both <code>pi</code> and <code>π</code> are accepted. The box turns a typed <code>pi</code> into π as you type, as on Desmos, and the π button inserts it.</p>
@@ -474,7 +474,7 @@
         <h4 id="help-coords-hints">What the board shows on your turn</h4>
         <p>The graph paper follows the coordinates, and every player sees the same axes. A map-centred board draws the map's own axes; on the disc they carry <code>θ = 0</code>, <code>π/2</code>, <code>π</code> and <code>3π/2</code>. A player-centred board draws axes through the current shooter, on every turn: on the XY plane the arrow on the horizontal one points toward the centre, and on the disc the <code>θ = 0</code> axis points toward the centre. The numbers 5, 10 and 15 mark the distance along an axis. On your own turn only (other players do not see yours) the board also marks where your formula starts:</p>
         <ul>
-          <li>XY, map-centred: a line down to the horizontal axis at your character, the label <code>x ≈ -8.00</code> (your <code>x<sub>p</sub></code> to two decimals) and an arrow showing which way <code>x</code> sweeps.</li>
+          <li>XY, map-centred: a vertical line to the horizontal axis at your character, the label <code>x ≈ -8.00</code> (your <code>x<sub>p</sub></code> to two decimals) and an arrow showing which way <code>x</code> sweeps.</li>
           <li>Disc, map-centred: a line from the centre to your character, an arc at the centre from the <code>θ = 0</code> axis to that line labelled <code>θ₀ ≈ 2.35</code> (radians), and an arc with an arrow just inside your character showing which way <code>θ</code> sweeps. The arrow flips when you change Direction.</li>
           <li>Disc, player-centred: an arc arrow by your character for the way <code>θ</code> grows, and <code>π/2</code> on the ray a quarter turn that way.</li>
         </ul>
@@ -565,7 +565,7 @@
           <li><strong>Position:</strong> the <code>x</code> and <code>y</code> fields give exact spots. Place at x, y puts what Place chooses there, and Move selected to x, y moves the selection. Choosing something fills the fields with its position.</li>
           <li><strong>Removing:</strong> Delete or Backspace removes the selected item, as does Remove selected. Clear paths wipes the drawn shots.</li>
           <li><strong>Obstacles are optional:</strong> the arena starts empty, with none, which is a fine place to test. Random obstacles fills it with the number and sizes of a real game, and Clear obstacles removes them all.</li>
-          <li><strong>Firing:</strong> a shot can be fired from any player, of any team, with the normal formula boxes and Fire: choose the player first. The path is drawn and every player it hit gets a ring, but nobody is out and obstacles keep no craters, so you can repeat the same shot. Changing the setup clears the old paths.</li>
+          <li><strong>Firing:</strong> a shot can be fired from any player, of any team, with the normal formula boxes and Fire. The first player you place is the one that fires; click another player to switch. The path is drawn and every player it hit gets a ring, but nobody is out and obstacles keep no craters, so you can repeat the same shot. Changing the setup clears the old paths.</li>
         </ul>
       </section>
 
