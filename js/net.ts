@@ -40,7 +40,9 @@ export const MAX_PLAYERS = 8;
  * WebRTC peers is already far past what a room handles; the host's `lineup` throws beyond it.
  */
 export const MAX_WAITING = 32;
-/** Most characters per player a host may choose (ADR 27); a `start` without `k` means this many. */
+/** Characters per player when a `start` or a listing has no `k` (ADR 27), and ADR 15's fixed count before it. */
+export const DEFAULT_K = 3;
+/** Most characters per player a host may choose (ADR 27). */
 const MAX_K = 3;
 /** Longest formula the Rust parser accepts. */
 const MAX_EXPR = 256;
@@ -259,7 +261,7 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
     const frame = v.frame === undefined && old ? "map" : v.frame;
     const locked = v.locked === undefined && old ? false : v.locked;
     const teams = v.teams === undefined && old ? [] : v.teams;
-    const k = v.k === undefined && old ? MAX_K : v.k;
+    const k = v.k === undefined && old ? DEFAULT_K : v.k;
     if (!isFrame(frame) || typeof locked !== "boolean" || !isSideCounts(teams, v.seats, v.players) || !isK(k)) return undefined;
     return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked, teams, k };
 }

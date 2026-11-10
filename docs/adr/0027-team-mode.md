@@ -111,7 +111,10 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   waiting-room side lists and the grouped roster. `js/net.ts` gains only the boundary checks and the
   two messages: `Game.lineup` (host) and `Game.askTeam` (guest) send them, `onLineup` and
   `onTeamRequest` receive them. The game and room modules call `owner` wherever they read
-  `peers[current team]` or `peers.indexOf(id)` today.
+  `peers[current team]` or `peers.indexOf(id)` today. The default `k` is one constant,
+  `DEFAULT_K` in `js/net.ts`, which replaces ADR 15's `PLAYERS_PER_TEAM`; `charactersPerSide` takes
+  `k` from its caller (`start.k ?? DEFAULT_K`), because `js/teams.ts` imports no values: the Node
+  test runner cannot load a `js/` module that imports another without its `.ts` extension.
 
 Rejected:
 - A fixed `c = 3 × S`: a 4v4 XY game always has 24 characters and up to 24 min per round of turns;

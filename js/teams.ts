@@ -1,11 +1,8 @@
 // Team mode (ADR 27): which seat plays each character, and who sits on which side in the waiting
 // room. Pure, so every peer derives the same answer from `start` and the `leave`s it applied.
 
-/** What `start` says about sides: `teams[i]` is the side of `peers[i]`, `k` the characters per player. */
-export type Teams = { peers: string[]; teams?: number[]; k?: number };
-
-/** Characters per player when `start` has no `k` (ADR 27). */
-const DEFAULT_K = 3;
+/** What `start` says about sides: `teams[i]` is the side of `peers[i]`. */
+export type Teams = { peers: string[]; teams?: number[] };
 
 /** The side of each seat in `peers`: `teams`, or one side per seat in a free-for-all. */
 export const sidesOf = (start: Teams): number[] => start.teams ?? start.peers.map((_, i) => i);
@@ -20,13 +17,14 @@ export function sideOf(start: Teams, seat: string): number | undefined {
 }
 
 /**
- * The engine's `players_per_team`: every side gets `c = k × S` characters, S being the largest
- * side's seat count, so a smaller side's seats play more of them.
+ * The engine's `players_per_team`: every side gets `c = k × S` characters, `k` being the characters
+ * per player (`start.k ?? DEFAULT_K`, from `./net`) and S the largest side's seat count, so a
+ * smaller side's seats play more of them.
  */
-export function charactersPerSide(start: Teams): number[] {
+export function charactersPerSide(start: Teams, k: number): number[] {
     const sides = sidesOf(start);
     const sizes = Array.from({ length: Math.max(...sides) + 1 }, (_, t) => sides.filter((s) => s === t).length);
-    return sizes.map(() => (start.k ?? DEFAULT_K) * Math.max(...sizes));
+    return sizes.map(() => k * Math.max(...sizes));
 }
 
 /**

@@ -3,7 +3,7 @@ import init, { Bot, Field as WasmField, Frame as WasmFrame, Game as Sim, Level }
 import type { BotShot } from "../pkg/index.js";
 import { parseItem } from "./library";
 import starters from "./starters.json" with { type: "json" };
-import { BUILD_ID, BUILD_VERSION, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
+import { BUILD_ID, BUILD_VERSION, DEFAULT_K, inviteFragment, isHostRun, isLocal, joinGame, joinLobby, MAX_PLAYERS, newToken, parseBot, parseInvite, parseLocal, selfId, stretchPassword } from "./net";
 import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey, olderPaths } from "./render";
@@ -14,7 +14,6 @@ import { aliveCounts, clearError, cueTurn, describeTurn, ourWin, renderRoster, r
 await init();
 
 const TURN_MS = 60_000;
-const PLAYERS_PER_TEAM = 3;
 const PLAYER_RADIUS = 0.3;
 const BOT_LEVELS = { easy: Level.Easy, medium: Level.Medium, hard: Level.Hard };
 /** The templates bots search: the starters (ADR 17, section 8), checked like a saved list. */
@@ -196,7 +195,7 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     if (room || $("lobby").hidden) return forget("host-password");
     unlisted = hostVisibility.value === "link";
     shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
-    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password", teams: [], k: PLAYERS_PER_TEAM };
+    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password", teams: [], k: DEFAULT_K };
     forget("host-password");
     enterRoom(selfId, undefined, password);
 };
@@ -430,7 +429,7 @@ function startGame(msg: Start) {
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
-        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, msg.frame === "map" ? WasmFrame.Map : WasmFrame.Player, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
+        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, msg.frame === "map" ? WasmFrame.Map : WasmFrame.Player, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(DEFAULT_K), PLAYER_RADIUS, BigInt(msg.seed));
     } catch (err) {
         return end("Could not start the game.", `${err}`);
     }

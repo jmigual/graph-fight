@@ -1,14 +1,17 @@
 // Run: node --experimental-strip-types --no-warnings tests/teams.test.mjs
 import assert from "node:assert/strict";
+import { DEFAULT_K } from "../js/net.ts";
 import { charactersPerSide, join, leave, move, newSeating, owner, seatsOf, sideOf, sidesOf } from "../js/teams.ts";
 
 const none = new Set();
-const owners = (start, t, left = none) => Array.from({ length: charactersPerSide(start)[t] }, (_, j) => owner(start, left, t, j));
+// As the game reads a start: an absent `k` is the default.
+const perSide = (start) => charactersPerSide(start, start.k ?? DEFAULT_K);
+const owners = (start, t, left = none) => Array.from({ length: perSide(start)[t] }, (_, j) => owner(start, left, t, j));
 
 // Free-for-all (no `teams`, no `k`) is today's mapping: seat i is team i with 3 characters, all its own.
 const ffa = { peers: ["h", "p", "bot:easy:1"] };
 assert.deepEqual(sidesOf(ffa), [0, 1, 2]);
-assert.deepEqual(charactersPerSide(ffa), [3, 3, 3]);
+assert.deepEqual(perSide(ffa), [3, 3, 3]);
 for (const [t, seat] of ffa.peers.entries()) {
     assert.deepEqual(owners(ffa, t), [seat, seat, seat]);
     assert.deepEqual(seatsOf(ffa, t), [seat]);
@@ -16,24 +19,24 @@ for (const [t, seat] of ffa.peers.entries()) {
 }
 assert.equal(sideOf(ffa, "x"), undefined);
 assert.deepEqual(owners(ffa, 1, new Set(["p"])), [undefined, undefined, undefined], "a free-for-all seat that leaves takes its team out");
-assert.deepEqual(charactersPerSide({ ...ffa, k: 1 }), [1, 1, 1], "k applies to free-for-all too");
+assert.deepEqual(perSide({ ...ffa, k: 1 }), [1, 1, 1], "k applies to free-for-all too");
 
 // Two sides of two: c = k × S, and the seats of a side take its characters in turn.
 const duo = { peers: ["h", "p", "q", "local:1"], teams: [0, 1, 0, 1] };
 assert.deepEqual(seatsOf(duo, 0), ["h", "q"]);
 assert.deepEqual(sideOf(duo, "local:1"), 1);
-assert.deepEqual(charactersPerSide(duo), [6, 6]);
+assert.deepEqual(perSide(duo), [6, 6]);
 assert.deepEqual(owners(duo, 0), ["h", "q", "h", "q", "h", "q"]);
 assert.deepEqual(owners(duo, 1), ["p", "local:1", "p", "local:1", "p", "local:1"]);
-assert.deepEqual(charactersPerSide({ ...duo, k: 1 }), [2, 2]);
+assert.deepEqual(perSide({ ...duo, k: 1 }), [2, 2]);
 assert.deepEqual(owners({ ...duo, k: 2 }, 0), ["h", "q", "h", "q"]);
 
 // Uneven sides get the same count, S being the largest side; the lone seat plays them all.
 const uneven = { peers: ["h", "p", "q"], teams: [1, 1, 0], k: 2 };
-assert.deepEqual(charactersPerSide(uneven), [4, 4]);
+assert.deepEqual(perSide(uneven), [4, 4]);
 assert.deepEqual(owners(uneven, 0), ["q", "q", "q", "q"]);
 assert.deepEqual(owners(uneven, 1), ["h", "p", "h", "p"]);
-assert.deepEqual(charactersPerSide({ peers: ["a", "b", "c", "d", "e"], teams: [0, 1, 2, 0, 0], k: 1 }), [3, 3, 3]);
+assert.deepEqual(perSide({ peers: ["a", "b", "c", "d", "e"], teams: [0, 1, 2, 0, 0], k: 1 }), [3, 3, 3]);
 
 // Hand-over: a leaver's characters go to the next seat of its side that has not left, cyclically.
 const trio = { peers: ["h", "p", "q", "r", "s", "t"], teams: [0, 1, 0, 1, 0, 1], k: 1 };
