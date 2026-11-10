@@ -58,8 +58,11 @@ export type BotLevel = "easy" | "medium" | "hard";
 /** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
 export type Frame = "map" | "player";
 
-/** What a host advertises in the lobby; `locked` games need a password to join (ADR 24). */
-export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean };
+/**
+ * What a host advertises in the lobby; `locked` games need a password to join (ADR 24). `teams` is
+ * `[]` in a free-for-all, else the players on each side, and `k` the characters per player (ADR 27).
+ */
+export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number; locked: boolean; teams: number[]; k: number };
 /** The lobby wire format: `id` is the host's peer id and names the game room. */
 export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
@@ -96,6 +99,10 @@ function isTeams(teams: unknown, count: number, field: Field, k: number): teams 
     const sizes = Array.from({ length: Math.max(...teams) + 1 }, (_, t) => teams.filter((s) => s === t).length);
     return sizes.length >= 2 && (field === "disc" || sizes.length === 2) && !sizes.includes(0) && sizes.length * Math.max(...sizes) * k <= MAX_CHARACTERS;
 }
+
+/** True for a listing's `teams` (ADR 27): `[]`, or the players on each of `T ≥ 2` sides of `seats / T` seats, adding up to `players`. */
+const isSideCounts = (v: unknown, seats: number, players: number): v is number[] =>
+    Array.isArray(v) && (v.length === 0 || (v.length >= 2 && v.length <= seats && seats % v.length === 0 && v.every((n) => isCount(n, seats / v.length)) && v.reduce((a, b) => a + b, 0) === players));
 
 /** A bot's seat id in `start.peers` (ADR 21). Trystero peer ids are alphanumeric, so no peer has one. */
 const BOT_ID = /^bot:(easy|medium|hard):([1-7])$/;
@@ -213,8 +220,9 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
 
 /**
  * Returns the listing if `v` has the right shape and sizes, otherwise undefined. A listing from
- * another build than `version` may lack `frame` (builds before ADR 20) or `locked` (before ADR 24);
- * they read as `map` and unlocked, and it is only ever shown as incompatible (ADR 12).
+ * another build than `version` may lack `frame` (builds before ADR 20), `locked` (before ADR 24) or
+ * `teams` and `k` (before ADR 27); they read as `map`, unlocked, `[]` and 3, and it is only ever
+ * shown as incompatible (ADR 12).
  */
 export function parseListing(v: unknown, version: string): Listing | undefined {
     if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
@@ -223,8 +231,10 @@ export function parseListing(v: unknown, version: string): Listing | undefined {
     const old = v.version !== version;
     const frame = v.frame === undefined && old ? "map" : v.frame;
     const locked = v.locked === undefined && old ? false : v.locked;
-    if (!isFrame(frame) || typeof locked !== "boolean") return undefined;
-    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked };
+    const teams = v.teams === undefined && old ? [] : v.teams;
+    const k = v.k === undefined && old ? MAX_K : v.k;
+    if (!isFrame(frame) || typeof locked !== "boolean" || !isSideCounts(teams, v.seats, v.players) || !isK(k)) return undefined;
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame, players: v.players, seats: v.seats, locked, teams, k };
 }
 
 /** An invite link's fragment (ADR 24): the host's id, the room password and our build. */

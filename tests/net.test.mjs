@@ -256,7 +256,7 @@ gated(parseGameMsg(oldStart));
 assert.deepEqual(seen, ["start", "mismatch:v0", "shot", "mismatch:v0"]);
 
 // Lobby listings: shape and size caps.
-const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false };
+const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2, locked: false, teams: [], k: 3 };
 assert.deepEqual(parseListing(listing, "v1"), listing);
 assert.deepEqual(parseListing({ ...listing, frame: "player" }, "v1"), { ...listing, frame: "player" });
 assert.deepEqual(parseListing({ ...listing, locked: true }, "v1"), { ...listing, locked: true }, "a password game (ADR 24)");
@@ -274,6 +274,36 @@ for (const bad of [
     { ...listing, locked: 1 },
     { ...listing, locked: null },
 ]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
+// Team mode (ADR 27): `teams` counts the players on each side, `k` is the characters per player.
+for (const good of [
+    { ...listing, k: 1 },
+    { ...listing, players: 3, seats: 4, teams: [2, 1], k: 2 },
+    { ...listing, players: 0, seats: 4, teams: [0, 0] },
+    { ...listing, field: "disc", players: 4, seats: 6, teams: [2, 1, 1] },
+    { ...listing, field: "disc", players: MAX_PLAYERS, seats: MAX_PLAYERS, teams: [2, 2, 2, 2] },
+]) assert.deepEqual(parseListing(good, "v1"), good, JSON.stringify(good));
+for (const bad of [
+    { ...listing, teams: undefined },
+    { ...listing, teams: null },
+    { ...listing, teams: "" },
+    { ...listing, teams: [1] },
+    { ...listing, players: 3, seats: 4, teams: [1, 1, 1] },
+    { ...listing, players: 3, seats: 4, teams: [3, 0] },
+    { ...listing, players: 3, seats: 4, teams: [1, 1] },
+    { ...listing, players: 3, seats: 4, teams: [2.5, 0.5] },
+    { ...listing, players: 1, seats: 4, teams: [2, -1] },
+    { ...listing, players: 1, seats: 4, teams: [1, "0"] },
+    { ...listing, players: 0, seats: 0, teams: [0, 0] },
+    { ...listing, k: undefined },
+    { ...listing, k: 0 },
+    { ...listing, k: 4 },
+    { ...listing, k: "3" },
+]) assert.equal(parseListing(bad, "v1"), undefined, JSON.stringify(bad));
+// A build before ADR 27 sends neither: a free-for-all with 3, only listed as another version.
+const { teams: _teams, k: _k, ...untamed } = listing;
+assert.deepEqual(parseListing({ ...untamed, version: "v0" }, "v1"), { ...listing, version: "v0" });
+assert.equal(parseListing({ ...listing, version: "v0", teams: [1] }, "v1"), undefined, "teams that are there must be valid");
+assert.equal(parseListing({ ...listing, version: "v0", k: 9 }, "v1"), undefined, "a k that is there must be valid");
 assert.equal(parseListing({ ...listing, version: "v0", frame: "q" }, "v1"), undefined, "a frame that is there must be valid");
 assert.equal(parseListing({ ...listing, version: "v0", locked: "yes" }, "v1"), undefined, "a locked flag that is there must be a boolean");
 // A build before ADR 24 sends no `locked`: it reads as unlocked, and is only listed as another version.

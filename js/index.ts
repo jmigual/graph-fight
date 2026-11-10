@@ -196,7 +196,7 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     if (room || $("lobby").hidden) return forget("host-password");
     unlisted = hostVisibility.value === "link";
     shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
-    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
+    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password", teams: [], k: PLAYERS_PER_TEAM };
     forget("host-password");
     enterRoom(selfId, undefined, password);
 };
