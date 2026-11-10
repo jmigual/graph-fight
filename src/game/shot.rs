@@ -77,10 +77,11 @@ fn polar_position(arena: &Arena, shooter: (usize, usize)) -> (f64, f64) {
     (p.x.hypot(p.y), p.y.atan2(p.x).rem_euclid(TAU))
 }
 
-/// Fires `y = f(x)` on the XY field or `r = f(θ)` on the disc, from `shooter` (team, player).
+/// Fires `y = f(x)` on the XY field or `r = f(θ)` on the disc, from `shooter` (team, player), in
+/// map coordinates offset to pass through the shooter (ADR 20). On XY `x` sweeps from the
+/// shooter's `x_p` toward the other half and `y = f(x) − f(x_p) + y_p`; `clockwise` is ignored.
 /// On the disc `θ` sweeps one turn from the shooter's map angle `θ₀`, counter-clockwise or, with
-/// `clockwise`, clockwise, and the radius is offset to pass through the shooter:
-/// `f(θ) − f(θ₀) + r_shooter` (ADR 20). XY ignores `clockwise`.
+/// `clockwise`, clockwise, and `r = f(θ) − f(θ₀) + r_p`.
 pub fn explicit(
     arena: &mut Arena,
     shooter: (usize, usize),
@@ -90,7 +91,12 @@ pub fn explicit(
     match arena.field() {
         Field::Xy => {
             let range = 2. * arena.x_max();
-            trace(arena, shooter, range, |x| Point::new(x, f.eval(x)))
+            let x0 = position(arena, shooter).x;
+            let dir = if x0 > 0. { -1. } else { 1. };
+            trace(arena, shooter, range, |s| {
+                let x = x0 + dir * s;
+                Point::new(x, f.eval(x))
+            })
         }
         Field::Disc => {
             let (r0, theta0) = polar_position(arena, shooter);
@@ -103,9 +109,10 @@ pub fn explicit(
     }
 }
 
-/// Fires `x(t), y(t)` on the XY field or `r(t), θ(t)` on the disc, from `shooter` (team, player).
-/// On the disc both are offset to start at the shooter: `r(t) − r(0) + r_shooter` and
-/// `θ₀ ± (θ(t) − θ(0))`, minus when `clockwise` (ADR 20). XY ignores `clockwise`.
+/// Fires `x(t), y(t)` on the XY field or `r(t), θ(t)` on the disc, from `shooter` (team, player),
+/// offset to start at the shooter (ADR 20). On XY the point is `(x(t) − x(0), y(t) − y(0))` from
+/// the shooter in map coordinates, and `clockwise` is ignored. On the disc it is at radius
+/// `r(t) − r(0) + r_p` and angle `θ₀ ± (θ(t) − θ(0))`, minus when `clockwise`.
 pub fn parametric(
     arena: &mut Arena,
     shooter: (usize, usize),
@@ -130,11 +137,9 @@ pub fn parametric(
     }
 }
 
-/// Walks the curve `curve(s)` for `s` in `[0, range]`, anchored at the shooter, applying the
-/// collision rules to every sampled point. The world point is `shooter + D(curve(s) − curve(0))`,
-/// so the first point is exactly the shooter. On XY `D` mirrors x for a shooter right of the
-/// centre, so shots head toward it; on the disc the curve is already in map coordinates and `D`
-/// is the identity.
+/// Walks the map curve `curve(s)` for `s` in `[0, range]`, anchored at the shooter, applying the
+/// collision rules to every sampled point. The world point is `shooter + (curve(s) − curve(0))`,
+/// so the first point is exactly the shooter.
 fn trace(
     arena: &mut Arena,
     shooter: (usize, usize),
@@ -148,16 +153,9 @@ fn trace(
         return Err(FireError::UndefinedAtShooter);
     }
 
-    let flip = match arena.field() {
-        Field::Xy if origin.x > 0. => -1.,
-        _ => 1.,
-    };
     let at = |s: f64| {
         let p = curve(s);
-        Point::new(
-            origin.x + flip * (p.x - start.x),
-            origin.y + (p.y - start.y),
-        )
+        Point::new(origin.x + (p.x - start.x), origin.y + (p.y - start.y))
     };
 
     let mut points = Vec::new();
@@ -271,8 +269,8 @@ mod tests {
     #[test]
     fn stops_on_non_finite() {
         let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
-        // NaN once x > 3 (local), i.e. world x > -5
-        let shot = fire(&mut arena, (0, 0), "sqrt(3-x)");
+        // NaN once x > -5
+        let shot = fire(&mut arena, (0, 0), "sqrt(-5-x)");
         assert!(shot
             .points
             .iter()
@@ -312,13 +310,47 @@ mod tests {
     }
 
     #[test]
-    fn xy_shots_head_toward_the_centre() {
-        let mut arena = xy(&[], &[(-8., 0.)], &[(8., 0.)]);
-        let left = fire(&mut arena, (0, 0), "x");
-        let right = fire(&mut arena, (1, 0), "x");
-        let (l, r) = (&left.points[1], &right.points[1]);
-        assert!(l.x > -8. && l.y > 0.);
-        assert!(r.x < 8. && r.y > 0.);
+    fn xy_shots_depart_from_the_shooter() {
+        // Undefined at x = 0, where the old shooter frame started, but not at these shooters
+        for (team, shooter, srcs) in [
+            (0, (-8., 1.), ["1/x", "sqrt(-x)", "x^2"]),
+            (1, (8., 1.), ["1/x", "ln(x)", "x^2"]),
+        ] {
+            for src in srcs {
+                let mut arena = xy(&[], &[(-8., 1.)], &[(8., 1.)]);
+                let shot = fire(&mut arena, (team, 0), src);
+                assert_eq!(shot.points[0], Point::from(shooter), "{src}");
+            }
+        }
+    }
+
+    #[test]
+    fn xy_explicit_shots_use_map_coordinates() {
+        for (team, x0) in [(0, -8.), (1, 8.)] {
+            // y = c is the horizontal line through the shooter, toward the other half
+            let mut arena = xy(&[], &[(-8., 1.)], &[(8., 1.)]);
+            let flat = fire(&mut arena, (team, 0), "3");
+            assert!(flat.points.iter().all(|p| p.y == 1.));
+            assert_eq!(flat.points[1].x > x0, x0 < 0.);
+            // y = x has slope 1 in map coordinates from either side: f is not mirrored
+            let mut arena = xy(&[], &[(-8., 1.)], &[(8., 1.)]);
+            let diagonal = fire(&mut arena, (team, 0), "x");
+            assert!(diagonal.points.len() > 10);
+            for p in &diagonal.points {
+                assert!((p.y - 1. - (p.x - x0)).abs() < 1e-9, "{p:?}");
+            }
+            assert_eq!(diagonal.points[1].x > x0, x0 < 0.);
+        }
+    }
+
+    #[test]
+    fn xy_parametric_shot_departs_from_the_shooter_unmirrored() {
+        // x(t) = 5 - t heads left in map coordinates, offset to start at the shooter (8, 1)
+        let mut arena = xy(&[], &[(-8., 1.)], &[(8., 1.), (0., 1.)]);
+        let shot = parametric(&mut arena, (1, 0), &t("5-t"), &t("2"), false).unwrap();
+        assert_eq!(shot.points[0], Point::new(8., 1.));
+        assert!(shot.points.iter().all(|p| p.y == 1.));
+        assert_eq!(arena.alive(), vec![vec![false], vec![true, false]]);
     }
 
     #[test]

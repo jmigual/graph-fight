@@ -7,7 +7,7 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted | Short Nygard-format ADRs in `docs/adr/`; replaced ones are marked superseded, never deleted. |
 | [0002](0002-deterministic-lockstep-in-wasm.md) | Deterministic lockstep in Rust/WASM | Accepted | Peers exchange seed and formulas only; all outcome logic runs in WASM with libm floats; `Cargo.lock` committed. |
 | [0003](0003-hand-written-formula-parser.md) | Hand-written formula parser | Accepted | `src/formula.rs` recursive-descent parser replaces `meval`; no implicit multiplication, typed `ParseError`. |
-| [0004](0004-shot-model.md) | Shot model (XY) | Accepted | Curve anchored at the shooter, sampled at ≤0.05 spacing; ends at obstacle (crater), field edge or non-finite; players die on hit. |
+| [0004](0004-shot-model.md) | Shot model (XY) | Superseded in part by 0020 | Curve anchored at the shooter, sampled at ≤0.05 spacing; ends at obstacle (crater), field edge or non-finite; players die on hit. |
 | [0005](0005-disc-field-and-polar-shots.md) | Disc field and polar shots | Superseded in part by 0014, 0020 | Host picks `Xy` (2 teams) or `Disc` (≥2); polar `r=f(θ)` / `r(t),θ(t)`; frame and direction now per 0020. |
 | [0006](0006-trystero-nostr-lobby-and-mesh.md) | Trystero over Nostr: lobby and mesh | Superseded in part by 0012 | Game rooms are Trystero (WebRTC mesh, Nostr signalling), room `game-<selfId>`; lobby part replaced by 0012. |
 | [0007](0007-wire-protocol-and-turn-authority.md) | Wire protocol and turn authority | Superseded in part by 0012 | JSON messages `start`/`shot`/`timeout`/`leave` with turn counter; shooter-broadcast replaced by host relay (0012). |
@@ -23,13 +23,13 @@ Read this instead of opening every ADR. Each new ADR adds a row here (and a line
 | [0017](0017-ui-ux-design.md) | UI and UX design | Accepted; amends 0015 | Graph paper in shooter's frame (disc: map polar frame with the shooter's θ₀, per 0020), CSS tokens, emoji-face players, formula editor, saved formulas/templates with sliders, e2e selectors. |
 | [0018](0018-reconnect-watchdog.md) | Reconnect watchdog | Accepted; amends 0016 | A seated guest whose host link stays down 25 s leaves and rejoins the game room (wait doubling: 25, 50, 100 s), and ends the game "Host unreachable." after 3 min; works around a Trystero 0.26.0 stale-offer stall; guests leave the room when the game ends. |
 | [0019](0019-esbuild-instead-of-webpack.md) | esbuild instead of webpack | Accepted; supersedes 0013 and bundling in 0009 | `wasm-pack --target web` + `scripts/build.mjs` (esbuild ESM bundle, `await init()`); `tsc --noEmit` (TypeScript 7) inside `npm run build`. |
-| [0020](0020-map-centred-polar-shots.md) | Map-centred polar shots | Accepted; supersedes in part 0005, 0014 | Disc polar coordinates about the map centre (`θ = 0` along `+x`); `θ₀` in `[0, 2π)`; `r = f(θ) − f(θ₀) + r_p` over one turn from `θ₀`, clockwise sweeps θ down; `r(t), θ(t)` offset the same way over `[0, 2R]`; negative `r` crosses the centre. |
+| [0020](0020-shots-in-map-coordinates.md) | Shots in map coordinates | Accepted; supersedes in part 0004, 0005, 0014 | Formulas in map coordinates offset to pass through the shooter (Graphwar): `y = f(x) − f(x_p) + y_p` with `x` sweeping toward the other half, no mirror; disc `θ₀` in `[0, 2π)`, `r = f(θ) − f(θ₀) + r_p` over one turn, clockwise sweeps θ down; parametric modes offset by their value at `t = 0`; negative `r` crosses the centre. |
 
 ## Where to look
 
 - Determinism, lockstep, seeds, float behaviour: 0002
 - Formula syntax and parser: 0003
-- Shot model, sampling, collisions, turn rotation, elimination: 0004, 0014
+- Shot model, sampling, collisions, turn rotation, elimination: 0004, 0014; frame and anchoring 0020
 - Disc field, polar shots, shot direction (clockwise): 0020, then 0005, 0014; 0011 (placement)
 - Rust/TS API (`Game`, `fire`, errors): 0008, 0014, 0011
 - Network: lobby 0012 (0006 for rooms); wire messages 0007 then 0012; turn authority and clock 0012, 0015; reconnection/rejoin/leave 0016, 0018

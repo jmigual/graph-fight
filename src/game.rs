@@ -207,7 +207,7 @@ impl Game {
     }
 
     /// Fires `expr` from the current player: `y = f(x)` on the XY field, `r = f(θ)` on the disc,
-    /// in map polar coordinates from the player's angle and offset to pass through the player
+    /// in map coordinates from the player's `x` or angle and offset to pass through the player
     /// (ADR 20). On the disc `clockwise` sweeps θ downward; XY ignores it.
     /// On an error nothing changes and the turn is not consumed.
     pub fn fire(&mut self, expr: &str, clockwise: bool) -> Result<Shot, FireError> {
@@ -624,7 +624,8 @@ mod tests {
             assert_eq!(game.check(expr), Err(FireError::UndefinedAtShooter));
         }
         let xy = game_with(Field::Xy, (10., 5.), &[&[(-8., 0.)], &[(8., 0.)]]);
-        for expr in ["1/x", "x^-1", "sin(x)/x"] {
+        // Undefined at the shooter's x = -8
+        for expr in ["1/(x+8)", "(x+8)^-1", "sin(x+8)/(x+8)"] {
             assert_eq!(
                 xy.clone().fire(expr, false).err(),
                 Some(FireError::UndefinedAtShooter)

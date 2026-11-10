@@ -1,6 +1,8 @@
 # 4. Shot model: anchoring, sampling, collisions (XY field)
 
 Status: Accepted (2026-11-09)
+Superseded in part by 0020 (anchoring: map coordinates offset to start at the shooter, no mirror;
+`x` sweeps from the shooter toward the other half).
 
 ## Context
 
