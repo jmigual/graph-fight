@@ -354,7 +354,7 @@ export type GameHandlers = {
      * We hold a seat and our link to the host has been down for `HOST_LOST_MS` (ADR 18). The host
      * keeps the game in memory only, so it cannot come back to it; we left the room.
      */
-    onHostLost?(): void;
+    onHostLost(): void;
     /** A send failed; the message may not have reached everyone. */
     onSendError(err: unknown): void;
     /** The host gave us our private seat token: keep it (never log or share it) to rejoin after a reload. */
@@ -440,7 +440,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     function reopen() {
         if (Date.now() - downSince >= HOST_LOST_MS) {
             leave();
-            return handlers.onHostLost?.();
+            return handlers.onHostLost();
         }
         void room.leave();
         [room, action] = open();

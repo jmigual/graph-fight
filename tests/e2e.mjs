@@ -605,13 +605,19 @@ const scenarios = {
         await guest.waitForFunction(() => sessionStorage.getItem("graph-fight-seat") !== null);
         await host.close();
         await guest.waitForFunction(() => document.getElementById("turn").textContent.startsWith("Reconnecting"), null, { timeout: TURN_WAIT_MS });
-        const before = guest.subscriptions;
-        await guest.clock.fastForward("00:30");
-        await guest.waitForTimeout(1000); // real time for the rejoin to reach the relays
-        assert.ok(guest.subscriptions > before, "the guest rejoined the room");
+        // Rejoins come 25, 75 and 175 s after the drop. Each fast-forward fires a due timer at most
+        // once, and the waits give the rejoin real time to reach the relays.
+        const step = async (time) => {
+            const before = guest.subscriptions;
+            await guest.clock.fastForward(time);
+            await guest.waitForTimeout(1000);
+            return guest.subscriptions > before;
+        };
+        assert.ok(await step("00:30"), "the guest rejoined after 25 s");
+        assert.equal(await step("00:35"), false, "the second wait doubles: no rejoin 50 s after the drop");
+        assert.ok(await step("00:15"), "the guest rejoined after 75 s");
         assert.equal(await guest.isVisible("#end"), false, "the guest still waits for the host");
-        // Each fast-forward fires a due timer at most once, so step through the backoff.
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 4; i++) {
             await guest.clock.fastForward("00:30");
             await guest.waitForTimeout(500);
         }
