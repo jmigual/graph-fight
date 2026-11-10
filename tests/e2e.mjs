@@ -1138,6 +1138,28 @@ const scenarios = {
                 for (const guest of guests) assert.equal(await guest.evaluate(() => location.href), url, "the key is gone from the guest's address bar");
                 // The host lets guests share the link: they get the same one.
                 for (const guest of guests) await guest.waitForFunction((l) => document.getElementById("invite-link").value === l && !document.getElementById("invite").hidden, link);
+                // A page whose host form is still stretching its password when it opens the invite joins
+                // that game only: the stretch finishing later must not host a room as well.
+                const racer = await (await browser.newContext()).newPage();
+                watchFrames(racer);
+                await racer.addInitScript(() => {
+                    const derive = SubtleCrypto.prototype.deriveBits;
+                    SubtleCrypto.prototype.deriveBits = function (...args) {
+                        return new Promise((ok) => setTimeout(ok, 3000)).then(() => derive.apply(this, args));
+                    };
+                });
+                await racer.goto(url);
+                const racerName = `e2e-AC-racer-${Math.random().toString(36).slice(2, 8)}`;
+                await racer.fill("#host-name", racerName);
+                await racer.selectOption("#host-visibility", "password");
+                await racer.fill("#host-password", "slow");
+                await racer.click("#host-form button[type=submit]");
+                await racer.goto(link);
+                await racer.waitForTimeout(4000); // past the slowed stretch
+                assert.equal(await racer.isHidden("#start"), true, "the page is a guest in the invite's game");
+                assert.equal(racer.published.some((f) => f.includes(racerName)), false, "and announces no game of its own");
+                await racer.close();
+                await host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 3, null, { timeout: SETUP_MS });
             },
         });
         await assertSynced(pages, 0);

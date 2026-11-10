@@ -186,6 +186,8 @@ $<HTMLFormElement>("host-form").onsubmit = async (e) => {
     } finally {
         submit.disabled = false;
     }
+    // While the password stretched, Join or a pasted invite may have entered another room.
+    if (room || $("lobby").hidden) return;
     unlisted = hostVisibility.value === "link";
     shareInvite = hostVisibility.value !== "public" && $<HTMLInputElement>("host-share").checked;
     offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value), locked: hostVisibility.value === "password" };
