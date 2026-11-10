@@ -395,6 +395,11 @@ mod tests {
         assert_eq!(shot.points[0], Point::new(8., 1.));
         assert!(shot.points.iter().all(|p| p.y == 1.));
         assert_eq!(arena.alive(), vec![vec![false], vec![true, false]]);
+        // x(0) is not finite, so there is no start to offset from
+        assert_eq!(
+            parametric(&mut arena, (1, 0), &t("1/t"), &t("0"), Frame::Map, false),
+            Err(FireError::UndefinedAtShooter)
+        );
     }
 
     #[test]
