@@ -68,9 +68,10 @@ function renderLobby(list: OpenGame[]) {
  * seats ("Team 2: 1 open"), then "1 character each" unless the default.
  */
 function makeUp(g: OpenGame) {
-    const size = g.seats / g.teams.length;
-    const sides = g.teams.length ? [`${g.teams.length} teams of ${size}`, ...g.teams.flatMap((n, t) => (n < size ? [`Team ${t + 1}: ${size - n} open`] : []))] : [];
-    return [...sides, ...gameSize(g).slice(1)];
+    const [size, ...characters] = gameSize(g);
+    if (!g.teams.length) return characters;
+    const seats = g.seats / g.teams.length;
+    return [size, ...g.teams.flatMap((n, t) => (n < seats ? [`Team ${t + 1}: ${seats - n} open`] : [])), ...characters];
 }
 
 const hostField = $<HTMLSelectElement>("host-field");
