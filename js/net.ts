@@ -44,15 +44,17 @@ const REJOIN_MS = 25_000;
 const HOST_LOST_MS = 180_000;
 
 export type Field = "xy" | "disc";
+/** Where shot formulas are drawn from: the map's axes or the shooter's own frame (ADR 20). */
+export type Frame = "map" | "player";
 
 /** What a host advertises in the lobby. */
-export type Announce = { name: string; field: Field; players: number; seats: number };
+export type Announce = { name: string; field: Field; frame: Frame; players: number; seats: number };
 /** The lobby wire format: `id` is the host's peer id and names the game room. */
 export type Listing = Announce & { id: string; version: string };
 /** A lobby entry; `compatible` is false when the host runs another build. */
 export type OpenGame = Listing & { compatible: boolean };
 
-export type Start = { type: "start"; seed: string; field: Field; peers: string[]; version: string };
+export type Start = { type: "start"; seed: string; field: Field; frame: Frame; peers: string[]; version: string };
 /** `cw` is the disc shot direction: clockwise when true, counter-clockwise when false (ADR 14). */
 export type Shot = { type: "shot"; turn: number; exprs: [string] | [string, string]; cw: boolean };
 export type Timeout = { type: "timeout"; turn: number };
@@ -65,6 +67,7 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
     typeof v === "object" && v !== null && !Array.isArray(v);
 const isText = (v: unknown, max = MAX_TEXT): v is string => typeof v === "string" && v.length <= max;
 const isField = (v: unknown): v is Field => v === "xy" || v === "disc";
+const isFrame = (v: unknown): v is Frame => v === "map" || v === "player";
 const isCount = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number =>
     Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 
@@ -73,8 +76,8 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
     if (!isObj(v)) return undefined;
     switch (v.type) {
         case "start":
-            if (isText(v.seed) && isField(v.field) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
-                return { type: "start", seed: v.seed, field: v.field, peers: v.peers, version: v.version };
+            if (isText(v.seed) && isField(v.field) && isFrame(v.frame) && isText(v.version) && Array.isArray(v.peers) && v.peers.length > 0 && v.peers.length <= MAX_PLAYERS && v.peers.every((p) => isText(p))) {
+                return { type: "start", seed: v.seed, field: v.field, frame: v.frame, peers: v.peers, version: v.version };
             }
             return undefined;
         case "shot":
@@ -145,10 +148,10 @@ export function sequencer(deliver: (msg: GameMsg) => void, onGap: () => void) {
 
 /** Returns the listing if `v` has the right shape and sizes, otherwise undefined. */
 export function parseListing(v: unknown): Listing | undefined {
-    if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
+    if (!isObj(v) || !isText(v.id) || !isText(v.version) || !isText(v.name) || !isField(v.field) || !isFrame(v.frame) || !isCount(v.players, MAX_PLAYERS) || !isCount(v.seats, MAX_PLAYERS)) {
         return undefined;
     }
-    return { id: v.id, version: v.version, name: v.name, field: v.field, players: v.players, seats: v.seats };
+    return { id: v.id, version: v.version, name: v.name, field: v.field, frame: v.frame, players: v.players, seats: v.seats };
 }
 
 /**

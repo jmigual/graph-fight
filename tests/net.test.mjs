@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { lobbyBook, MAX_PLAYERS, outbox, parseGameMsg, parseListing, parseRelayEvent, routeIncoming, seatBook, sequencer, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
-const start = { type: "start", seed: "s", field: "disc", peers: ["h", "p"], version: "v1" };
+const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
 assert.deepEqual(parseGameMsg({ type: "shot", turn: 3, exprs: ["x"], cw: true }), { type: "shot", turn: 3, exprs: ["x"], cw: true });
 assert.deepEqual(parseGameMsg({ type: "shot", turn: 0, exprs: ["a", "b"], cw: false }), { type: "shot", turn: 0, exprs: ["a", "b"], cw: false });
 assert.deepEqual(parseGameMsg({ type: "timeout", turn: 1 }), { type: "timeout", turn: 1 });
 assert.deepEqual(parseGameMsg({ type: "leave", peer: "p" }), { type: "leave", peer: "p" });
 assert.deepEqual(parseGameMsg(start), start);
+assert.deepEqual(parseGameMsg({ ...start, frame: "player" }), { ...start, frame: "player" });
 assert.ok(parseGameMsg({ type: "shot", turn: 0, exprs: ["x".repeat(256)], cw: false }), "formula at the cap");
 assert.ok(parseGameMsg({ ...start, peers: Array(MAX_PLAYERS).fill("p") }), "peers at the cap");
 
@@ -30,6 +31,8 @@ for (const bad of [
     { type: "leave" },
     { type: "leave", peer: "p".repeat(65) },
     { ...start, field: "hex" },
+    { ...start, frame: "world" },
+    { ...start, frame: undefined },
     { ...start, peers: [] },
     { ...start, peers: [1] },
     { ...start, peers: Array(MAX_PLAYERS + 1).fill("p") },
@@ -141,11 +144,12 @@ gated(shot);
 assert.deepEqual(seen, ["start", "mismatch:v0", "shot"]);
 
 // Lobby listings: shape and size caps.
-const listing = { id: "h", version: "v1", name: "n", field: "xy", players: 1, seats: 2 };
+const listing = { id: "h", version: "v1", name: "n", field: "xy", frame: "map", players: 1, seats: 2 };
 assert.deepEqual(parseListing(listing), listing);
+assert.deepEqual(parseListing({ ...listing, frame: "player" }), { ...listing, frame: "player" });
 assert.ok(parseListing({ ...listing, name: "n".repeat(64), players: MAX_PLAYERS, seats: MAX_PLAYERS }), "at the caps");
 for (const bad of [
-    null, {}, { ...listing, id: 1 }, { ...listing, field: "q" }, { ...listing, players: "1" }, { ...listing, seats: -1 },
+    null, {}, { ...listing, id: 1 }, { ...listing, field: "q" }, { ...listing, frame: "q" }, { ...listing, frame: undefined }, { ...listing, players: "1" }, { ...listing, seats: -1 },
     { ...listing, name: "n".repeat(65) },
     { ...listing, id: "i".repeat(65) },
     { ...listing, version: undefined },

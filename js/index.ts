@@ -1,7 +1,7 @@
 // Playable client: lobby, waiting room, game loop and end screen (ADR 7, 12, 14, 15).
 import init, { Field as WasmField, Frame as WasmFrame, Game as Sim } from "../pkg/index.js";
 import { BUILD_VERSION, joinGame, joinLobby, MAX_PLAYERS, selfId } from "./net";
-import type { Announce, Field, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
+import type { Announce, Field, Frame, Game as Room, GameMsg, OpenGame, Shot, Start } from "./net";
 import { initEditor, sliderError } from "./editor";
 import { draw, lookAfterShot, lookKey } from "./render";
 import type { LastShot, Look, View } from "./render";
@@ -24,6 +24,8 @@ const MISMATCH = ["Different version.", "Reload the page, then join again."] as 
 const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
 /** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
 const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
+/** Long and short names of a shot frame, shown after the field (ADR 20). */
+const FRAME_NAMES = { map: ["map-centred", "map"], player: ["player-centred", "player"] };
 const LABELS = {
     xy: { explicit: ["y = f(x)"], parametric: ["x(t) =", "y(t) ="] },
     disc: { explicit: ["r = f(θ)"], parametric: ["r(t) =", "θ(t) ="] },
@@ -35,6 +37,7 @@ type Seat = { hostId: string; token: string; version: string; me: string };
 type Play = {
     sim: Sim;
     field: Field;
+    frame: Frame;
     /** `peers[i]` plays team `i`. */
     peers: string[];
     /** Number of applied shots and timeouts. */
@@ -87,7 +90,7 @@ function renderLobby(list: OpenGame[]) {
             };
             cell(g.name);
             if (g.compatible) {
-                const [long, short] = FIELD_NAMES[g.field];
+                const [long, short] = FIELD_NAMES[g.field].map((name, i) => `${name}, ${FRAME_NAMES[g.frame][i]}`);
                 const field = cell("");
                 for (const [cls, name] of [["long", long], ["short", short]]) {
                     const span = field.appendChild(document.createElement("span"));
@@ -121,7 +124,8 @@ hostField.onchange = () => {
 $<HTMLFormElement>("host-form").onsubmit = (e) => {
     e.preventDefault();
     const field = hostField.value === "xy" ? "xy" : "disc";
-    offer = { name: $<HTMLInputElement>("host-name").value, field, players: 1, seats: Number(hostSeats.value) };
+    const frame = $<HTMLSelectElement>("host-frame").value === "player" ? "player" : "map";
+    offer = { name: $<HTMLInputElement>("host-name").value, field, frame, players: 1, seats: Number(hostSeats.value) };
     enterRoom(selfId);
 };
 
@@ -134,7 +138,7 @@ function enterRoom(id: string, seat?: Seat) {
     clearError();
     $("room-error").textContent = "";
     $("room-title").textContent = roomInfo?.name || "Waiting room";
-    $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${roomInfo.seats} seats` : "";
+    $("room-info").textContent = roomInfo ? `${FIELD_NAMES[roomInfo.field][0]}, ${FRAME_NAMES[roomInfo.frame][0]}, ${roomInfo.seats} seats` : "";
     $("room-status").textContent = seat ? "Rejoining…" : "";
     room = joinGame(id, {
         onMessage,
@@ -192,7 +196,7 @@ $("start").onclick = () => {
     const seed = crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     try {
         // Delivered to our own onMessage, which starts the game.
-        room.relay({ type: "start", seed, field: offer.field, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
+        room.relay({ type: "start", seed, field: offer.field, frame: offer.frame, peers: [selfId, ...connected].slice(0, offer.seats), version: BUILD_VERSION });
     } catch (err) {
         $("room-error").textContent = `Could not start: ${err}.`;
         return;
@@ -237,7 +241,7 @@ function startGame(msg: Start) {
     const a = ARENAS[msg.field];
     let sim: Sim;
     try {
-        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, WasmFrame.Map, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
+        sim = new Sim(msg.field === "xy" ? WasmField.Xy : WasmField.Disc, msg.frame === "map" ? WasmFrame.Map : WasmFrame.Player, a.x, a.y, a.obstacles, a.minSize, a.maxSize, new Uint32Array(msg.peers.length).fill(PLAYERS_PER_TEAM), PLAYER_RADIUS, BigInt(msg.seed));
     } catch (err) {
         return end("Could not start the game.", `${err}`);
     }
@@ -245,7 +249,7 @@ function startGame(msg: Start) {
     // The direction is shown on the disc only and starts counter-clockwise in every game (ADR 17).
     $("direction").hidden = msg.field !== "disc";
     $<HTMLInputElement>("dir-ccw").checked = true;
-    play = { sim, field: msg.field, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), pending: false, over: false, deadline: 0 };
+    play = { sim, field: msg.field, frame: msg.frame, peers: msg.peers, turn: 0, shot: null, note: "", looks: new Map(), pending: false, over: false, deadline: 0 };
     setMode();
     show("game");
     changed(play, true);
@@ -324,7 +328,7 @@ function changed(p: Play, newTurn: boolean) {
 function refresh(p: Play) {
     const team = p.sim.get_current_team_idx();
     const mine = p.peers[team] === me;
-    const view: View = { field: p.field, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
+    const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);

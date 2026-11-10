@@ -208,10 +208,14 @@ Shot label: the mode's variables, `y = …`, `x = …, y = …`, `r = …`, `r =
 with the final frame. The pen takes 700 ms for a path up to the arena's width (`2 x_max`) and
 scales with length up to 1400 ms. During the animation the grid stays in the shooter's frame.
 
-Settled with ADR 20 (`js/render.ts`): shots are in map coordinates on both fields, so the graph
-paper no longer follows the shooter. It shows the map's own axes from the centre on every screen
-and every turn. On XY: lines every 1 unit (major every 5) through integer map coordinates, the
-`+x` axis (arrow at the right edge) and `+y` axis (arrow at the top) through the centre, and 5,
+Settled with ADR 20 (`js/render.ts`, `js/index.ts`): the host picks the shot frame. The host form
+has a "Coordinates" select, `#host-frame`, after Field: "Map-centred (like Graphwar)" (default,
+`map`) and "Player-centred" (`player`). The lobby's Field cell adds it ("XY plane, map-centred",
+short "XY, map") and so does the waiting room's info line ("Polar disc, player-centred, 3 seats").
+In the player-centred frame the board is as described above and in section 7. In the
+map-centred frame shots are in map coordinates on both fields, so the graph paper does not
+follow the shooter. It shows the map's own axes from the centre on every screen and every turn.
+On XY: lines every 1 unit (major every 5) through integer map coordinates, the `+x` axis (arrow at the right edge) and `+y` axis (arrow at the top) through the centre, and 5,
 10, 15 under `+x`. On the disc: circles every 1 unit (major every 5) and rays every 30° about the
 centre, the `θ = 0` axis along the map's `+x` with its arrowhead, the number 5 and the `θ = 0`
 label, and `π/2`, `π`, `3π/2` near the rim on the quarter-turn rays. On our own turn the old arc
@@ -224,8 +228,8 @@ and a short arc arrow about the centre just inside our face turning the chosen w
 While we aim on the disc our face looks along that sweep: the direction from the centre to us
 turned +90° (counterclockwise) or -90° (clockwise); on XY the resting gaze already faces the sweep.
 Section 7's "Meaning" is now "counterclockwise sweeps θ up from `θ₀`, clockwise down", seen from
-above the map rather than from the shooter. The resting gaze (toward the centre) and the gaze after
-a shot (from the shot's first points) are unchanged.
+above the map rather than from the shooter, in the map-centred frame. The resting gaze (toward the
+centre) and the gaze after a shot (from the shot's first points) are the same in both frames.
 
 ### 5. Motion
 
