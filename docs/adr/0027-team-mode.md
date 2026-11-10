@@ -157,8 +157,8 @@ Rejected:
 - Tests: `tests/teams.test.mjs` (ownership interleave, `c` with `k`, hand-over, last seat leaving,
   seating and move rules, free-for-all mapping equal to today's); `tests/net.test.mjs` (`start.teams`,
   `start.k` and the listing's `teams` and `k` accepted and each malformed case dropped; `lineup` only
-  from the host and `team` only at the host, both only before `start`); e2e scenarios for a 2v2 XY
-  game and for hand-over (letters fixed at merge time). `joinGame`'s wiring runs on Trystero and has
-  no unit test: whether the game has started (`applied || out.started()`, passed to
-  `routeIncoming`), `Game.lineup` cutting `waiting` to `MAX_WAITING`, and `Game.askTeam`; the e2e
-  commit covers them.
+  from the host and `team` only at the host, both only before `start`; `lineupMessage`, which
+  `Game.lineup` sends, cuts `waiting` to `MAX_WAITING`); e2e scenarios for a 2v2 XY game and for
+  hand-over (letters fixed at merge time). `joinGame`'s wiring runs on Trystero and has no unit
+  test: whether the game has started (`applied || out.started()`, passed to `routeIncoming`) and
+  `Game.askTeam`; the e2e commit covers them.

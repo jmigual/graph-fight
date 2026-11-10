@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/net.test.mjs
 import assert from "node:assert/strict";
 import { pbkdf2Sync } from "node:crypto";
-import { inviteFragment, isBot, isHostRun, isLocal, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
+import { inviteFragment, isBot, isHostRun, isLocal, lineupMessage, lobbyBook, MAX_PLAYERS, MAX_WAITING, newToken, outbox, parseBot, parseGameMsg, parseInvite, parseListing, parseLocal, parseRelayEvent, routeIncoming, seatBook, sequencer, stretchPassword, versionGate } from "../js/net.ts";
 
 // Valid game messages round-trip.
 const start = { type: "start", seed: "s", field: "disc", frame: "map", peers: ["h", "p"], version: "v1" };
@@ -160,6 +160,12 @@ for (const bad of [
     { ...lineup, waiting: Array(MAX_WAITING + 1).fill("w") },
     { seq: 1, msg: lineup },
 ]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+// The host sends the first MAX_WAITING joiners in line, and refuses a lineup guests would drop.
+const long = Array.from({ length: MAX_WAITING + 8 }, (_, i) => `w${i}`);
+const sent = lineupMessage({ size: 2, teams: lineup.teams, waiting: long });
+assert.deepEqual(sent, { type: "lineup", size: 2, teams: lineup.teams, waiting: long.slice(0, MAX_WAITING) });
+assert.deepEqual(routeIncoming("h", "p", "h", sent), { kind: "lineup", lineup: { size: 2, teams: lineup.teams, waiting: long.slice(0, MAX_WAITING) } }, "a cut lineup reaches the guest");
+assert.throws(() => lineupMessage({ size: 1, teams: lineup.teams, waiting: [] }), Error, "a side longer than size");
 
 // A guest asks the host for a side; only the host takes it, and only before `start`.
 assert.deepEqual(routeIncoming("h", "h", "p", { type: "team", team: 1 }), { kind: "team", team: 1 });

@@ -157,6 +157,16 @@ function parseLineup(v: Record<string, unknown>): Lineup | undefined {
 }
 
 /**
+ * The host's `lineup` message for `lineup` (ADR 27). Guests see the first `MAX_WAITING` joiners in
+ * line; the rest still wait on the host. Throws on a lineup guests would drop otherwise.
+ */
+export function lineupMessage(lineup: Lineup) {
+    const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
+    if (!parseLineup(sent)) throw new Error("invalid lineup");
+    return { type: "lineup", ...sent };
+}
+
+/**
  * Returns the game message if `v` has the right shape and sizes, otherwise undefined. A `start`
  * without `frame` comes from a build before ADR 20: it reads as `map` so that `versionGate` can
  * turn it away as another version instead of it being dropped. A `start` seat that begins with
@@ -833,12 +843,10 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string,
         lineup(lineup) {
             if (!isHost) throw new Error("only the host sends the lineup");
             if (out.started()) throw new Error("lineup after start");
-            // Guests see the first MAX_WAITING joiners in line; the rest still wait on the host.
-            const sent = { ...lineup, waiting: lineup.waiting.slice(0, MAX_WAITING) };
-            if (!parseLineup(sent)) throw new Error("invalid lineup");
+            const msg = lineupMessage(lineup);
             const guests = Object.keys(room.getPeers()).filter((p) => !banned.has(p));
             // A lost one is replaced by the next, sent on every change.
-            action.send({ type: "lineup", ...sent }, { target: guests }).catch((err) => console.warn("lineup send failed", err));
+            action.send(msg, { target: guests }).catch((err) => console.warn("lineup send failed", err));
         },
         askTeam(team) {
             if (isHost) throw new Error("the host seats itself");
