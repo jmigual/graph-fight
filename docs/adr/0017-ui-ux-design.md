@@ -341,7 +341,8 @@ On phone the table keeps four columns; the field column uses the short words "XY
 below 480 px.
 
 **Waiting room.** The heading is the game name. Below it: "Polar disc, 4 seats", then the player
-list (`#room-players`, one `li` per connected player, tagged "you" / "host"). Open seats are a
+list (`#room-players`, one `li` per connected player, tagged "you" / "host"), ruled rows like
+the lobby table with any Remove button on the right. Open seats are a
 text line ("2 seats open"), never extra `li`. The host sees **Start** (primary, disabled below 2
 players, with "Start needs at least 2 players" next to it) and, when players outnumber seats,
 "More players than seats: the first 4 to join play." A guest sees "Waiting for the host to

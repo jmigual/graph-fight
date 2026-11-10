@@ -249,8 +249,17 @@ dialog h2 { margin-top: 0; }
 /* Waiting room and end screen */
 
 #room-players { list-style: none; padding: 0; }
-#room-players li { padding: 0.125rem 0; }
-#room-players button { margin-left: 0.75rem; }
+/* One row per player with its Remove button on the right, like the lobby table. */
+#room-players li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: var(--control-h);
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--grid-major);
+}
+#room > .actions:last-child { margin-top: 1.5rem; }
 #bots, #invite { margin-bottom: 1rem; }
 #invite { align-items: end; }
 #invite .field { margin-bottom: 0; flex: 1 1 18rem; }
