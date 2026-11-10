@@ -1440,6 +1440,9 @@ const scenarios = {
         await page.mouse.move(...(await spot(0, -6)), { steps: 5 });
         await page.mouse.up();
         assert.equal(await page.locator("#test-items li").count(), 2, "a swipe is not a click");
+        // Nor is a right click.
+        await page.mouse.click(...(await spot(-4, -6)), { button: "right" });
+        assert.equal(await page.locator("#test-items li").count(), 2, "a right click places nothing");
         // An obstacle cannot touch a player; one in the way stops the shot there.
         await page.check("#place-obstacle");
         await click(5, 1);

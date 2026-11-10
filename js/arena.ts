@@ -189,7 +189,8 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     const ours = (e: PointerEvent) => press?.id === e.pointerId;
     const far = (p: Press, e: PointerEvent) => p.moved || Math.hypot(e.clientX - p.x, e.clientY - p.y) >= p.threshold;
     canvas.addEventListener("pointerdown", (e) => {
-        if (!active || !e.isPrimary) return;
+        // Only the main button (a touch or a pen contact counts as it): a right click opens the menu.
+        if (!active || !e.isPrimary || e.button !== 0) return;
         const slack = (SLACK_PX * 2 * arenas[field].x) / canvas.clientWidth;
         const pick = pickAt(teams, obstacles, worldAt(e), radius, slack);
         press = { id: e.pointerId, pick, x: e.clientX, y: e.clientY, threshold: e.pointerType === "touch" ? SLACK_PX : DRAG_PX, moved: false, refused: false };
@@ -215,9 +216,13 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         } else if (p.pick) select(p.pick);
         else place(worldAt(e));
     });
-    canvas.addEventListener("pointercancel", (e) => {
-        if (ours(e)) press = null;
-    });
+    // A cancelled press, or one whose capture is lost without a pointerup (the tab hidden, the
+    // canvas gone), ends without placing or selecting. After a pointerup it is already over.
+    for (const type of ["pointercancel", "lostpointercapture"] as const) {
+        canvas.addEventListener(type, (e) => {
+            if (ours(e)) press = null;
+        });
+    }
     // Delete or Backspace removes the selection after a click on the board, where the focus is on the page.
     document.addEventListener("keydown", (e) => {
         if (!active || (e.key !== "Delete" && e.key !== "Backspace") || e.target !== document.body) return;
