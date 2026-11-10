@@ -132,9 +132,10 @@ export function parseGameMsg(v: unknown): GameMsg | undefined {
 }
 
 /**
- * Decides what to do with a game-room payload (ADR 12, 16). A payload from the host must be a
- * sequenced broadcast or our private seat token `{seat}`; the host additionally takes a bare
- * `shot`, `rejoin {token}` or `quit` from other peers as a request; everything else is dropped.
+ * Decides what to do with a game-room payload (ADR 12, 16, 23). A payload from the host must be a
+ * sequenced broadcast, our private seat token `{seat}` or `{type: "kick"}`, which removes us from
+ * the game; the host additionally takes a bare `shot`, `rejoin {token}` or `quit` from other peers
+ * as a request; everything else is dropped.
  */
 export function routeIncoming(
     hostId: string,
@@ -144,12 +145,14 @@ export function routeIncoming(
 ):
     | { kind: "relayed"; seq: number; msg: GameMsg }
     | { kind: "seat"; token: string }
+    | { kind: "kicked" }
     | { kind: "request"; shot: Shot }
     | { kind: "rejoin"; token: string }
     | { kind: "quit" }
     | undefined {
     if (from === hostId) {
         if (isObj(data) && isText(data.seat)) return { kind: "seat", token: data.seat };
+        if (isObj(data) && data.type === "kick") return { kind: "kicked" };
         if (!isObj(data) || !isCount(data.seq)) return undefined;
         const msg = parseGameMsg(data.msg);
         return msg && { kind: "relayed", seq: data.seq, msg };
@@ -361,8 +364,25 @@ const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b
 export function seatBook(peers: string[]) {
     const tokens = peers.map((p, i) => (i && !isHostRun(p) ? newToken() : ""));
     const holders = peers.map((p) => (isHostRun(p) ? undefined : p));
+    const revoked = new Set<string>();
     return {
         tokens: tokens as readonly string[],
+        /**
+         * Takes a guest's seat away for good (ADR 23): its token stops working and the seat has no
+         * holder. Returns the peer that held it, or undefined for the host's seat, a host-run seat,
+         * an unknown one or one already revoked.
+         */
+        revoke(seat: string): string | undefined {
+            const i = peers.indexOf(seat);
+            if (i <= 0 || !tokens[i]) return undefined;
+            const holder = holders[i];
+            revoked.add(tokens[i]);
+            tokens[i] = "";
+            holders[i] = undefined;
+            return holder;
+        },
+        /** True for the token of a revoked seat. */
+        revoked: (token: string) => revoked.has(token),
         /** Moves the seat whose token is exactly `token` to `peer`; false for an unknown token. */
         rejoin(token: string, peer: string): boolean {
             // The host's and the host-run seats share the empty token.
@@ -399,6 +419,8 @@ export type GameHandlers = {
     onVersionMismatch(hostVersion: string): void;
     /** We missed a broadcast and hold no seat token to ask for a replay, so we left the room. */
     onDesync(): void;
+    /** The host removed us from the game (ADR 23); we left the room. */
+    onKicked(): void;
     /**
      * We hold a seat and our link to the host has been down for `HOST_LOST_MS` (ADR 18). The host
      * keeps the game in memory only, so it cannot come back to it; we left the room.
@@ -429,6 +451,14 @@ export type Game = {
      * is down (the seat then stays held).
      */
     quit(): void;
+    /**
+     * Host only: remove a guest (ADR 23). Before `start`, `seat` is the guest's peer id; in a game it
+     * is a guest's seat id, whose token then stops working, and `leave {peer: seat}` is relayed, which
+     * eliminates the team as a quit does. The peer is sent `{type: "kick"}`, and its id is ignored
+     * from then on in this room (told again if it comes back). A rejoin with the revoked token gets
+     * the same answer.
+     */
+    kick(seat: string): void;
     /**
      * Seat ids this page knows are disconnected (ADR 16): on the host, seats whose holder is
      * not connected; on another peer, the host while its link is down.
@@ -551,6 +581,15 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         action.send({ type: "rejoin", token: seatToken }, { target: hostId }).catch(handlers.onSendError);
     }
 
+    // Host only: peer ids removed from this game (ADR 23). Trystero ids last one page load, so a
+    // reload comes back under a new id; only a rejoin with the revoked token is recognised then.
+    const banned = new Set<string>();
+    function ban(peer: string) {
+        banned.add(peer);
+        // A lost kick only leaves the peer waiting; it is told again whenever it comes back.
+        action.send({ type: "kick" }, { target: peer }).catch((err) => console.warn("kick send failed", err));
+    }
+
     const accept = sequencer(
         versionGate(BUILD_VERSION, handlers.onMessage, (hostVersion) => {
             leave();
@@ -564,16 +603,21 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
     );
 
     function onData(data: JsonValue, peerId: string) {
+        if (banned.has(peerId)) return;
         const routed = routeIncoming(hostId, selfId, peerId, data);
         if (routed?.kind === "relayed") {
             accept(routed.seq, routed.msg);
         } else if (routed?.kind === "seat") {
             token = routed.token;
             handlers.onSeat?.(token);
+        } else if (routed?.kind === "kicked") {
+            leave();
+            handlers.onKicked();
         } else if (routed && seats) {
             // Requests count only from the peer holding a seat now, and act for that seat.
             if (routed.kind === "rejoin") {
-                if (seats.rejoin(routed.token, peerId)) replay(peerId);
+                if (seats.revoked(routed.token)) ban(peerId);
+                else if (seats.rejoin(routed.token, peerId)) replay(peerId);
                 return;
             }
             const seat = seats.seatOf(peerId);
@@ -582,6 +626,7 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
         }
     }
     function onPeerJoin(id: string) {
+        if (banned.has(id)) return ban(id);
         if (id === hostId) clearTimeout(watchdog);
         if (id === hostId && token) rejoin(token);
         // A seated peer back under the same id may have missed the last broadcasts, which it
@@ -607,6 +652,14 @@ export function joinGame(hostId: string, handlers: GameHandlers, token?: string)
             } else if (token && hostConnected()) {
                 action.send({ type: "quit" }, { target: hostId }).catch(handlers.onSendError);
             }
+        },
+        kick(seat) {
+            if (!isHost) throw new Error("only the host kicks");
+            if (!seats) return ban(seat);
+            const holder = seats.revoke(seat);
+            if (holder === undefined) return;
+            ban(holder);
+            relay({ type: "leave", peer: seat });
         },
         absent() {
             if (isHost) return seats ? seats.absent((id) => id in room.getPeers()) : [];

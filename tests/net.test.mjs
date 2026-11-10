@@ -71,6 +71,13 @@ for (const bad of [{ type: "rejoin" }, { type: "rejoin", token: 7 }, { type: "re
     assert.equal(routeIncoming("h", "h", "p", bad), undefined, JSON.stringify(bad));
 }
 
+// A kick (ADR 23) only counts from the host; nobody else can remove a peer, and the host takes no kick request.
+assert.deepEqual(routeIncoming("h", "p", "h", { type: "kick" }), { kind: "kicked" });
+assert.equal(routeIncoming("h", "p", "q", { type: "kick" }), undefined, "a kick from a non-host");
+assert.equal(routeIncoming("h", "h", "p", { type: "kick" }), undefined, "a kick sent to the host");
+assert.equal(routeIncoming("h", "p", "h", { seq: 1, msg: { type: "kick" } }), undefined, "a kick is not a relayed game message");
+for (const bad of [{ kick: true }, { type: "Kick" }, "kick"]) assert.equal(routeIncoming("h", "p", "h", bad), undefined, JSON.stringify(bad));
+
 // Outbox: start once and first, invalid messages refused without consuming a number.
 const box = outbox();
 assert.throws(() => box.stamp(shot), /before start/, "nothing before start");
@@ -143,6 +150,22 @@ assert.equal(withBots.seatOf("bot:hard:1"), undefined, "the empty token claims n
 assert.deepEqual(withBots.absent(() => false), ["p"], "bots are never absent");
 assert.equal(withBots.rejoin(withBots.tokens[1], "p2"), true);
 assert.equal(withBots.seatOf("p2"), "p");
+
+// Revoking a seat (ADR 23): the token stops working, the seat has no holder and is never absent.
+const kicked = seatBook(["h", "p", "q", "bot:hard:1"]);
+const kickedToken = kicked.tokens[1];
+assert.equal(kicked.rejoin(kickedToken, "p2"), true);
+assert.equal(kicked.revoke("p"), "p2", "returns the peer holding the seat now");
+assert.equal(kicked.seatOf("p2"), undefined);
+assert.equal(kicked.revoked(kickedToken), true);
+assert.equal(kicked.rejoin(kickedToken, "p3"), false, "a revoked token claims nothing");
+assert.equal(kicked.seatOf("p3"), undefined);
+assert.deepEqual(kicked.absent(() => false), ["q"], "a revoked seat is not absent");
+assert.equal(kicked.revoke("p"), undefined, "a seat is revoked once");
+for (const seat of ["h", "bot:hard:1", "x"]) assert.equal(kicked.revoke(seat), undefined, `${seat} cannot be revoked`);
+assert.equal(kicked.revoked(""), false, "the empty token is never revoked");
+assert.equal(kicked.revoked(kicked.tokens[2]), false);
+assert.equal(kicked.seatOf("q"), "q", "other seats are untouched");
 
 // Bot ids: `bot:<level>:<n>`, n from 1 to 7, in `start.peers`; any other `bot:` entry drops the start.
 assert.deepEqual(parseBot("bot:hard:1"), { level: "hard", n: 1 });

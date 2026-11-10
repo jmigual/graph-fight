@@ -32,6 +32,7 @@ const ARENAS = {
 const SEAT_KEY = "graph-fight-seat";
 const MISMATCH = ["Different version.", "Reload the page, then join again."] as const;
 const HOST_LEFT = ["The host left.", "The game can't continue without the host."] as const;
+const REMOVED = ["The host removed you from this game.", "Join another game from the lobby."] as const;
 /** Long and short (below 480 px) names of a field in the lobby (ADR 17, section 6). */
 const FIELD_NAMES = { xy: ["XY plane", "XY"], disc: ["Polar disc", "Disc"] };
 /** Long and short names of a shot frame, shown after the field (ADR 20). */
@@ -167,6 +168,7 @@ function enterRoom(id: string, seat?: Seat) {
         onShotRequest: acceptShot,
         onVersionMismatch: () => end(...MISMATCH),
         onDesync: () => end("Out of sync.", "A message from the host was lost, so this game can't continue. Start a new one from the lobby."),
+        onKicked: () => end(...REMOVED),
         onHostLost: () => end("Host unreachable.", "The host has been gone for 3 minutes, so this game can't continue. Start a new one from the lobby."),
         onSendError(err) {
             if (play) play.pending = false;
