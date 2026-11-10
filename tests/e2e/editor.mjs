@@ -121,12 +121,12 @@ export const scenarios = {
         const page = pages[0];
         assert.equal(await page.isVisible("#saved-notice"), true);
         assert.equal(await page.locator("#saved-list li", { hasText: "Parabola" }).count(), 1, "starters are listed from memory");
-        // `2a` would silently become `21.5`, so saving it is refused.
-        await page.fill("#input-a", "2b");
+        // `b.5` would silently become `1.5`, so saving it is refused (`2b` is a product, ADR 32).
+        await page.fill("#input-a", "b.5");
         await page.click("#save");
         await page.getByRole("button", { name: "Save formula" }).click();
         assert.equal(await page.isVisible("#save-row"), true);
-        assert.match(await text(page, "#save-error"), /2\*b/);
+        assert.match(await text(page, "#save-error"), /b\*\.5/);
         await page.fill("#input-a", "a+".repeat(100) + "a");
         await page.click("#save");
         await page.fill("#save-name", "Long");

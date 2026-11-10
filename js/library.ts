@@ -18,7 +18,7 @@ export type Slider = { min: number; max: number; step: number | null; value: num
 /** A saved formula; it is a template when `sliders` is not empty. `exprs` has 1 or 2 entries to match `mode`. */
 export type Item = { name: string; field: Field; mode: Mode; exprs: [string] | [string, string]; sliders: Record<string, Slider> };
 
-/** `glued`: a slider right after a digit or `.` (`2a`); `too-long`: `length` exceeds `max`. */
+/** `glued`: a slider right before a `.` (`a.5`); `too-long`: `length` exceeds `max`. */
 export type LibraryError = { kind: "glued"; slider: string } | { kind: "too-long"; length: number; max: number };
 export type Result<T> = { ok: true; value: T } | { ok: false; error: LibraryError };
 
@@ -53,7 +53,7 @@ function sliderTokens(exprs: readonly string[]): { name: string; glued: boolean 
             if (!SLIDER.test(m[0])) continue;
             const at = m.index ?? 0;
             const end = at + m[0].length;
-            out.push({ name: m[0], glued: (at > 0 && /[\d.]/.test(text[at - 1])) || text[end] === "." });
+            out.push({ name: m[0], glued: text[end] === "." });
         }
     }
     return out;
@@ -64,7 +64,7 @@ export function sliderLetters(exprs: readonly string[]): string[] {
     return [...new Set(sliderTokens(exprs).map((t) => t.name))];
 }
 
-/** Like `sliderLetters`, but fails with `glued` on forms like `2a`, `a.5` or `a.` that substitution would silently change. */
+/** Like `sliderLetters`, but fails with `glued` on forms like `a.5` or `a.` that substitution would silently change. */
 export function findSliders(exprs: readonly string[]): Result<string[]> {
     const glued = sliderTokens(exprs).find((t) => t.glued);
     return glued ? { ok: false, error: { kind: "glued", slider: glued.name } } : { ok: true, value: sliderLetters(exprs) };
@@ -114,13 +114,25 @@ export function formatValue(v: number, digits: number): string {
     return text.startsWith("-") ? `(${text})` : text;
 }
 
+// A whole number literal at the end (the digits of a name such as `k2` do not count), and a name or
+// `(` at the start, each with spaces allowed in between (ADR 32).
+const AFTER_NUMBER = /(?:^|[^\p{L}\p{N}.])[\d.]+\s*$/u;
+const BEFORE_NAME = /^\s*[\p{L}(]/u;
+
 /**
- * Replaces each slider letter with its value (letters without an entry stay). Fails with `too-long`
- * when a result exceeds the parser's limit, reporting the longest.
+ * Replaces each slider letter with its value (letters without an entry stay). A value right after a
+ * number, or right before a name or `(`, goes in parentheses so that it keeps the meaning of the
+ * letter: `2a` is a product (`2(1.5)`, not `21.5`) and `a(x)` is an error at every value, as `x(1)`
+ * is. Fails with `too-long` when a result exceeds the parser's limit, reporting the longest.
  */
 export function substitute(exprs: Item["exprs"], sliders: Record<string, Slider>): Result<Item["exprs"]> {
     const out = exprs.map((e) =>
-        e.replace(IDENT, (tok) => (SLIDER.test(tok) && Object.prototype.hasOwnProperty.call(sliders, tok) ? formatValue(sliders[tok].value, decimals(sliders[tok])) : tok)),
+        e.replace(IDENT, (tok, at: number) => {
+            if (!SLIDER.test(tok) || !Object.prototype.hasOwnProperty.call(sliders, tok)) return tok;
+            const value = formatValue(sliders[tok].value, decimals(sliders[tok]));
+            const wrap = AFTER_NUMBER.test(e.slice(0, at)) || BEFORE_NAME.test(e.slice(at + tok.length));
+            return wrap && !value.startsWith("(") ? `(${value})` : value;
+        }),
     ) as Item["exprs"];
     const length = Math.max(...out.map((e) => e.length));
     return length > MAX_EXPR ? { ok: false, error: { kind: "too-long", length, max: MAX_EXPR } } : { ok: true, value: out };

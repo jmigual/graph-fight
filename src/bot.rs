@@ -127,22 +127,57 @@ fn format_value(v: f64) -> String {
     }
 }
 
+/// True when `before` ends in a whole number literal, spaces allowed between: the digits of a
+/// name such as `k2` or `log10` do not count (ADR 32).
+fn ends_in_number(before: &[char]) -> bool {
+    let before = &before[..before
+        .iter()
+        .rposition(|c| !c.is_whitespace())
+        .map_or(0, |i| i + 1)];
+    let number = before
+        .iter()
+        .rev()
+        .take_while(|c| c.is_ascii_digit() || **c == '.')
+        .count();
+    number > 0
+        && before
+            .len()
+            .checked_sub(number + 1)
+            .is_none_or(|i| !before[i].is_alphanumeric())
+}
+
 /// Replaces each slider name in `expr` with its value, the text `substitute` in `js/library.ts`
-/// gives for a slider with 6 decimals. Names are a letter followed by letters or digits.
+/// gives for a slider with 6 decimals. Names are a letter followed by letters or digits. A value
+/// right after a number, or right before a name or `(`, goes in parentheses so that it keeps the
+/// meaning of the slider letter (ADR 32): `2a` is a product and `a(x)` an error at every value.
 fn substitute(expr: &str, sliders: &[(String, Limits)], values: &[f64]) -> String {
+    let chars: Vec<char> = expr.chars().collect();
     let mut out = String::new();
-    let mut chars = expr.chars().peekable();
-    while let Some(c) = chars.next() {
-        if !c.is_alphabetic() {
-            out.push(c);
+    let mut i = 0;
+    while i < chars.len() {
+        if !chars[i].is_alphabetic() {
+            out.push(chars[i]);
+            i += 1;
             continue;
         }
-        let mut name = c.to_string();
-        while let Some(n) = chars.next_if(|n| n.is_alphanumeric()) {
-            name.push(n);
+        let start = i;
+        while i < chars.len() && chars[i].is_alphanumeric() {
+            i += 1;
         }
+        let name: String = chars[start..i].iter().collect();
         match sliders.iter().position(|(s, _)| *s == name) {
-            Some(i) => out.push_str(&format_value(values[i])),
+            Some(k) => {
+                let value = format_value(values[k]);
+                let before_name = chars[i..]
+                    .iter()
+                    .find(|c| !c.is_whitespace())
+                    .is_some_and(|c| c.is_alphabetic() || *c == '(');
+                if (ends_in_number(&chars[..start]) || before_name) && !value.starts_with('(') {
+                    out.push_str(&format!("({value})"));
+                } else {
+                    out.push_str(&value);
+                }
+            }
             None => out.push_str(&name),
         }
     }
@@ -450,6 +485,43 @@ mod tests {
             substitute("a*sin(b*θ)", &limits(&["a", "b"]), &[4.25, 7.0000004]),
             "4.25*sin(7*θ)"
         );
+    }
+
+    /// The parenthesis rules of `substitute` (ADR 32); tests/library.test.mjs asserts the same pairs.
+    #[test]
+    fn substitute_parenthesises_values_beside_numbers_and_names() {
+        let sliders: Vec<(String, Limits)> = ["a", "k2"]
+            .iter()
+            .map(|n| (n.to_string(), Limits { min: -1., max: 1. }))
+            .collect();
+        for (expr, text, parses) in [
+            ("2a", "2(1.5)", true),
+            ("2.5a", "2.5(1.5)", true),
+            (".5a", ".5(1.5)", true),
+            ("2 a", "2 (1.5)", true),
+            ("x+3a", "x+3(1.5)", true),
+            ("3k2", "3(0.5)", true),
+            ("x^2a", "x^2(1.5)", true),
+            ("a(x+1)", "(1.5)(x+1)", false),
+            ("a x", "(1.5) x", false),
+            ("a sin(x)", "(1.5) sin(x)", false),
+            ("q2 a", "q2 1.5", false),
+            ("a*x", "1.5*x", true),
+            ("x^a", "x^1.5", true),
+            ("sin(a)", "sin(1.5)", true),
+        ] {
+            let got = substitute(expr, &sliders, &[1.5, 0.5]);
+            assert_eq!(got, text, "{expr}");
+            assert_eq!(Formula::parse(&got, "x").is_ok(), parses, "{got}");
+        }
+        // A negative value has its parentheses already.
+        let got = substitute("2a", &sliders, &[-2., 0.]);
+        assert_eq!(got, "2(-2)");
+        assert!(Formula::parse(&got, "x").is_ok());
+        assert_eq!(substitute("a(x+1)", &sliders, &[-2., 0.]), "(-2)(x+1)");
+        assert_eq!(substitute("a x", &sliders, &[-2., 0.]), "(-2) x");
+        // The digits of a name are not a number: `log10 a` and `k3 a` do not wrap.
+        assert_eq!(substitute("log10 a", &sliders, &[1.5, 0.]), "log10 1.5");
     }
 
     #[test]

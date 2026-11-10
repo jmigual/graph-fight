@@ -34,7 +34,7 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", tex
 /** The ADR's wording for a library error. */
 function describe(error: LibraryError): string {
     return error.kind === "glued"
-        ? `Put * between a number and a slider: 2*${error.slider}.`
+        ? `A slider cannot be directly followed by a point: use ${error.slider}*.5.`
         : `Too long with these values (${error.length} of ${error.max} characters).`;
 }
 
