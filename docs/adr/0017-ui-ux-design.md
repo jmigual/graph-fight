@@ -360,15 +360,20 @@ before start), it stands alone.
   `r(t), θ(t)` on the disc. The accessible names are "Function" and "Parametric". Ids are unchanged.
 - **Inputs** `#input-a`/`#input-b` with the labels from `LABELS` ("y =", "x(t) =", ...), plus
   `maxlength="256"` (the parser cap; `θ` is one UTF-16 unit), `spellcheck="false"`,
-  `autocapitalize="off"`, `autocorrect="off"`, `enterkeyhint="send"`, `aria-describedby="error"`.
+  `autocapitalize="off"`, `autocorrect="off"`, `enterkeyhint="send"`, `aria-describedby="formula-hint error"`.
   Enter fires (the form submits).
   - **Typed symbols.** On `input` (not while composing), each whole identifier `theta` or `pi`
     becomes `θ` or `π` (`autoSymbols` in `library.ts`, the same identifier rule as the slider
     tokens), so `pix`, `theta2` and `2*pi` keep their other letters and digits. The caret keeps its
     place in the text. `th` is not replaced, since `theta` passes through it; the parser accepts
     it as a second alias of `θ` (ADR 3). Assigning `value` ends the browser's undo for that input.
-    Saved formulas and templates have no formula inputs of their own: Insert fills these inputs.
-    A hint under the helper buttons says so.
+    Stored saved formulas and templates keep `theta` and `pi` as text. Insert converts them, because
+    `fill()` dispatches `input`; the per-character refill (section 4) assigns the value without an
+    event, which is harmless because typed text is already converted. Keyboards that compose whole
+    words (for example Gboard) may show `θ`/`π` only after the next non-composing input.
+  - **Hint** `#formula-hint`, under the helper buttons and named by both inputs' `aria-describedby`:
+    "Type pi for π." and, on the disc function only (where `θ` is the variable), "Type theta (or
+    th) for θ." `refresh(field, parametric)` shows the second sentence.
 - **Helper buttons**, `role="group"` with the label "Insert", placed between the inputs and the
   Save/Fire row:
   - Always visible: the mode variable (`x` on XY function, `θ` on disc function, `t` in either

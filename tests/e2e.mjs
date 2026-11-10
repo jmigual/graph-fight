@@ -857,11 +857,17 @@ const scenarios = {
         assert.equal(await guest.inputValue("#input-a"), "draft", "the draft survives the replay of the same turn");
         return errors;
     },
-    async X() {
+    async AH() {
         // Typing the whole word theta or pi in a formula input gives θ or π, with the caret kept, and the
         // result fires (ADR 17). `th` stays as typed: it is a parser alias, and theta passes through it.
-        const { pages, errors } = await startGame(2, "disc", "X");
+        // The hint offers theta only where θ is the variable.
+        const { pages, errors } = await startGame(2, "disc", "AH");
         await assertSynced(pages, 0);
+        const hint = (page) => page.locator("#theta-hint").isVisible();
+        const first = await shooter(pages);
+        assert.equal(await hint(first), true, "disc function: the hint mentions theta");
+        await first.check("#mode-parametric");
+        assert.equal(await hint(first), false, "parametric: it does not");
         const typeAndFire = async (typed, shown, turn) => {
             const page = await shooter(pages);
             await page.check("#mode-explicit");
@@ -872,9 +878,10 @@ const scenarios = {
             await page.click("#fire");
             await assertSynced(pages, turn + 1);
         };
-        await typeAndFire("theta/2", "θ/2", 0);
-        await typeAndFire("th/2", "th/2", 1);
-        await typeAndFire("pi/4", "π/4", 2);
+        // The shots climb steeply and leave the disc at once, so none can kill and the turn always advances.
+        await typeAndFire("1000*theta", "1000*θ", 0);
+        await typeAndFire("1000*th", "1000*th", 1);
+        await typeAndFire("1000*pi*th", "1000*π*th", 2);
         return errors;
     },
 };

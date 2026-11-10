@@ -347,6 +347,7 @@ export function initEditor(): { refresh(field: Field, parametric: boolean): void
     return {
         refresh(f, parametric) {
             $("insert-var").textContent = VARIABLE[f][parametric ? "parametric" : "explicit"];
+            $("theta-hint").hidden = !(f === "disc" && !parametric);
             if (f !== field || !list.hasChildNodes()) {
                 field = f;
                 render();
