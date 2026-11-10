@@ -329,7 +329,7 @@
         <p>Each player controls a team of 3 characters. You aim by writing a formula; your shot follows its curve and kills every character it touches. The last team with a character standing wins.</p>
         <h4 id="help-turns">Turns and the timer</h4>
         <ul>
-          <li>Teams take turns in team order. Within a team the characters take turns too: after a team shoots, its next living character is up the next time it is the team's turn.</li>
+          <li>Teams take turns in team order. Within a team the characters take turns too: after a team's turn (a shot or a timeout), its next living character is up the next time it is the team's turn.</li>
           <li>The status bar says whose turn it is ("Your turn", "Team 2 is aiming"), and the tab title starts with "Your turn" when it is yours. You can type while you wait; only Fire is disabled.</li>
           <li>A turn lasts 60 seconds. The bar under the status drains and the number turns red under 10 s. When it reaches 0 the host skips the turn and nobody shoots. The timer keeps running while this help is open.</li>
           <li>Fire checks your formula first. A formula that cannot be used shows an error under the boxes and does not cost the turn.</li>
@@ -363,12 +363,12 @@
         <h4 id="help-variables">The variable</h4>
         <ul>
           <li>XY plane, <code>y = f(x)</code>: the variable is <code>x</code>.</li>
-          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. <code>theta</code> works too, for keyboards without θ.</li>
+          <li>Polar disc, <code>r = f(θ)</code>: the variable is <code>θ</code>. Typing <code>theta</code> in the box turns it into θ as you type, and <code>th</code> and <code>theta</code> are also accepted as typed text for θ.</li>
           <li>Parametric, on either field: the variable is <code>t</code> in both boxes, <code>x(t)</code> and <code>y(t)</code> or <code>r(t)</code> and <code>θ(t)</code>.</li>
           <li>Any other name is an error ("Unknown name 'y'"); <code>x</code> does not work on the disc, nor <code>θ</code> on the XY plane. The first helper button under the boxes always shows the variable of the current mode.</li>
         </ul>
         <h4 id="help-constants">Constants and functions</h4>
-        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Type <code>pi</code>, not π: the π button inserts it for you.</p>
+        <p>Constants: <span id="help-constants-list"><code>pi</code> <code>e</code></span>. Typing <code>pi</code> in the box turns it into π as you type, as on Desmos; the π button inserts it too.</p>
         <p>Functions, always with parentheses, as in <code>sin(x)</code>; angles are in radians and <code>ln</code> is the natural logarithm:</p>
         <p id="help-functions"><code>sin</code> <code>cos</code> <code>tan</code> <code>asin</code> <code>acos</code> <code>atan</code> <code>sinh</code> <code>cosh</code> <code>tanh</code> <code>sqrt</code> <code>abs</code> <code>exp</code> <code>ln</code> <code>log10</code> <code>floor</code> <code>ceil</code></p>
         <h4 id="help-operators">Operators and precedence</h4>
@@ -393,7 +393,7 @@
         <p>Every shot is a curve that starts exactly at the shooter. The host's Coordinates option decides what <code>x</code>, <code>y</code>, <code>r</code> and <code>θ</code> mean:</p>
         <ul>
           <li><strong>Map-centred</strong> (the default, like Graphwar): the formula is written in the map's own coordinates, the same for every player. The curve is then moved so that it passes through the shooter.</li>
-          <li><strong>Player-centred</strong>: the formula is written in a frame at the shooter, facing the opponents.</li>
+          <li><strong>Player-centred</strong>: the formula is written in a frame at the shooter, whose first axis points toward the centre of the map.</li>
         </ul>
         <p>The lobby and the waiting room show which one a game uses. The map is the XY plane, 40 wide and 20 high with the origin at the centre (<code>x</code> from -20 to 20, <code>y</code> from -10 to 10), or the polar disc of radius 10 around the centre. One grid square is one unit on both axes, so slopes look as they are.</p>
 
@@ -435,7 +435,7 @@
           <li>A negative <code>r</code> is the point on the opposite side of the centre, so a shot can pass through the centre to the far side.</li>
           <li>Clockwise is a mirror image of Counterclockwise across the line from the centre through the shooter only when <code>f</code> is symmetric about <code>θ<sub>0</sub></code>; it always is for parametric shots.</li>
         </ul>
-        <p>Examples: <code>r = 3</code> orbits the centre at the shooter's own distance and comes back round to the shooter (any constant does the same). <code>r = θ</code> spirals outward from the shooter, and inward with Clockwise. And the parametric shot <code>r(t) = -t</code>, <code>θ(t) = 0</code> flies straight from the shooter through the centre to the far side.</p>
+        <p>Examples: <code>r = 3</code> orbits the centre at the shooter's own distance and comes back round to the shooter (any constant does the same). <code>r = θ</code> spirals outward from the shooter, and inward with Clockwise (through the centre if you stand closer than 2π). And the parametric shot <code>r(t) = -t</code>, <code>θ(t) = 0</code> flies straight from the shooter through the centre to the far side.</p>
         <figure class="help-figure">
           <svg viewBox="0 0 220 200" role="img" aria-labelledby="help-polar-caption">
             <defs><marker id="help-polar-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L8 4L0 8z" class="head"/></marker></defs>
@@ -465,19 +465,18 @@
         <p>For the explicit modes, undefined at the shooter means that <code>f(x<sub>p</sub>)</code> (XY) or <code>f(θ<sub>0</sub>)</code> (disc) is not finite.</p>
 
         <h4 id="help-coords-player">Player-centred</h4>
-        <p>The formula is written in a frame at the shooter, whose first axis points toward the opponents. The curve is drawn in that frame and moved so that its start sits on the shooter: <code>x = 0</code> for <code>f(x)</code>, <code>θ = 0</code> for <code>f(θ)</code> and <code>t = 0</code> for the parametric modes. That start is where "undefined at the shooter" applies. The ranges are as above, with <code>θ</code> running from 0 to 2π.</p>
+        <p>The formula is written in a frame at the shooter, whose first axis points toward the centre of the map. The curve is drawn in that frame and moved so that its start sits on the shooter: <code>x = 0</code> for <code>f(x)</code>, <code>θ = 0</code> for <code>f(θ)</code> and <code>t = 0</code> for the parametric modes. That start is where "undefined at the shooter" applies. The ranges are as above, with <code>θ</code> running from 0 to 2π.</p>
         <ul>
           <li>XY plane: <code>x</code> points toward the centre, so the frame is mirrored for a shooter on the right half. <code>y = x</code> climbs in both teams' frames: to the right for the left team and to the left for the right team. The curve is <code>y = f(x) − f(0)</code> from the shooter, and a parametric shot is mirrored the same way.</li>
           <li>Polar disc: <code>θ = 0</code> points from the shooter to the centre. <code>r = θ</code> starts at the shooter along that line. Counterclockwise turns to the shooter's left as it faces the centre, and Clockwise mirrors the whole shot across the line through the shooter and the centre. In the parametric mode, <code>r(t) = t</code>, <code>θ(t) = 0</code> flies straight at the centre and on to the far side, and <code>r(t) = −t</code> flies away from the centre and out of the disc.</li>
         </ul>
 
         <h4 id="help-coords-hints">What the board shows on your turn</h4>
-        <p>The graph paper follows the coordinates. A map-centred board draws the map's own axes and a player-centred board draws axes through the current shooter; the numbers 5, 10 and 15 mark the distance along an axis. On your own turn only (other players do not see yours) the board also marks where your formula starts:</p>
+        <p>The graph paper follows the coordinates, and every player sees the same axes. A map-centred board draws the map's own axes; on the disc they carry <code>θ = 0</code>, <code>π/2</code>, <code>π</code> and <code>3π/2</code>. A player-centred board draws axes through the current shooter, on every turn: on the XY plane the arrow on the horizontal one points toward the centre, and on the disc the <code>θ = 0</code> axis points toward the centre. The numbers 5, 10 and 15 mark the distance along an axis. On your own turn only (other players do not see yours) the board also marks where your formula starts:</p>
         <ul>
           <li>XY, map-centred: a line down to the horizontal axis at your character, the label <code>x ≈ -8.00</code> (your <code>x<sub>p</sub></code> to two decimals) and an arrow showing which way <code>x</code> sweeps.</li>
-          <li>Disc, map-centred: a line from the centre to your character, an arc at the centre from the <code>θ = 0</code> axis to that line labelled <code>θ₀ ≈ 2.35</code> (radians), and an arc with an arrow just inside your character showing which way <code>θ</code> sweeps. The arrow flips when you change Direction. The axes carry <code>θ = 0</code>, <code>π/2</code>, <code>π</code> and <code>3π/2</code>.</li>
-          <li>XY, player-centred: the axes pass through your character, and the arrow on the horizontal one points toward the centre.</li>
-          <li>Disc, player-centred: the <code>θ = 0</code> axis toward the centre, an arc arrow by your character for the way <code>θ</code> grows, and <code>π/2</code> on the ray a quarter turn that way.</li>
+          <li>Disc, map-centred: a line from the centre to your character, an arc at the centre from the <code>θ = 0</code> axis to that line labelled <code>θ₀ ≈ 2.35</code> (radians), and an arc with an arrow just inside your character showing which way <code>θ</code> sweeps. The arrow flips when you change Direction.</li>
+          <li>Disc, player-centred: an arc arrow by your character for the way <code>θ</code> grows, and <code>π/2</code> on the ray a quarter turn that way.</li>
         </ul>
       </section>
 
@@ -504,16 +503,16 @@
           <li><strong>Step:</strong> optional, as on Desmos. Empty means any value in between; a step makes the slider move in jumps of that size, counted from the lowest value.</li>
           <li><strong>Limits:</strong> typing a value outside them widens the limits to include it. The lowest must stay below the highest, the step above 0, and every number at most 1,000,000 in size; otherwise the edit is refused and the old limits stay.</li>
           <li><strong>Preview:</strong> the line under a template, <code>→ 1.5*sin(0.5*x)</code>, is the exact text that Insert will put in the boxes.</li>
-          <li><strong>Insert</strong> replaces each slider letter with its value, putting a negative value in parentheses (<code>x^(-2)</code>), switches to the template's mode and replaces the boxes. The result is an ordinary formula that you can edit before firing. If the result would be over <strong>256</strong> characters, nothing is inserted.</li>
+          <li><strong>Insert</strong> replaces each slider letter with its value, putting a negative value in parentheses (<code>x^(-2)</code>), switches to the template's mode and replaces the boxes. The result is an ordinary formula that you can edit before firing. If the result would be over the length limit above, nothing is inserted.</li>
           <li><strong>Your own template:</strong> type a formula that uses slider letters, for example <code>a*sin(b*x)</code>, and Save it. It shows up in the list with its sliders open, ready to adjust. Sliders and their limits are saved as you change them.</li>
         </ul>
         <h4 id="help-starters">Starter templates</h4>
-        <p>The first time you open the game, these templates are in your list. A deleted starter stays deleted. They are written for map-centred games; in a player-centred disc game the two radial ones (<code>-t</code>) point away from the centre, so use <code>r(t) = t</code> there. Each slider is shown as lowest to highest, step, and the value it starts at.</p>
+        <p>The first time you open the game, these templates are in your list. A deleted starter stays deleted. They are written for map-centred games; in a player-centred disc game the two radial ones (<code>-t</code>) point away from the centre, so use <code>r(t) = t</code> there.</p>
         <ul>
-          <li>XY, function: <strong>Line</strong> <code>a*x</code> (a: -2 to 2, step 0.05, 0.5). <strong>Parabola</strong> <code>a*(x - b)^2</code> (a: -0.5 to 0.5, step 0.01, -0.02; b: -20 to 20, step 0.5, 0), with its vertex at map <code>x = b</code>. <strong>Wave</strong> <code>a*sin(b*x)</code> (a: 0 to 5, step 0.1, 2; b: 0 to 3, step 0.05, 1). <strong>Hop</strong> <code>a*exp(-((x-b)/c)^2)</code> (a: -5 to 5, step 0.1, 3; b: -20 to 20, step 0.1, 0; c: 0.2 to 5, step 0.1, 1), a bump at map <code>x = b</code>.</li>
-          <li>XY, parametric: <strong>Straight line</strong> <code>t*cos(a)</code>, <code>t*sin(a)</code> (a: -3.14 to 3.14, step 0.01, 0.5), a line at angle <code>a</code> in radians. <strong>Cycloid</strong> <code>d*(t - a*sin(t))</code>, <code>a*(1 - cos(t))</code> (a: 0 to 3, step 0.1, 1.5; d: -1 to 1, step 2, 1), rolling right with <code>d = 1</code> and left with <code>d = -1</code>.</li>
-          <li>Disc, function: <strong>Spiral</strong> <code>a*θ</code> (a: -3 to 3, step 0.1, 1). <strong>Wave</strong> <code>a*sin(b*θ)</code> (a: 0 to 5, step 0.1, 1; b: 1 to 8, step 1, 4), a wavy orbit around the centre.</li>
-          <li>Disc, parametric: <strong>Straight shot</strong> <code>-t</code>, <code>0</code> (no sliders), the line through the centre. <strong>Bend</strong> <code>-t</code>, <code>a*t</code> (a: -0.3 to 0.3, step 0.005, 0.05), which bends that line around the centre.</li>
+          <li>XY, function: <strong>Line</strong> <code>a*x</code>. <strong>Parabola</strong> <code>a*(x - b)^2</code>, with its vertex at map <code>x = b</code>. <strong>Wave</strong> <code>a*sin(b*x)</code>. <strong>Hop</strong> <code>a*exp(-((x-b)/c)^2)</code>, a bump at map <code>x = b</code>.</li>
+          <li>XY, parametric: <strong>Straight line</strong> <code>t*cos(a)</code>, <code>t*sin(a)</code>, a line at angle <code>a</code> in radians. <strong>Cycloid</strong> <code>d*(t - a*sin(t))</code>, <code>a*(1 - cos(t))</code>, rolling right with <code>d = 1</code> and left with <code>d = -1</code>.</li>
+          <li>Disc, function: <strong>Spiral</strong> <code>a*θ</code>. <strong>Wave</strong> <code>a*sin(b*θ)</code>, a wavy orbit around the centre.</li>
+          <li>Disc, parametric: <strong>Straight shot</strong> <code>-t</code>, <code>0</code> (no sliders), the line through the centre. <strong>Bend</strong> <code>-t</code>, <code>a*t</code>, which bends that line around the centre.</li>
         </ul>
         <h4 id="help-memory">Each character's last formula</h4>
         <ul>
@@ -529,7 +528,7 @@
         <ul>
           <li>The host adds bots in the waiting room: pick a Bot level (Easy, Medium, the default, or Hard) and press Add bot. Each bot takes a seat, shows in the list as "Bot 1, hard", and has a Remove button. Start needs at least 2 players, bots included.</li>
           <li>The host's page plays the bots. A bot tries the starter templates for the field with different slider values (and both directions on the disc) and fires the one that scores best: enemies killed count for it and its own team's deaths count against it. It fires no sooner than 1.5 seconds into its turn.</li>
-          <li>The levels differ in how many tries a bot makes and how far its aim is off. In the measurements behind the design, a first shot on the XY plane hit about 1 time in 5 for Easy and about 2 in 3 for Hard.</li>
+          <li>The levels differ in how many tries a bot makes and how far its aim is off.</li>
           <li>To play alone, host a game, add bots to the other seats and press Start. This keeps working without a network once the page has loaded. Bots never leave; if the host leaves, the game ends.</li>
         </ul>
         <h4 id="help-local">Local players</h4>
@@ -563,9 +562,10 @@
       <section id="help-reconnect">
         <h3>Reconnecting and versions</h3>
         <ul>
-          <li>Reloading the page or losing the connection does not cost your seat. The page rejoins the game and the host replays it to you ("Rejoining…"). Your seat is kept in this tab, so use the same tab. Meanwhile the timer skips your turns.</li>
-          <li>If your link to the host stays down, the page leaves and rejoins the game room by itself, and gives up with "Host unreachable." after 3 minutes.</li>
-          <li>Closing the tab looks the same as a dropped connection, so your team stays in until the game ends. Use Leave game to leave.</li>
+          <li>A guest who reloads the page or loses the connection keeps the seat. The page rejoins the game and the host replays it to you ("Rejoining…"). The seat is kept in this tab, so use the same tab. Meanwhile the timer skips your turns.</li>
+          <li>If a guest's link to the host stays down, the page leaves and rejoins the game room by itself, and gives up with "Host unreachable." after 3 minutes.</li>
+          <li>A guest who closes the tab looks like a dropped connection, so the team stays in until the game ends. Use Leave game to leave.</li>
+          <li>The host is different: if the host reloads or closes the tab, the game ends for everyone.</li>
           <li>All players must run the same build of the game. A game from another build is listed as "Different version. Reload the page.", and a game that finds a different build ends with "Different version.": reload the page, then join again.</li>
         </ul>
       </section>

@@ -404,8 +404,6 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 #help h3 { font: 700 1.25rem/1.2 var(--font-ui); margin: 2rem 0 0.5rem; scroll-margin-top: 4rem; }
 #help h4 { font: 700 1rem/1.5 var(--font-ui); margin: 1.25rem 0 0.25rem; scroll-margin-top: 4rem; }
 #help code { font: 400 1.0625rem var(--font-math); }
-#help dt { font-weight: 700; margin-top: 0.75rem; }
-#help dd { margin: 0 0 0 1.25rem; }
 
 @media (max-width: 599px) {
     #help { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; }
