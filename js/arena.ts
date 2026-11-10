@@ -34,7 +34,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     /** Players by team in the engine's order, so `teams[t][i]` is `[t, i]` in a shot's hits and in `lookKey`. */
     let teams: Point[][] = [];
     let obstacles: Disc[] = [];
-    /** What Delete removes; choosing a player also makes it the shooter, which an obstacle's selection keeps. */
+    /** What Delete removes and Position moves. Clicking a player also makes it the shooter; dragging one or choosing an obstacle keeps the shooter. */
     let selected: Pick | null = null;
     let shooter: [number, number] | null = null;
     let sim: Sim | undefined;
@@ -94,6 +94,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         draw(canvas, next, before);
         view = next;
         renderItems();
+        showPosition();
         $<HTMLButtonElement>("fire").disabled = !at;
     }
 
@@ -125,6 +126,14 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         $("test-empty").hidden = list.childElementCount > 0;
         // Keep the keyboard in the list: on the same row, or the one before if the last row went.
         if (focused >= 0) (list.querySelectorAll("button")[Math.min(focused, list.childElementCount - 1)] ?? $("test-items-heading")).focus();
+    }
+
+    /** The Position fields show where the selection is, unless they are being edited. */
+    function showPosition() {
+        if (!selected || $("test-coords").contains(document.activeElement)) return;
+        const p = "player" in selected ? teams[selected.player[0]][selected.player[1]] : obstacles[selected.obstacle];
+        $<HTMLInputElement>("test-x").value = String(Math.round(p.x * 100) / 100);
+        $<HTMLInputElement>("test-y").value = String(Math.round(p.y * 100) / 100);
     }
 
     function select(pick: Pick) {
@@ -165,9 +174,9 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     const move = ([team, i]: [number, number], p: Point, failure?: string) =>
         commit(teams.map((spots, t) => (t === team ? spots.map((q, j) => (j === i ? p : q)) : spots)), obstacles, failure);
 
-    // A click on a player or an obstacle selects it, and one elsewhere places. Dragging a player moves
-    // it without choosing it as the shooter; it only moves through valid spots, and letting go on an
-    // invalid one says why.
+    // A click on a player or an obstacle selects it, and one elsewhere places. Dragging a player
+    // selects it without choosing it as the shooter; it only moves through valid spots, and letting
+    // go on an invalid one says why.
     const worldAt = (e: PointerEvent) => {
         const box = canvas.getBoundingClientRect();
         return toWorld(e.clientX - box.left, e.clientY - box.top, box.width, arenas[field].x, arenas[field].y);
@@ -190,7 +199,9 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         press.moved = true;
         if (!press.pick || !("player" in press.pick)) return;
         press.refused = !move(press.pick.player, worldAt(e));
-        if (!press.refused) render();
+        if (press.refused) return;
+        selected = press.pick;
+        render();
     });
     canvas.addEventListener("pointerup", (e) => {
         if (!press || !ours(e)) return;
@@ -300,6 +311,21 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         render();
     };
     $("remove-selected").onclick = remove;
+
+    // Position: the keyboard's way to place and move, and the way to exact spots. Both go through
+    // the same engine check as a click; an empty field is not a number, which the engine refuses.
+    const typed = (): Point => ({ x: $<HTMLInputElement>("test-x").valueAsNumber, y: $<HTMLInputElement>("test-y").valueAsNumber });
+    $<HTMLFormElement>("test-coords").onsubmit = (e) => {
+        e.preventDefault();
+        place(typed());
+    };
+    $("test-move").onclick = () => {
+        const pick = selected;
+        if (!pick) return setLive($("test-error"), "Choose a player or an obstacle to move.");
+        const p = typed();
+        const moved = "player" in pick ? move(pick.player, p, "Can't move it there.") : commit(teams, obstacles.map((o, i) => (i === pick.obstacle ? { ...o, ...p } : o)), "Can't move it there.");
+        if (moved) render();
+    };
 
     document.querySelectorAll("input[name=mode]").forEach((el) => el.addEventListener("change", () => active && editor.refresh(field, parametric())));
     // The direction moves our shooter's sweep marks and gaze (ADR 17).

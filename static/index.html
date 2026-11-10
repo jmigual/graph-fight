@@ -168,6 +168,17 @@
               <select id="test-team"></select></label>
             <label class="field"><span>Obstacle radius <output id="obstacle-size-value">1.0</output></span>
               <input id="obstacle-size" type="range" min="0.2" max="2" step="0.1" value="1"></label>
+            <form id="test-coords">
+              <fieldset>
+                <legend>Position</legend>
+                <label class="field"><span class="math">x</span><input id="test-x" type="number" step="any" required></label>
+                <label class="field"><span class="math">y</span><input id="test-y" type="number" step="any" required></label>
+                <div class="actions">
+                  <button type="submit" class="secondary">Place at x, y</button>
+                  <button id="test-move" type="button" class="secondary">Move selected to x, y</button>
+                </div>
+              </fieldset>
+            </form>
             <p id="test-error" class="error" role="alert"></p>
             <div class="actions">
               <button id="random-obstacles" type="button" class="secondary">Random obstacles</button>

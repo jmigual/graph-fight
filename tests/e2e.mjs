@@ -1456,16 +1456,32 @@ const scenarios = {
         await page.mouse.move(...(await spot(5, 3)), { steps: 5 });
         await page.mouse.up();
         assert.match(await text(page, "#test-items"), /Team 2 player 1 at \(5\.0, 3\.0\)/);
+        // The dragged player is selected, and Position shows where it is.
+        const position = async () => [Number(await page.inputValue("#test-x")), Number(await page.inputValue("#test-y"))];
+        const [px, py] = await position();
+        assert.ok(Math.abs(px - 5) < 0.1 && Math.abs(py - 3) < 0.1, `Position follows the drag (${px}, ${py})`);
         await fire(["0"], /^Team 1 player 1 fired y = 0\. It hit no player\.$/);
         // Another player shoots once chosen; on the disc, the straight shot through the centre.
         await page.getByRole("button", { name: /^Team 2 player 1/ }).click();
         await fire(["3*x/13"], /^Team 2 player 1 fired y = 3\*x\/13\. It hit Team 1 player 1\.$/);
+        // Position moves the selected player to an exact spot, through the same check as a click.
+        await page.fill("#test-x", "25");
+        await page.click("#test-move");
+        await page.waitForFunction(() => /^Can't move it there\. A player must be fully inside the field\.$/.test(document.getElementById("test-error").textContent));
+        await page.fill("#test-x", "5");
+        await page.fill("#test-y", "0");
+        await page.click("#test-move");
+        assert.match(await text(page, "#test-items"), /Team 2 player 1 at \(5\.0, 0\.0\), shooter/);
+        await fire(["0"], /^Team 2 player 1 fired y = 0\. It hit Team 1 player 1\.$/);
         await page.selectOption("#test-field", "disc");
         assert.equal(await page.locator("#test-items li").count(), 0, "another field starts over");
         assert.equal(await page.locator("#test-team option").count(), 8, "the disc has up to eight teams");
         await click(8, 0, [10, 10]);
+        // Placing from the keyboard: Position, then Enter.
         await page.selectOption("#test-team", "4");
-        await click(-5, 0, [10, 10]);
+        await page.fill("#test-x", "-5");
+        await page.fill("#test-y", "0");
+        await page.press("#test-y", "Enter");
         await fire(["-t", "0"], /^Team 1 player 1 fired r = -t, θ = 0, counterclockwise\. It hit Team 5 player 1\.$/);
         await page.click("#random-obstacles");
         assert.ok((await page.locator("#test-items li").count()) > 2, "random obstacles are added");

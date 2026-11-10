@@ -342,6 +342,10 @@ input.math { font-size: 1.25rem; width: 100%; min-width: 0; }
 #test-items button { width: 100%; text-align: left; font-variant-numeric: tabular-nums; }
 #test-items button[aria-pressed=true] { background: var(--grid); border-color: var(--ink); font-weight: 700; }
 #obstacle-size-value { font-variant-numeric: tabular-nums; }
+#test-coords fieldset { display: flex; flex-wrap: wrap; align-items: end; gap: 0 1rem; border: 0; padding: 0; margin: 0 0 1rem; min-width: 0; }
+#test-coords .field { margin-bottom: 0.5rem; }
+#test-coords input { width: 7rem; }
+#test-coords .actions { flex-basis: 100%; }
 
 @media (max-width: 959px) {
     .status-area { position: sticky; top: 0; z-index: 1; }
