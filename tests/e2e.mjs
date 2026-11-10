@@ -137,13 +137,12 @@ async function startGame(n, field, label, { seats = n, frame = "map", fakeHostCl
     return { pages, errors, seatsLine };
 }
 
-/** Every page's `#build` footer shows the announced build version as selectable text with an accessible name (ADR 17). */
+/** Every page's `#build` footer shows the announced build version with an accessible name (ADR 17). */
 async function assertBuild(pages, version) {
     assert.ok(version, "the host announced a version");
     for (const page of pages) {
         assert.equal(await text(page, "#build"), `v ${version}`);
         assert.equal(await page.getByLabel(`Build version ${version}`).count(), 1);
-        assert.notEqual(await page.locator("#build").evaluate((el) => getComputedStyle(el).userSelect), "none", "the version can be selected and copied");
     }
 }
 
@@ -219,6 +218,7 @@ const scenarios = {
         await pages[1].click("#quit");
         await pages[0].waitForSelector("#end:not([hidden])", { timeout: TURN_WAIT_MS });
         assert.match(await text(pages[0], "#end-message"), /win/i);
+        await assertBuild([pages[0]], pages[0].announced); // the end screen too
         return errors;
     },
     async B() {

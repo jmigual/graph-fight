@@ -663,7 +663,7 @@ Settled in S7 (`js/index.ts`): the Direction fieldset is shown when a disc game 
 checked then. It applies to both disc modes (`fire` and `fire_param` both take the flag, ADR 14). On XY the shot always
 carries `cw: false`. Changing it redraws only our board. `__state` also returns the last `shot` (ADR 15).
 
-Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
+Settled with the build version (`static/index.html`, `static/style.css`, `js/index.ts`): `<footer id="build">` outside the screens shows "v 1a2b3c4" (`BUILD_VERSION`, set once at startup; "v dev" without the build define, the `js/net.ts` fallback) in `--ink-soft` at 0.8 rem, selectable, with `aria-label` "Build version 1a2b3c4"; the e2e test compares it to the version the host announces.
 
 Settled in S8 (`js/index.ts`): a guest whose host link is down (`Game.absent()` lists the host) sees "Reconnecting to the
 host…" in `--ink-soft` and Fire is disabled; the host sees "Team 2 is disconnected. The timer will skip its turn." when the current
