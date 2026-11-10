@@ -107,7 +107,7 @@ teammate; friendly fire stays on; and the host chooses how many characters each 
   - `window.__state()` gains `shooter`, the seat id of the current character; `me` stays our side.
 - **Code.** `js/teams.ts` (pure, Node-tested): the sides of `start` (`sidesOf`, `seatsOf`,
   `sideOf`), the engine's `players_per_team` (`charactersPerSide`), `owner` with hand-over, and the
-  waiting room's `Seating` with the `join`, `leave` and `move` rules. `js/teams-view.ts`: the
+  waiting room's `join`, `leave` and `move` rules over `Lineup`, the `lineup` message's own type. `js/teams-view.ts`: the
   waiting-room side lists and the grouped roster. `js/net.ts` gains only the boundary checks and the
   two messages: `Game.lineup` (host) and `Game.askTeam` (guest) send them, `onLineup` and
   `onTeamRequest` receive them. The game and room modules call `owner` wherever they read

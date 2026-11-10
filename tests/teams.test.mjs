@@ -1,7 +1,7 @@
 // Run: node --experimental-strip-types --no-warnings tests/teams.test.mjs
 import assert from "node:assert/strict";
 import { DEFAULT_K } from "../js/net.ts";
-import { charactersPerSide, join, leave, move, newSeating, owner, seatsOf, sideOf, sidesOf } from "../js/teams.ts";
+import { charactersPerSide, join, leave, move, newLineup, owner, seatsOf, sideOf, sidesOf } from "../js/teams.ts";
 
 const none = new Set();
 // As the game reads a start: an absent `k` is the default.
@@ -48,24 +48,24 @@ assert.deepEqual(owners(trio, 1, new Set(["h", "s"])), ["p", "r", "t"], "the oth
 assert.deepEqual(owners(trio, 0, new Set(["h", "q", "s"])), [undefined, undefined, undefined], "the last seat leaving takes the side out");
 
 // Seating: a joiner takes the side with the most open seats, the lowest on a tie; a full room queues.
-let room = newSeating(2, 2);
-assert.deepEqual(room, { size: 2, sides: [[], []], waiting: [] });
+let room = newLineup(2, 2);
+assert.deepEqual(room, { size: 2, teams: [[], []], waiting: [] });
 for (const id of ["h", "a", "b", "c", "d", "e"]) room = join(room, id);
-assert.deepEqual(room, { size: 2, sides: [["h", "b"], ["a", "c"]], waiting: ["d", "e"] });
-assert.deepEqual(join(join(newSeating(3, 2), "h"), "a").sides, [["h"], ["a"], []]);
-assert.deepEqual(join({ size: 3, sides: [["h", "a"], ["b"]], waiting: [] }, "c").sides, [["h", "a"], ["b", "c"]], "the side with more room");
+assert.deepEqual(room, { size: 2, teams: [["h", "b"], ["a", "c"]], waiting: ["d", "e"] });
+assert.deepEqual(join(join(newLineup(3, 2), "h"), "a").teams, [["h"], ["a"], []]);
+assert.deepEqual(join({ size: 3, teams: [["h", "a"], ["b"]], waiting: [] }, "c").teams, [["h", "a"], ["b", "c"]], "the side with more room");
 
 // Leaving: the first waiting joiner, in join order, takes the seat that opens.
 room = leave(room, "a");
-assert.deepEqual(room, { size: 2, sides: [["h", "b"], ["c", "d"]], waiting: ["e"] });
+assert.deepEqual(room, { size: 2, teams: [["h", "b"], ["c", "d"]], waiting: ["e"] });
 room = leave(room, "e");
-assert.deepEqual(room, { size: 2, sides: [["h", "b"], ["c", "d"]], waiting: [] }, "a waiting joiner leaves the queue");
+assert.deepEqual(room, { size: 2, teams: [["h", "b"], ["c", "d"]], waiting: [] }, "a waiting joiner leaves the queue");
 room = leave(room, "x");
-assert.deepEqual(room.sides, [["h", "b"], ["c", "d"]], "an unknown id changes nothing");
+assert.deepEqual(room.teams, [["h", "b"], ["c", "d"]], "an unknown id changes nothing");
 
 // Moving: only a seated id, only to another side with an open seat.
 room = leave(room, "d");
-assert.deepEqual(move(room, "b", 1), { size: 2, sides: [["h"], ["c", "b"]], waiting: [] });
+assert.deepEqual(move(room, "b", 1), { size: 2, teams: [["h"], ["c", "b"]], waiting: [] });
 assert.equal(move(room, "b", 0), undefined, "already on that side");
 assert.equal(move(move(room, "b", 1), "h", 1), undefined, "a full side");
 assert.equal(move(room, "b", 2), undefined, "no such side");
