@@ -10,6 +10,9 @@ from the host), and relays `leave {peer}` for a seat it kicks, as for a quit.
 Amended by 0024: the listing carries `locked` (a password game), a private-link game is not listed,
 and a password or private-link game room is joined with Trystero's `password` option. The host may
 send a guest `{type: "share"}` (outside the sequence, accepted only from the host).
+Amended by 0027: `start` may carry `teams` (the side of each seat) and `k` (characters per player);
+the listing carries `teams` and `k`; the host sends guests `{type: "lineup"}` and takes `{type: "team"}`
+from them, both outside the sequence and only before `start`.
 Amended by 0028: the build id peers compare is `<release>+<hash>` from `CHANGELOG.md`, or the next
 minor `-dev+<hash>` in any build without `GRAPH_FIGHT_LOBBY=live` (see "Version check").
 Amended (2026-11-10): only the GitHub Pages build announces on `graph-fight:lobby`; every other build
