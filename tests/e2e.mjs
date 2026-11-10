@@ -421,7 +421,7 @@ const scenarios = {
         assert.equal(await text(restored, "#room-status"), "Rejoining…");
         const hostAgain = async () => {
             await host.fill("#host-name", `e2e-H-${Math.random().toString(36).slice(2, 8)}`);
-            await host.click("#host-form button");
+            await host.click("#host-form button[type=submit]");
         };
         const twoPlayers = () => host.waitForFunction(() => document.querySelectorAll("#room-players li").length === 2, null, { timeout: SETUP_MS });
         await hostAgain();
