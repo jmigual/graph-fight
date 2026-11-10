@@ -226,11 +226,15 @@ are CSS px. A `ResizeObserver` on the canvas redraws. `canvasWidth` is removed f
 ADR 15's "canvas 800 x 400 / 600 x 600" no longer applies. The arena constants that feed the
 engine do not change. CSS sizes the canvas by the field's ratio (`--ratio: 2` for XY, `1` for the
 disc): `aspect-ratio: var(--ratio); width: min(100%, calc((100dvh - var(--chrome)) * var(--ratio)))`, so
-the whole board fits the viewport without distortion. `--ratio` and `--chrome` are `:root` tokens;
-`--chrome` is 7rem for the status bar, the margins and the last-shot line, plus the Help bar above
-the screens (ADR 26: 0.5rem and a control's height), `calc(7.5rem + var(--control-h))`. `--game-w`
-is a `:root` token too, the game's width at which the height-bound board exactly fills its column:
-`(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most that wide, so on a wide window the board takes the rest of the width beside the side column.
+the whole board fits the viewport without distortion. `--ratio` and `--chrome` are `:root` tokens.
+`--chrome` is `calc(5.25rem + 2 * var(--control-h))`: two controls, the Help button in the bar above
+the screens (ADR 26) and the button in the status bar (Leave game, or Back to lobby in the test
+arena), plus 5.25rem for the bar's top padding, `main`'s top padding, the status bar's padding, the
+timer bar, the board's margins and the last-shot line. That is 7rem plus the Help bar with a fine
+pointer (36 px controls), and it grows with the 44 px controls of a coarse one. `--game-w` is a
+`:root` token too, the game's width at which the height-bound board exactly fills its column:
+`(100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem`. The game screen is at most that
+wide, so on a wide window the board takes the rest of the width beside the side column.
 
 Settled in S2 (`js/render.ts`): an "N px halo" is a `--paper` stroke 2N px wide under the text.
 The disc numbers its `θ = 0` axis 5, 10, 15 like the XY `+x` axis, leaving the end of the axis to

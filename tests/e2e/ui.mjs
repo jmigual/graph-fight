@@ -192,6 +192,25 @@ export const scenarios = {
         assert.ok(board.width > 1000, `the board grows with the window (${board.width} px)`);
         await host.setViewportSize({ width: 360, height: 800 });
         assert.equal((await box(host, "#game")).sideways, false, "the game does not scroll sideways at 360 px");
-        return errors;
+        // The board's height budget counts the Help bar and the status bar's button, with a fine or a
+        // coarse pointer: a disc game's last-shot line ends inside the window (ADR 17, section 4).
+        const discErrors = [];
+        for (const hasTouch of [false, true]) {
+            const disc = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch })).newPage();
+            disc.on("pageerror", (e) => discErrors.push(`disc: ${e}`));
+            await disc.goto(url);
+            await disc.context().setOffline(true);
+            await disc.selectOption("#host-field", "disc");
+            await disc.click("#host-form button[type=submit]");
+            await disc.click("#add-bot");
+            await disc.click("#start");
+            await disc.waitForSelector("#game:not([hidden])");
+            const [bottom, height] = await disc.evaluate(() => {
+                scrollTo(0, 0);
+                return [document.getElementById("last-shot").getBoundingClientRect().bottom, innerHeight];
+            });
+            assert.ok(bottom <= height, `the disc's last-shot line ends in the window, ${hasTouch ? "coarse" : "fine"} pointer (${bottom}, ${height})`);
+        }
+        return [...errors, ...discErrors];
     },
 };

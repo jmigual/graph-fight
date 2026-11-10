@@ -29,7 +29,8 @@
     --control-h: 36px;
     --page: 72rem;           /* lobby measure */
     --side: 24rem;           /* game side column */
-    --chrome: calc(7.5rem + var(--control-h)); /* vertical space above and below the board, with the Help bar */
+    /* Vertical space above and below the board: the Help bar and the status bar each hold a control. */
+    --chrome: calc(5.25rem + 2 * var(--control-h));
     --ratio: 2;              /* board aspect: 2 on XY, 1 on the disc */
     /* The game's width at which the board, sized by the viewport's height, exactly fills its column. */
     --game-w: calc((100dvh - var(--chrome)) * var(--ratio) + var(--side) + 2rem);
