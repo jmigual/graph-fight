@@ -95,7 +95,6 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         draw(canvas, next, before);
         view = next;
         renderItems();
-        showPosition();
         $<HTMLButtonElement>("fire").disabled = !at;
     }
 
@@ -129,9 +128,9 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         if (focused >= 0) (list.querySelectorAll("button")[Math.min(focused, list.childElementCount - 1)] ?? $("test-items-heading")).focus();
     }
 
-    /** The Position fields show where the selection is, unless they are being edited. */
+    /** Fills the Position fields with where the selection is: after a click, a list choice or a drag, never on other redraws, so typed values stay. */
     function showPosition() {
-        if (!selected || $("test-coords").contains(document.activeElement)) return;
+        if (!selected) return;
         const p = "player" in selected ? teams[selected.player[0]][selected.player[1]] : obstacles[selected.obstacle];
         $<HTMLInputElement>("test-x").value = String(Math.round(p.x * 100) / 100);
         $<HTMLInputElement>("test-y").value = String(Math.round(p.y * 100) / 100);
@@ -141,6 +140,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         selected = pick;
         if ("player" in pick) shooter = pick.player;
         setLive($("test-error"), "");
+        showPosition();
         render();
     }
 
@@ -202,6 +202,7 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
         press.refused = !move(press.pick.player, worldAt(e));
         if (press.refused) return;
         selected = press.pick;
+        showPosition();
         render();
     });
     canvas.addEventListener("pointerup", (e) => {
@@ -319,14 +320,16 @@ export function initArena(editor: { refresh(field: Field, parametric: boolean): 
     };
     $("remove-selected").onclick = remove;
 
-    // Position: the keyboard's way to place and move, and the way to exact spots. Both go through
-    // the same engine check as a click; an empty field is not a number, which the engine refuses.
+    // Position: the keyboard's way to place and move, and the way to exact spots. The fields are
+    // required numbers, which the browser checks first; then the same engine check as a click.
     const typed = (): Point => ({ x: $<HTMLInputElement>("test-x").valueAsNumber, y: $<HTMLInputElement>("test-y").valueAsNumber });
     $<HTMLFormElement>("test-coords").onsubmit = (e) => {
         e.preventDefault();
         place(typed());
     };
     $("test-move").onclick = () => {
+        // A plain button skips the form's own check, so an empty field would reach the engine as NaN.
+        if (!$<HTMLFormElement>("test-coords").reportValidity()) return;
         const pick = selected;
         if (!pick) return setLive($("test-error"), "Choose a player or an obstacle to move.");
         const p = typed();

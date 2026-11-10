@@ -1484,6 +1484,15 @@ const scenarios = {
         await page.click("#test-move");
         assert.match(await text(page, "#test-items"), /Team 2 player 1 at \(5\.0, 0\.0\), shooter/);
         await fire(["0"], /^Team 2 player 1 fired y = 0\. It hit Team 1 player 1\.$/);
+        // An empty field is caught by the form, not sent to the engine; a typed value survives a shot.
+        await page.fill("#test-x", "");
+        await page.click("#test-move");
+        assert.equal(await page.evaluate(() => document.getElementById("test-x").matches(":invalid")), true);
+        assert.equal(await text(page, "#test-error"), "", "no engine message for an empty field");
+        assert.match(await text(page, "#test-items"), /Team 2 player 1 at \(5\.0, 0\.0\)/);
+        await page.fill("#test-x", "1.5");
+        await fire(["0"], /It hit Team 1 player 1\.$/);
+        assert.equal(await page.inputValue("#test-x"), "1.5", "Position keeps what was typed");
         await page.selectOption("#test-field", "disc");
         assert.equal(await page.locator("#test-items li").count(), 0, "another field starts over");
         assert.equal(await page.locator("#test-team option").count(), 8, "the disc has up to eight teams");
