@@ -1,8 +1,11 @@
 // Takes the README's screenshots (docs/img/*.png) on the built dist/, in the light theme only (ADR 17).
 // Needs `npm run build` first and Playwright's Chromium. The lobby and the multi-player games need the
 // Nostr relays (real peers); the test arena and the saved formulas are taken offline.
-// Run: node scripts/screenshots.mjs [lobby|xy|disc|phone|arena ...]   (no names: all of them; xy also takes formulas.png)
+// `about` then makes the web-sized WebP copies the About section serves (ADR 29) from four of those PNGs,
+// so it also runs alone, offline, on the PNGs already in docs/img.
+// Run: node scripts/screenshots.mjs [lobby|xy|disc|phone|arena|about ...]   (no names: all of them; xy also takes formulas.png)
 import { createServer } from "node:http";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +14,10 @@ import { chromium } from "playwright";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const DIST = resolve(root, "dist");
 const OUT = resolve(root, "docs/img");
+const ABOUT_OUT = resolve(root, "static/about");
+/** The README images the About section shows, with the CSS width each has there; the copy is 2x that wide. */
+const ABOUT = { "game-xy": 564, "game-disc": 564, "formulas": 424, arena: 564 };
+const ABOUT_QUALITY = 0.85;
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml" };
 /** Every context is light, so no image can show the dark theme. Rendered at 2x so they are sharp on GitHub. */
 const CONTEXT = { colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 };
@@ -137,6 +144,26 @@ async function arena() {
     await page.context().close();
 }
 
+/** Scales the PNG `name` to `2 * width` pixels and encodes it as WebP, which Chromium's canvas can do and its screenshots cannot. */
+async function webp(name, width) {
+    const page = await browser.newPage();
+    const png = (await readFile(`${OUT}/${name}.png`)).toString("base64");
+    const copy = await page.evaluate(async ([data, w, quality]) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${data}`;
+        await img.decode();
+        const canvas = new OffscreenCanvas(2 * w, Math.round((2 * w * img.height) / img.width));
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await canvas.convertToBlob({ type: "image/webp", quality });
+        return { size: [canvas.width, canvas.height], data: btoa(Array.from(new Uint8Array(await blob.arrayBuffer()), (b) => String.fromCharCode(b)).join("")) };
+    }, [png, width, ABOUT_QUALITY]);
+    await page.close();
+    writeFileSync(`${ABOUT_OUT}/${name}.webp`, Buffer.from(copy.data, "base64"));
+    console.log(`about/${name}.webp ${copy.size.join("x")} (shown at ${width}x${Math.round(copy.size[1] / 2)}) ${Buffer.from(copy.data, "base64").length} bytes`);
+}
+
 const shots = {
     async lobby() {
         // A guest's lobby with a password game and a public one, its host form set to Password, down to the Test arena button and the Password field.
@@ -190,6 +217,10 @@ const shots = {
         await closeAll(pages);
     },
     arena,
+    async about() {
+        mkdirSync(ABOUT_OUT, { recursive: true });
+        for (const [name, width] of Object.entries(ABOUT)) await webp(name, width);
+    },
 };
 
 try {
