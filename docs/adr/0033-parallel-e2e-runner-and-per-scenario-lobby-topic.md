@@ -35,7 +35,8 @@ room is keyed by it. The stored seat is per browser context. Only the lobby topi
   per scenario, which the pool hides. A hung scenario is killed after 180 s with SIGKILL (not
   SIGTERM: Playwright's handler can close the browser and leave the worker alive) and reported as
   `FAIL NAME: timed out after 180 s`; the killed worker's pipe to its browser closes, so the browser
-  exits with it. The runner also kills its workers on SIGINT and SIGTERM.
+  exits with it. `LONGER_S` in `tests/e2e.mjs` gives a scenario more than 180 s: S, a game against a bot,
+  has a random length and took 147 s in a parallel run, so it gets 300 s. The runner also kills its workers on SIGINT and SIGTERM.
 - **Topic per run and scenario.** `tests/e2e.mjs` gives each worker `E2E_LOBBY=<runId>-<name>`
   (random run id, so two runs on the same relays do not meet either), and `helpers.mjs` wraps
   `browser.newContext` so every context, in `startGame` or opened directly by a scenario, installs

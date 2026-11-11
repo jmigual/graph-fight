@@ -12,6 +12,9 @@ import { ORDER } from "./e2e/order.mjs";
 const run = promisify(execFile);
 const worker = fileURLToPath(new URL("./e2e-worker.mjs", import.meta.url));
 const SCENARIO_TIMEOUT_S = 180;
+/** Scenarios that may run longer than `SCENARIO_TIMEOUT_S` (seconds): S plays a bot game of random length. */
+const LONGER_S = { S: 300 };
+const timeoutOf = (name) => LONGER_S[name] ?? SCENARIO_TIMEOUT_S;
 const names = [...new Set(process.argv.length > 2 ? process.argv.slice(2) : ORDER)];
 const unknown = names.filter((name) => !ORDER.includes(name));
 if (unknown.length) {
@@ -51,14 +54,14 @@ await Promise.all(
         for (let name; (name = queue.shift()); ) {
             const t0 = Date.now();
             // SIGKILL, not SIGTERM: Playwright's signal handler can leave a hung worker alive.
-            const job = run(process.execPath, [worker, name], { env: { ...process.env, E2E_LOBBY: `${runId}-${name}` }, maxBuffer: 1 << 26, timeout: SCENARIO_TIMEOUT_S * 1000, killSignal: "SIGKILL" });
+            const job = run(process.execPath, [worker, name], { env: { ...process.env, E2E_LOBBY: `${runId}-${name}` }, maxBuffer: 1 << 26, timeout: timeoutOf(name) * 1000, killSignal: "SIGKILL" });
             children.add(job.child);
             try {
                 await job;
                 console.log(`ok   ${name} (${Math.round((Date.now() - t0) / 1000)} s)`);
             } catch (err) {
                 failed++;
-                console.log(`FAIL ${name}: ${err.killed ? `timed out after ${SCENARIO_TIMEOUT_S} s` : `${err.stdout ?? ""}${err.stderr ?? ""}`.trim() || err}`);
+                console.log(`FAIL ${name}: ${err.killed ? `timed out after ${timeoutOf(name)} s` : `${err.stdout ?? ""}${err.stderr ?? ""}`.trim() || err}`);
             }
             children.delete(job.child);
         }
