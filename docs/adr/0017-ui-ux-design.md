@@ -328,9 +328,10 @@ shot, or a redraw of the unchanged shot would end the pen on its final frame.
   and the new crater appear when the pen lands. A newer draw (next message, theme change) cancels
   the running animation and draws the final frame. The animation is display only and gates
   nothing: inputs stay live and the next turn's clock is already running.
-  The one thing it holds back is the end screen: the shot that ends the game plays out first (`draw` returns a promise
-  that settles when the pen lands), because the end screen hides the editor and the board's resize would cut it short.
-  The game is over at once (`ended`, no clock, no Fire); only the result's appearance waits, and not under reduced motion.
+  The one thing it holds back is the end screen: the shot that ends the game plays out first (`draw`
+  returns a promise that settles when the pen lands), because the end screen hides the editor and the
+  board's resize would cut it short. The game is over at once (`ended`, no clock, no Fire, no Leave
+  game); only the result's appearance waits, and not under reduced motion.
 - **Title curve.** In the lobby header, an inline SVG path runs from a team-1 dot to a team-2 dot
   and draws once on load with `stroke-dashoffset`, 900 ms.
 - **Nothing else moves.** No hover transitions, no entrance animations, no pulsing current player.

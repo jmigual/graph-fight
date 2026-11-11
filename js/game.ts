@@ -282,7 +282,8 @@ export function refresh(p: Play): Promise<void> {
     renderStatus({ over: p.over, team, seat, mine, hotSeat: hotSeat(p), hostDown: hostLinkDown(), away: !mine && away.includes(seat), teams: !!p.teams });
     setText($("last-shot"), p.note);
     // The editor goes once every character played here is dead; in team mode the side may play on (ADR 27).
-    const out = !p.over && view.arena.teams.every((t, ti) => t.players.every((pl, j) => !pl.alive || !playsHere(owner(p, p.left, ti, j) ?? "")));
+    const out = view.arena.teams.every((t, ti) => t.players.every((pl, j) => !pl.alive || !playsHere(owner(p, p.left, ti, j) ?? "")));
+    $("quit").hidden = p.over;
     $("shot-form").hidden = out;
     $("out-note").hidden = !out;
     const ours = sideOf(p, me);
