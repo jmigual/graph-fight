@@ -18,7 +18,7 @@ the open games and the host form, must not have to scroll past it.
   the footer link's accessible name starts with its visible text ("GitHub, opens in a new tab").
 - The video is `<video muted loop playsinline controls preload="none" poster="./demo-poster.jpg">`
   with a webm `<source>`, an `aria-label` as its name and the caption (`aria-describedby`), which
-  also says that the clip opens on the lobby and the waiting room. The description beside it is the
+  also says that the clip opens on the lobby and the waiting room and what each round shows. The description beside it is the
   text alternative. `preload="none"` keeps the 500 KB webm out of the lobby's load until someone
   plays it or it scrolls into view; the 55 KB poster loads with the page.
 - `js/about.ts` (imported by `index.ts`, nothing else in it) plays the video when an
@@ -28,9 +28,15 @@ the open games and the host form, must not have to scroll past it.
   remain. A hidden section never intersects, so nothing plays in a game.
 - `scripts/demo-video.mjs` records the clip: it serves `dist/` as e2e does, hosts a solo XY game
   against an Easy bot with the network cut (as e2e scenario S, ADR 21), types and fires two
-  formulas, and writes `static/demo.webm` and `static/demo-poster.jpg`. Run it after
-  `npm run build` when the UI changes enough to date the clip; the files are committed and copied
-  to `dist/` with the rest of `static/`.
+  formulas, and writes `static/demo.webm` and `static/demo-poster.jpg` (or into a folder given as
+  its argument, for a trial run). Run it after `npm run build` when the UI changes enough to date
+  the clip; the files are committed and copied to `dist/` with the rest of `static/`.
+- Pacing: the first clip (about 12 s) went by too fast to follow. The recorder now holds on the
+  lobby for 4 s and on the waiting room for 3.5 s, then on the board for 3 s before the first
+  turn. It types each formula at 220 ms a key, waits 1.5 s before Fire, waits for the pen
+  (up to 1.4 s, ADR 17) and then keeps the result on screen for 2 s. Our shot and the bot's get the
+  same treatment, so the bot's turn (it waits at least 1.5 s before firing, ADR 21) is shown as
+  clearly as ours. The clip is about 35 s; each pause is a constant at the top of the script.
 - Cache: a re-recording keeps the file names, and a browser keeps media past GitHub Pages'
   `max-age=600`, so viewers saw the old clip after 0.8.0. `scripts/build.mjs` rewrites the `src` and
   `poster` in `dist/index.html` to `demo.webm?v=<hash>` and `demo-poster.jpg?v=<hash>` (first 8 hex
@@ -43,8 +49,8 @@ the open games and the host form, must not have to scroll past it.
   pipes them into the ffmpeg that Playwright installs next to its Chromium (found from
   `chromium.executablePath()`; the script fails with a message if it is missing) and encodes
   1920x1080 VP9 with constant quality (`-crf 24`, `-b:v 0`, a keyframe every 10 s). That gives about
-  12 s and 480 KB, under a budget of about 1.5 MB for a lazy-loaded file; the flat board compresses
-  well, so a lower CRF buys little. The bundled ffmpeg has only the VP9, MJPEG and PNG encoders and
+  480 KB for 12 s and about 750 KB for the 35 s paced clip, under a budget of about 1.5 MB for a
+  lazy-loaded file; the flat board compresses well, so a lower CRF buys little. The bundled ffmpeg has only the VP9, MJPEG and PNG encoders and
   an MJPEG decoder, hence the JPEG frames. The poster is a 960x540 (CSS scale) JPEG at quality 80
   (about 56 KB), sharp at 2x on a desktop and 3x on a phone. The 0.7.0 clip was recorded on a
   `GRAPH_FIGHT_LOBBY=live` build, so the footer reads "v 0.7.0" rather than a `-dev+hash` id; the

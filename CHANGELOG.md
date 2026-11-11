@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.0 — 2026-11-11
+- The demo video is slower and easier to follow.
+
 ## 0.8.1 — 2026-11-10
 - The About video always shows the latest recording; browsers no longer keep playing an old copy.
 
