@@ -1,6 +1,6 @@
 // End-to-end scenarios: local players, kicks, and password and private-link games (ADR 22, 23, 24).
 import assert from "node:assert/strict";
-import { SETUP_MS, TURN_WAIT_MS, assertGivesUp, assertSynced, browser, shooter, startGame, state, takeTurn, text, url, watchFrames } from "./helpers.mjs";
+import { SETUP_MS, TURN_WAIT_MS, assertGivesUp, assertSynced, browser, gameOver, shooter, startGame, state, takeTurn, text, url, watchFrames } from "./helpers.mjs";
 
 export const scenarios = {
     async X() {
@@ -13,7 +13,7 @@ export const scenarios = {
         let restored = 0;
         for (let turn = 0; ; turn++) {
             await assertSynced(pages, turn);
-            if (await host.isVisible("#end")) break;
+            if (await gameOver(host)) break;
             assert.ok(turn < 100, "the game ends");
             const { current, arena } = JSON.parse(await state(host));
             const words = current === 1 ? "Local 1's turn" : "Host's turn";

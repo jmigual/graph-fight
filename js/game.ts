@@ -267,14 +267,15 @@ const playsHere = (id: string) => id === me || (hostId === selfId && isLocal(id)
 /** We host a game with local players: several people share this screen, so the host's own turn is named too (ADR 22). */
 const hotSeat = (p: Play) => hostId === selfId && p.peers.some(isLocal);
 
-export function refresh(p: Play) {
+/** Redraws the page for `p`; the promise settles once the board shows its final frame, after a new shot's pen has landed. */
+export function refresh(p: Play): Promise<void> {
     const team = p.sim.get_current_team_idx();
     const seat = shooterOf(p);
     const mine = playsHere(seat);
     const view: View = { field: p.field, frame: p.frame, arena: p.sim.arena(), current: p.over ? null : team, mine, cw: clockwise(), shot: p.shot, shots: new Map(p.shots), looks: new Map(p.looks), absent: absentTeams(p) };
     // A new shot is drawn with a pen on the board as it was, unless motion is reduced (ADR 17).
     const animate = p.view && p.shot && p.shot !== p.view.shot && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
+    const drawn = draw($<HTMLCanvasElement>("arena"), view, animate ? p.view : undefined);
     p.view = view;
     const away = absentSeats(p);
     p.away = String(away);
@@ -291,6 +292,7 @@ export function refresh(p: Play) {
     if (p.teams) renderSides({ arena: view.arena, start: p, left: p.left, me, current: view.current, shooter: seat, absent: away, mine }, host ? (id) => kickSeat(p, id) : undefined);
     else renderRoster(view.arena, p.peers, me, view.current, view.absent, mine, host ? (team) => kickTeam(p, team) : undefined);
     $<HTMLButtonElement>("fire").disabled = p.over || p.pending || !mine || hostLinkDown();
+    return drawn;
 }
 
 /** Host: once confirmed, removes the guest playing `team`; the team is out as after a quit (ADR 23). */
@@ -340,23 +342,33 @@ watchRatio();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
 document.fonts.addEventListener("loadingdone", redraw);
 
+/**
+ * Ends the game now: nothing more is accepted or sent. The end screen hides the editor, which
+ * resizes the board and would cut the shot animation short, so it waits for the last shot's pen to
+ * land (ADR 17); it shows at once when nothing is animating. Display only: the game does not wait.
+ */
 export function end(headline: string, detail = "") {
     if (ended) return;
     ended = true;
     sessionStorage.removeItem(SEAT_KEY);
     cueTurn(null, false);
-    if (play) {
-        play.over = true;
-        clearTimeout(play.clock);
-        refresh(play);
+    const p = play;
+    if (p) {
+        p.over = true;
+        clearTimeout(p.clock);
     }
+    const landed = p ? refresh(p) : Promise.resolve();
     // Leave the room, or the host's next game there would seat this page, and a guest would keep
     // rejoining a gone host (ADR 18). The host stays so its last broadcast is not cut off.
-    if (!play || hostId !== selfId) room?.leave();
-    $("end-message").textContent = headline;
-    $("end-detail").textContent = detail;
-    show(...(play ? ["game", "end"] : ["end"]));
-    $("end-message").focus();
+    if (!p || hostId !== selfId) room?.leave();
+    void landed.then(() => {
+        // Gone back to the lobby meanwhile: there is no game to end.
+        if (play !== p) return;
+        $("end-message").textContent = headline;
+        $("end-detail").textContent = detail;
+        show(...(p ? ["game", "end"] : ["end"]));
+        $("end-message").focus();
+    });
 }
 
 for (const id of ["input-a", "input-b"]) $(id).addEventListener("input", clearError);

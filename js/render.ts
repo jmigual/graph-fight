@@ -220,16 +220,23 @@ export function describeTrial(field: Field, shooter: [number, number], exprs: st
 }
 
 let frame = 0;
+/** Settles the promise of the running animation. */
+let settle = () => {};
 
 /**
  * Draws `view` on `canvas`, which CSS sizes to the arena's ratio. With `before` (the board as it
  * was before the shot), `view.shot` is first drawn with a pen on that board, then the final frame
- * replaces it (ADR 17, section 5). Any later call cancels a running animation.
+ * replaces it (ADR 17, section 5). Any later call cancels a running animation. The promise settles
+ * once the final frame is drawn: when the pen and any kill bursts are done, or when a later call cancels the animation.
  */
-export function draw(canvas: HTMLCanvasElement, view: View, before?: View) {
+export function draw(canvas: HTMLCanvasElement, view: View, before?: View): Promise<void> {
     cancelAnimationFrame(frame);
+    settle();
     const shot = view.shot;
-    if (!before || !shot || shot.points.length < 2) return paint(canvas, view, true);
+    if (!before || !shot || shot.points.length < 2) {
+        paint(canvas, view, true);
+        return Promise.resolve();
+    }
     const points = shot.points;
     const length = [0];
     for (let i = 1; i < points.length; i++) length.push(length[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
@@ -252,19 +259,25 @@ export function draw(canvas: HTMLCanvasElement, view: View, before?: View) {
     let shown = before;
     let burst = 0;
     const start = performance.now();
-    const step = (now: number) => {
-        const t = now - start;
-        if (t >= end) return paint(canvas, view, true);
-        const k = Math.min(1, t / ms);
-        const n = k < 1 ? length.findIndex((l) => l > k * total) : points.length;
-        const gone = burst;
-        while (burst < kills.length && kills[burst].at <= t) burst++;
-        if (burst !== gone) shown = { ...before, arena: withDead(before.arena, kills.slice(0, burst).map((q) => q.key)) };
-        for (let i = 0; i < burst; i++) bursts.set(kills[i].key, Math.min(1, (t - kills[i].at) / BURST_MS));
-        paint(canvas, { ...shown, shot: { ...shot, points: points.slice(0, n) } }, k >= 1, bursts);
-        frame = requestAnimationFrame(step);
-    };
-    step(start);
+    return new Promise((done) => {
+        settle = done;
+        const step = (now: number) => {
+            const t = now - start;
+            if (t >= end) {
+                paint(canvas, view, true);
+                return done();
+            }
+            const k = Math.min(1, t / ms);
+            const n = k < 1 ? length.findIndex((l) => l > k * total) : points.length;
+            const gone = burst;
+            while (burst < kills.length && kills[burst].at <= t) burst++;
+            if (burst !== gone) shown = { ...before, arena: withDead(before.arena, kills.slice(0, burst).map((q) => q.key)) };
+            for (let i = 0; i < burst; i++) bursts.set(kills[i].key, Math.min(1, (t - kills[i].at) / BURST_MS));
+            paint(canvas, { ...shown, shot: { ...shot, points: points.slice(0, n) } }, k >= 1, bursts);
+            frame = requestAnimationFrame(step);
+        };
+        step(start);
+    });
 }
 
 function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean, bursts?: Map<string, number>) {

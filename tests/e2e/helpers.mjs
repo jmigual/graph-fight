@@ -45,6 +45,44 @@ export const comparable = async (page) => {
 };
 
 /**
+ * Records in `window.__penFrames` how many animation frames the shot drawn last had asked for when
+ * the end screen appeared (ADR 17). One frame means the pen was cut off after its first frame; a
+ * shot that plays out asks for one per frame until it lands.
+ */
+export function watchPen(page) {
+    return page.evaluate(() => {
+        const request = window.requestAnimationFrame.bind(window);
+        let inside = false;
+        let frames = 0;
+        window.requestAnimationFrame = (callback) => {
+            // A request from outside a frame starts a new animation.
+            if (!inside) frames = 0;
+            frames++;
+            return request((now) => {
+                inside = true;
+                try {
+                    callback(now);
+                } finally {
+                    inside = false;
+                }
+            });
+        };
+        const end = document.getElementById("end");
+        new MutationObserver(() => end.hidden || (window.__penFrames ??= frames)).observe(end, { attributes: true, attributeFilter: ["hidden"] });
+    });
+}
+
+/**
+ * Whether the game is over, once it has settled: the turn clock shows again (a turn begins) or the
+ * end screen does. The end screen appears when the last shot's pen has landed (ADR 17), later than the
+ * game's state changes.
+ */
+export async function gameOver(page) {
+    await page.waitForFunction(() => !document.getElementById("end").hidden || !document.getElementById("timer").hidden, null, { timeout: TURN_WAIT_MS });
+    return page.isVisible("#end");
+}
+
+/**
  * Counts `page`'s game-room subscriptions (Nostr REQs other than the lobby's) in `page.subscriptions`:
  * joining a room sends them. A subscription is counted once by its id, since some relays make
  * Trystero send the same REQ again. Also keeps the Nostr events the page publishes (lobby listings
