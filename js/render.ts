@@ -44,6 +44,7 @@ const FALLBACK: Record<string, string> = {
     obstacle: "#3A4743",
     mark: "#2347B5",
     danger: "#B42318",
+    blood: "#B3171F",
     face: "#FFD54A",
     "face-line": "#2B2118",
     "team-1": "#C2410C",
@@ -61,6 +62,10 @@ const MATH_FONT = '"STIX Two Text", "Cambria Math", "Times New Roman", serif';
 /** Drawn head radius (CSS px) from which the full face is drawn. */
 const FULL_FACE = 9;
 const LABEL_MAX = 32;
+/** A splat's unit in head radii: the heads are small on a wide board, and the splat must read beside them. */
+const SPLAT_SIZE = 2.2;
+/** How long the burst of a kill takes, from the pen reaching the player (ADR 34). */
+const BURST_MS = 400;
 
 type Colour = (token: string) => string;
 
@@ -74,6 +79,61 @@ export function olderPaths(shots: Map<string, LastShot>, arena: Arena, newest: L
             return shot && shot !== newest && pl.alive ? [shot] : [];
         }),
     );
+}
+
+/** A blob of a splat, in splat units (`SPLAT_SIZE` head radii): its polar position about the player and its own radius. */
+export type Droplet = { angle: number; dist: number; size: number };
+
+/**
+ * The shape of a kill's splat (ADR 34), the same for the same `seed`: a few big blobs near the
+ * player and small droplets flung further out. Display only; the seed is the same on every peer.
+ */
+export function splatShape(seed: number): Droplet[] {
+    // mulberry32: a few lines and enough for a doodle.
+    let a = seed >>> 0;
+    const next = () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return Array.from({ length: 13 }, (_, i) => {
+        const big = i < 5;
+        return {
+            angle: ((i + 0.8 * next()) * 2 * Math.PI) / (big ? 5 : 8),
+            dist: big ? 0.6 + 0.5 * next() : 1.7 + 1.5 * next(),
+            size: big ? 0.5 + 0.3 * next() : 0.15 + 0.25 * next(),
+        };
+    });
+}
+
+const splats = new Map<number, Droplet[]>();
+
+/**
+ * Flat splat of a player of head radius `head` at (`x`, `y`) in `fill`. At `p` = 1 it is the lasting mark;
+ * before that the blobs are on their way out from the player, fast first and settling (ADR 34).
+ */
+function splat(ctx: CanvasRenderingContext2D, fill: string, x: number, y: number, head: number, seed: number, p: number) {
+    const r = SPLAT_SIZE * head;
+    let drops = splats.get(seed);
+    if (!drops) splats.set(seed, (drops = splatShape(seed)));
+    const e = 1 - (1 - p) ** 3;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(x + 1.2 * r * e, y);
+    ctx.arc(x, y, 1.2 * r * e, 0, 2 * Math.PI);
+    for (const d of drops) {
+        const [dx, dy] = [x + r * e * d.dist * Math.cos(d.angle), y - r * e * d.dist * Math.sin(d.angle)];
+        ctx.moveTo(dx + r * d.size, dy);
+        ctx.arc(dx, dy, r * d.size, 0, 2 * Math.PI);
+    }
+    ctx.fill();
+}
+
+/** `arena` with the players in `keys` (`lookKey`s) dead. */
+function withDead(arena: Arena, keys: string[]): Arena {
+    return { ...arena, teams: arena.teams.map((t, ti) => ({ ...t, players: t.players.map((pl, pi) => (keys.includes(lookKey(ti, pi)) ? { ...pl, alive: false } : pl)) })) };
 }
 
 /** Unit vector toward the centre for a player at `pos`: the player frame's +x (XY) or θ = 0 (disc), and the resting gaze. */
@@ -176,18 +236,38 @@ export function draw(canvas: HTMLCanvasElement, view: View, before?: View) {
     const total = length[length.length - 1];
     // Constant pen speed: 700 ms up to the arena's width, at most 1400 ms.
     const ms = 700 * Math.min(2, Math.max(1, total / (2 * view.arena.xMax)));
+    // Players this shot kills burst when the pen first touches them (ADR 34); the last burst may outlast the pen.
+    const kills: { key: string; at: number }[] = [];
+    before.arena.teams.forEach((t, ti) =>
+        t.players.forEach((pl, pi) => {
+            if (!pl.alive || view.arena.teams[ti]?.players[pi]?.alive !== false) return;
+            const { pos, radius } = pl.shape;
+            const i = points.findIndex((q) => Math.hypot(q.x - pos.x, q.y - pos.y) <= radius);
+            kills.push({ key: lookKey(ti, pi), at: i < 0 || total === 0 ? ms : (ms * length[i]) / total });
+        }),
+    );
+    kills.sort((a, b) => a.at - b.at);
+    const end = kills.reduce((m, k) => Math.max(m, k.at + BURST_MS), ms);
+    const bursts = new Map<string, number>();
+    let shown = before;
+    let burst = 0;
     const start = performance.now();
     const step = (now: number) => {
-        const k = (now - start) / ms;
-        if (k >= 1) return paint(canvas, view, true);
-        const n = length.findIndex((l) => l > k * total);
-        paint(canvas, { ...before, shot: { ...shot, points: points.slice(0, n) } }, false);
+        const t = now - start;
+        if (t >= end) return paint(canvas, view, true);
+        const k = Math.min(1, t / ms);
+        const n = k < 1 ? length.findIndex((l) => l > k * total) : points.length;
+        const gone = burst;
+        while (burst < kills.length && kills[burst].at <= t) burst++;
+        if (burst !== gone) shown = { ...before, arena: withDead(before.arena, kills.slice(0, burst).map((q) => q.key)) };
+        for (let i = 0; i < burst; i++) bursts.set(kills[i].key, Math.min(1, (t - kills[i].at) / BURST_MS));
+        paint(canvas, { ...shown, shot: { ...shot, points: points.slice(0, n) } }, k >= 1, bursts);
         frame = requestAnimationFrame(step);
     };
     step(start);
 }
 
-function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
+function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean, bursts?: Map<string, number>) {
     const ctx = canvas.getContext("2d");
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
@@ -235,6 +315,12 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean) {
     }
     paper(ctx, colour, view, at, scale, frame, forward, w, h);
     axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
+    // The splats of the dead, on the ground: over the paper, under the obstacles and the faces; a burst in progress is a smaller, scattering one (ADR 34).
+    for (let ti = 0; ti < arena.teams.length; ti++) {
+        arena.teams[ti].players.forEach((pl, pi) => {
+            if (!pl.alive) splat(ctx, colour("blood"), ...at(pl.shape.pos), pl.shape.radius * scale, ti * 256 + pi, bursts?.get(lookKey(ti, pi)) ?? 1);
+        });
+    }
     ctx.fillStyle = colour("obstacle");
     for (const o of arena.obstacles) {
         circle(...at(o.pos), o.radius * scale);
