@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 — 2026-11-11
+- A player who is killed leaves a splash of blood.
+- The About section shows screenshots of the game.
+- The demo video is slower and easier to follow.
+- The shot that ends a game plays out before the result shows.
+
 ## 0.8.1 — 2026-11-10
 - The About video always shows the latest recording; browsers no longer keep playing an old copy.
 

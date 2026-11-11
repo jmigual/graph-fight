@@ -1,6 +1,6 @@
 // End-to-end scenarios: local players, kicks, and password and private-link games (ADR 22, 23, 24).
 import assert from "node:assert/strict";
-import { SETUP_MS, TURN_WAIT_MS, assertGivesUp, assertSynced, browser, shooter, startGame, state, takeTurn, text, url, watchFrames } from "./helpers.mjs";
+import { SETUP_MS, TURN_WAIT_MS, assertGivesUp, assertSynced, browser, gameOver, shooter, startGame, state, takeTurn, text, url, watchFrames } from "./helpers.mjs";
 
 export const scenarios = {
     async X() {
@@ -13,7 +13,7 @@ export const scenarios = {
         let restored = 0;
         for (let turn = 0; ; turn++) {
             await assertSynced(pages, turn);
-            if (await host.isVisible("#end")) break;
+            if (await gameOver(host)) break;
             assert.ok(turn < 100, "the game ends");
             const { current, arena } = JSON.parse(await state(host));
             const words = current === 1 ? "Local 1's turn" : "Host's turn";
@@ -42,6 +42,26 @@ export const scenarios = {
         }
         assert.match(await text(host, "#end-message"), /^(Host wins|Local 1 wins|Draw)\./);
         assert.ok(restored >= 2, `formulas were restored on later turns (${restored})`);
+        // A killed player leaves a splat in the `--blood` colour around it, once the burst is over (ADR 34).
+        const { arena } = JSON.parse(await state(host));
+        const dead = arena.teams.flatMap((t) => t.players).filter((pl) => !pl.alive);
+        assert.ok(dead.length > 0, "somebody was killed");
+        for (const { shape } of dead) {
+            await host.waitForFunction(
+                ({ xMax, pos, radius }) => {
+                    const canvas = document.getElementById("arena");
+                    const [r, g, b] = (getComputedStyle(document.documentElement).getPropertyValue("--blood").trim().match(/[0-9a-f]{2}/gi) ?? []).map((h) => parseInt(h, 16));
+                    const scale = canvas.width / (2 * xMax);
+                    const reach = Math.ceil(6 * radius * scale);
+                    const [cx, cy] = [Math.round((pos.x + xMax) * scale), Math.round((canvas.height / scale / 2 - pos.y) * scale)];
+                    const box = canvas.getContext("2d").getImageData(Math.max(0, cx - reach), Math.max(0, cy - reach), 2 * reach, 2 * reach).data;
+                    for (let i = 0; i < box.length; i += 4) if (box[i] === r && box[i + 1] === g && box[i + 2] === b) return true;
+                    return false;
+                },
+                { xMax: arena.xMax, pos: shape.pos, radius: shape.radius },
+                { timeout: 5000 },
+            );
+        }
         return errors;
     },
     async Y() {

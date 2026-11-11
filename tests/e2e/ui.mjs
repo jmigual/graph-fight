@@ -72,7 +72,7 @@ export const scenarios = {
     async AL() {
         // The About section sits below the open games and the host form, links the repository (also from the
         // footer), carries a demo video that loads lazily and plays only on screen without reduced motion,
-        // and is gone in a game (ADR 29).
+        // a few lazy screenshots that fit a phone, and is gone in a game (ADR 29).
         const REPO = "https://github.com/jmigual/graph-fight";
         const errors = [];
         // Short, so the video starts below the fold.
@@ -112,6 +112,25 @@ export const scenarios = {
         await calm.locator("#about video").scrollIntoViewIfNeeded();
         await calm.waitForTimeout(1500);
         assert.equal(await calm.evaluate(() => document.querySelector("#about video").paused), true, "reduced motion: no autoplay");
+        // Screenshots below the video: 2 to 4, lazy, each with the lazy attribute, the size, the alt text and a caption,
+        // and a file that decodes. (Chromium loads lazy images near the viewport early, so this cannot show that they wait.)
+        const shots = about.locator("img");
+        const count = await shots.count();
+        assert.ok(count >= 2 && count <= 4, `2 to 4 screenshots, got ${count}`);
+        for (let i = 0; i < count; i++) {
+            const img = shots.nth(i);
+            assert.equal(await img.getAttribute("loading"), "lazy", `screenshot ${i} is lazy`);
+            assert.match((await img.getAttribute("alt")) ?? "", /\S{3}/, `screenshot ${i} has alt text`);
+            for (const attr of ["width", "height"]) assert.match((await img.getAttribute(attr)) ?? "", /^\d+$/, `screenshot ${i} has a ${attr}`);
+            assert.ok((await img.evaluate((el) => el.closest("figure").querySelector("figcaption")?.textContent.trim().length)) > 0, `screenshot ${i} has a caption`);
+            await img.scrollIntoViewIfNeeded();
+            await page.waitForFunction((n) => document.querySelectorAll("#about img")[n].naturalWidth > 0, i);
+        }
+        // At a phone's width nothing scrolls sideways.
+        const phone = await (await browser.newContext({ viewport: { width: 360, height: 700 } })).newPage();
+        await phone.goto(url);
+        for (const img of await phone.locator("#about img").all()) await img.scrollIntoViewIfNeeded();
+        assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, "no horizontal scroll at 360 px");
         // A game hides it with the lobby (solo against a bot, no network needed).
         const game = await startGame(1, "xy", "AL", { bots: ["easy"], offline: true });
         assert.equal(await game.pages[0].isVisible("#about"), false, "hidden in a game");

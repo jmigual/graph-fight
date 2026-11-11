@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml", ".webm": "video/webm" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml", ".webm": "video/webm", ".webp": "image/webp" };
 export const SETUP_MS = 120_000;
 export const TURN_WAIT_MS = 30_000;
 /** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */
@@ -30,12 +30,57 @@ await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 export const url = `http://127.0.0.1:${server.address().port}/`;
 
 export const browser = await chromium.launch({ args: ["--disable-features=WebRtcHideLocalIpsWithMdns"] });
+// Every page of this process lists games on the lobby topic the runner chose for its scenario (ADR 33).
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (options) => {
+    const context = await newContext(options);
+    await context.addInitScript((suffix) => (window.__lobbySuffix = suffix), process.env.E2E_LOBBY);
+    return context;
+};
 
 export const state = (page) => page.evaluate(() => JSON.stringify(window.__state()));
 export const comparable = async (page) => {
     const { me, ...rest } = JSON.parse(await state(page));
     return rest;
 };
+
+/**
+ * Records in `window.__penMs` how long the shot drawn last had been animating when the end screen
+ * appeared (ADR 17): from the pen's first animation frame request to `#end` unhiding. A shot that
+ * plays out takes at least its 700 ms (load only makes it longer); one cut off by the end screen takes
+ * about none.
+ */
+export function watchPen(page) {
+    return page.evaluate(() => {
+        const request = window.requestAnimationFrame.bind(window);
+        let inside = false;
+        let began = 0;
+        window.requestAnimationFrame = (callback) => {
+            // A request from outside a frame starts a new animation.
+            if (!inside) began = performance.now();
+            return request((now) => {
+                inside = true;
+                try {
+                    callback(now);
+                } finally {
+                    inside = false;
+                }
+            });
+        };
+        const end = document.getElementById("end");
+        new MutationObserver(() => end.hidden || (window.__penMs ??= performance.now() - began)).observe(end, { attributes: true, attributeFilter: ["hidden"] });
+    });
+}
+
+/**
+ * Whether the game is over, once it has settled: the turn clock shows again (a turn begins) or the
+ * end screen does. The end screen appears when the last shot's pen has landed (ADR 17), later than the
+ * game's state changes.
+ */
+export async function gameOver(page) {
+    await page.waitForFunction(() => !document.getElementById("end").hidden || !document.getElementById("timer").hidden, null, { timeout: TURN_WAIT_MS });
+    return page.isVisible("#end");
+}
 
 /**
  * Counts `page`'s game-room subscriptions (Nostr REQs other than the lobby's) in `page.subscriptions`:

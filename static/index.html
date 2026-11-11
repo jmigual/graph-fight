@@ -122,10 +122,28 @@
               <p><a href="https://github.com/jmigual/graph-fight" target="_blank" rel="noopener" aria-label="Source code on GitHub, opens in a new tab">Source code on GitHub</a></p>
             </div>
             <figure>
-              <video id="about-video" muted loop playsinline controls preload="none" poster="./demo-poster.jpg" aria-label="Demo: a solo game against a bot" aria-describedby="about-caption">
+              <video id="about-video" muted loop playsinline controls preload="none" poster="./demo-poster.jpg" aria-label="Demo: two players taking turns on one screen" aria-describedby="about-caption">
                 <source src="./demo.webm" type="video/webm">
               </video>
-              <figcaption id="about-caption" class="hint">A solo game against a bot, each side with three characters. The clip opens on the lobby and the waiting room, then plays two turns, each a formula and the shot that follows it.</figcaption>
+              <figcaption id="about-caption" class="hint">Two players at one screen, each side with three characters. The clip opens on the lobby and the waiting room, then plays three turns. In each, the player types a formula and fires, the shot is drawn and its result stays on screen for a moment, and then the other player takes over.</figcaption>
+            </figure>
+          </div>
+          <div class="about-shots">
+            <figure>
+              <img src="./about/game-xy.webp" width="564" height="247" loading="lazy" alt="An XY game: a grid with round obstacles and small faces for the players, two curved shots drawn from a character, the formula box with Fire and a list of the two teams.">
+              <figcaption class="hint">The XY field: your shot follows the formula you type, here a wave, and the last shots stay on the board.</figcaption>
+            </figure>
+            <figure>
+              <img src="./about/game-disc.webp" width="564" height="353" loading="lazy" alt="A polar disc game with four teams: a round board with the players spread over it, curved shots in each team's colour, and the formula editor with a Counterclockwise or Clockwise choice beside it.">
+              <figcaption class="hint">The polar disc, for 2 to 8 players: shots are formulas in θ, fired clockwise or counterclockwise.</figcaption>
+            </figure>
+            <figure>
+              <img src="./about/arena.webp" width="564" height="277" loading="lazy" alt="The test arena: four players and three obstacles placed by hand, two shots drawn, and the player the long red shot hit ringed in red.">
+              <figcaption class="hint">The test arena, offline: place players and obstacles anywhere and try formulas as often as you like.</figcaption>
+            </figure>
+            <figure>
+              <img src="./about/formulas.webp" width="424" height="559" loading="lazy" alt="The saved formulas panel: a Parabola template a*(x - b)^2 with sliders for a and b, their ranges and steps, and the resulting formula below.">
+              <figcaption class="hint">Saved formulas and templates: sliders change a letter in the formula without retyping it.</figcaption>
             </figure>
           </div>
         </section>

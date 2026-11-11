@@ -1,6 +1,6 @@
 // End-to-end scenarios: bots in a game (ADR 21).
 import assert from "node:assert/strict";
-import { SETUP_MS, TURN_WAIT_MS, assertSynced, startGame, state, takeTurn, text } from "./helpers.mjs";
+import { SETUP_MS, TURN_WAIT_MS, assertSynced, gameOver, startGame, state, takeTurn, text, watchPen } from "./helpers.mjs";
 
 export const scenarios = {
     async S() {
@@ -8,12 +8,13 @@ export const scenarios = {
         // page plays the bot, and the game runs to the end.
         const { pages, errors } = await startGame(1, "xy", "S", { bots: ["hard"], offline: true });
         const [host] = pages;
+        await watchPen(host);
         assert.equal(await host.evaluate(() => navigator.onLine), false);
         assert.equal((await host.locator("#roster .id").allInnerTexts())[1], "Bot 1, hard");
         let waited = Infinity;
         for (let turn = 0; ; turn++) {
             await assertSynced(pages, turn);
-            if (await host.isVisible("#end")) break;
+            if (await gameOver(host)) break;
             const ours = JSON.parse(await state(host)).current === 0;
             const t0 = Date.now();
             if (ours) {
@@ -28,6 +29,8 @@ export const scenarios = {
             if (!ours) waited = Math.min(waited, Date.now() - t0);
         }
         assert.match(await text(host, "#end-message"), /^(You win|Team 2 wins|Draw)\./);
+        // The shot that ends the game plays out before the result shows (ADR 17).
+        assert.ok((await host.evaluate(() => window.__penMs)) >= 600, "the last shot's pen lands before the end screen");
         // The end screen shows the result, not the editor: the board and the last shot stay (ADR 17).
         for (const sel of ["#shot-form", "#saved"]) assert.equal(await host.isVisible(sel), false, `${sel} is hidden at the end`);
         for (const sel of ["#arena", "#last-shot"]) assert.equal(await host.isVisible(sel), true, `${sel} stays at the end`);

@@ -2,6 +2,8 @@
 
 Status: Accepted (2026-11-10). Moves code described in 0009, 0015, 0017 and 0025; no behaviour or
 earlier decision changes.
+Amended by 0033: the runner starts each scenario in its own process, `E2E_JOBS` at a time, and
+`ORDER` lives in `tests/e2e/order.mjs`, slowest first.
 
 ## Context
 

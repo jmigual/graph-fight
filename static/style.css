@@ -12,6 +12,7 @@
     --obstacle: #3A4743;
     --mark: #2347B5;
     --danger: #B42318;
+    --blood: #B3171F;
     --face: #FFD54A;
     --face-line: #2B2118;
     --team-1: #C2410C;
@@ -48,6 +49,7 @@
         --obstacle: #7D918A;
         --mark: #F5D547;
         --danger: #FF8C7A;
+        --blood: #F0525A;
         --team-1: #FF9A5C;
         --team-2: #6CB6F2;
         --team-3: #3FD0A0;
@@ -61,6 +63,7 @@
 
 @media (min-width: 600px) {
     :root { --gutter: 24px; }
+    .about-shots { columns: 2; column-gap: 1.5rem; }
 }
 
 @media (pointer: coarse) {
@@ -215,6 +218,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 #about figure { margin: 0; min-width: 0; }
 #about video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--grid-major); border-radius: 4px; background: var(--paper); }
 #about figcaption { margin-top: 0.5rem; }
+/* Light-theme screenshots (ADR 17) in a border and rounded corners, as the video, so they also sit well on the dark page. */
+.about-shots { margin-top: 2rem; }
+#about .about-shots figure { margin: 0 0 1.5rem; break-inside: avoid; }
+.about-shots img { display: block; max-width: 100%; height: auto; border: 1px solid var(--grid-major); border-radius: 4px; }
 
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 th { text-align: left; font-weight: 700; border-bottom: 2px solid var(--ink); }
