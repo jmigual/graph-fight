@@ -13,9 +13,13 @@ wire messages or the turn state (ADR 2, 7).
 
 - **Look.** A splat is flat red circles in the new `--blood` token (light `#B3171F`, dark
   `#F0525A`, next to `--danger`; `FALLBACK` in `render.ts` holds the light one): a blob over the
-  player, five big blobs close to it and eight small droplets further out, at 2.2 head radii per splat unit so they read beside a small
-  head. It is drawn with the static board, over the grid and obstacles, under the shots and faces,
-  so the dead player's face sits on it. A shot's pen and label stay on top.
+  player, five big blobs close to it and eight small droplets further out, at 2.2 head radii per
+  splat unit so they read beside a small head. It is drawn with the static board as a stain on the
+  ground: over the paper, grid and axes, under the obstacles, shots and faces (layer 2a of
+  ADR 17), so the dead player's face sits on it and a shot's pen and label stay on top.
+  `--blood` is 6.2:1 on the light paper and 3.8:1 on the dark one, but only 1.41:1 and 1.04:1
+  against `--obstacle`, which is why an obstacle covers a splat instead of the splat covering it.
+  A splat next to an obstacle is partly hidden by it, and a crater's repaint clears it too; that is accepted.
 - **Lasting mark.** `paint` draws a splat under every dead player on every frame (no state).
   A rejoin replay, a redraw, the end screen and reduced motion all show the marks and animate nothing.
 - **Burst.** When `draw` animates a shot, each player alive in the previous view and dead in the new

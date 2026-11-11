@@ -52,7 +52,7 @@ and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `
 `#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
 "2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
 Amended by 0032: `2a` is no longer refused on save; substitution writes `2(1.5)` (section 8).
-Amended by 0034: `--blood` colours the splat a killed player leaves on the board (section 4).
+Amended by 0034: `--blood` colours the splat a killed player leaves on the board (sections 2 and 4, layer 2a).
 
 ## Context
 
@@ -126,6 +126,7 @@ the scheme changes (`matchMedia(...).onchange`).
 | `--obstacle` | `#3A4743` | `#7D918A` | obstacles (graphite / chalk) | 8.7 / 4.0 |
 | `--mark` | `#2347B5` | `#F5D547` | focus ring, `accent-color` (pen blue / chalk yellow) | 7.1 / 9.2 |
 | `--danger` | `#B42318` | `#FF8C7A` | error text, timer under 10 s | 5.9 / 5.9 |
+| `--blood` | `#B3171F` | `#F0525A` | the splat of a killed player (ADR 34): a shape, not text | 6.2 / 3.8 |
 | `--face` | `#FFD54A` | `#FFD54A` | emoji head fill, same in both themes | 1.3 / 9.4 |
 | `--face-line` | `#2B2118` | `#2B2118` | head and cap outline, eyes, mouth | 14.1 on paper, 11.2 on `--face` |
 
@@ -183,6 +184,9 @@ Layering, back to front:
    soon as the toggle changes. Other players do not know the direction before the shot, so their
    screens show only the `θ = 0` axis. When there is no current shooter (game over), the grid is
    drawn in the world frame from the centre.
+2a. **Splats** (ADR 34): the flat red marks of the dead, in `--blood`, over the paper and grid and
+   under the obstacles, so an obstacle covers them like a stain on the ground; a crater's repaint
+   (layer 4) clears them too.
 3. **Obstacles** filled with `--obstacle` ("pencil shading").
 4. **Craters** are "erased". Each crater is clipped and layers 1 and 2 are repainted inside it, so
    the grid shows through the hole.
