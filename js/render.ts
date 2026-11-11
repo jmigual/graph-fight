@@ -315,6 +315,12 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean, bursts?
     }
     paper(ctx, colour, view, at, scale, frame, forward, w, h);
     axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
+    // The splats of the dead, on the ground: over the paper, under the obstacles and the faces; a burst in progress is a smaller, scattering one (ADR 34).
+    for (let ti = 0; ti < arena.teams.length; ti++) {
+        arena.teams[ti].players.forEach((pl, pi) => {
+            if (!pl.alive) splat(ctx, colour("blood"), ...at(pl.shape.pos), pl.shape.radius * scale, ti * 256 + pi, bursts?.get(lookKey(ti, pi)) ?? 1);
+        });
+    }
     ctx.fillStyle = colour("obstacle");
     for (const o of arena.obstacles) {
         circle(...at(o.pos), o.radius * scale);
@@ -333,12 +339,6 @@ function paint(canvas: HTMLCanvasElement, view: View, labelled: boolean, bursts?
         paper(ctx, colour, view, at, scale, frame, forward, w, h);
         axes(ctx, colour, text, rem, view, at, scale, frame, forward, w, h);
         ctx.restore();
-    }
-    // The splats of the dead, under their faces; a burst in progress is a smaller, scattering one (ADR 34).
-    for (let ti = 0; ti < arena.teams.length; ti++) {
-        arena.teams[ti].players.forEach((pl, pi) => {
-            if (!pl.alive) splat(ctx, colour("blood"), ...at(pl.shape.pos), pl.shape.radius * scale, ti * 256 + pi, bursts?.get(lookKey(ti, pi)) ?? 1);
-        });
     }
     ctx.restore();
 

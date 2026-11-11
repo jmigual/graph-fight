@@ -80,5 +80,9 @@ for (const seed of [0, 1, 255, 256, 2047]) {
     assert.ok(drops.length > 0);
     for (const d of drops) assert.ok(Number.isFinite(d.angle) && d.dist > 0 && d.dist <= 3.2 && d.size > 0 && d.size <= 0.8, `droplet within bounds (seed ${seed})`);
 }
+// The seeds the board uses, team * 256 + player, are distinct for any two players.
+const seeds = new Set();
+for (let team = 0; team < 8; team++) for (let player = 0; player < 8; player++) seeds.add(team * 256 + player);
+assert.equal(seeds.size, 64);
 
 console.log("render tests ok");
