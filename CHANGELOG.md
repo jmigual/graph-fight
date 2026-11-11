@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.9.0 — 2026-11-11
+- The About section shows screenshots of the game.
 - The demo video is slower and easier to follow.
 
 ## 0.8.1 — 2026-11-10

@@ -55,6 +55,23 @@ the open games and the host form, must not have to scroll past it.
   (about 56 KB), sharp at 2x on a desktop and 3x on a phone. The 0.7.0 clip was recorded on a
   `GRAPH_FIGHT_LOBBY=live` build, so the footer reads "v 0.7.0" rather than a `-dev+hash` id; the
   network is cut, so the lobby topic does not matter.
+- Screenshots: below the description and video, `<div class="about-shots">` holds four figures, each
+  with a caption and an alt text that says what is on screen: the XY game, the polar disc game, the
+  test arena and the saved formulas with their sliders. They are `<img loading="lazy">` with
+  `width` and `height` set, so nothing shifts. They are light-theme only (ADR 17), so each has the
+  1 px `--grid-major` border and 4 px corners of the video, which makes them read as framed
+  pictures on the dark page too. The container is one column on a phone and two CSS columns from 600
+  px, so figures of different heights pack without gaps; an image never exceeds its container or
+  its `width`, so nothing scrolls sideways from 320 px up.
+- Image files: the README PNGs are 2x and large (60 to 460 KB), so the page serves WebP copies in
+  `static/about/`, 2x the CSS width it shows (1128 px for the three landscape ones, 848 px for the
+  portrait formulas panel), at quality 0.85: 26 to 46 KB each, 140 KB for the four.
+  Playwright's screenshots are PNG or JPEG only and the machine has no `cwebp` or ImageMagick, so
+  `scripts/screenshots.mjs about` (also part of a run with no names) reads the four PNGs in
+  `docs/img` and has Chromium scale and encode them on an `OffscreenCanvas`. It needs no relays, so it
+  also runs alone on the PNGs already committed, and the copies follow the README images. The
+  files are committed. `VERSIONED_MEDIA` lists them, so the built page names them `?v=<hash>` like the
+  video.
 - Styles use the ADR 17 tokens only. The section is one column on a phone and two from 960 px (text
   and video); the video scales to its container, with a 16:9 box so the layout does not jump when it
   loads.
@@ -68,5 +85,7 @@ the open games and the host form, must not have to scroll past it.
   re-run gives a different clip.
 - The video's first seconds show the lobby, then the waiting room, then the game: it records the
   whole flow from page load, as the recorder does not trim it.
+- `dist/` grows by another 140 KB of images, fetched only as they near the screen.
 - e2e AL checks the section's place and visibility, the repository link and the video's poster
-  and `preload`; it does not play the video.
+  and `preload`, that there are 2 to 4 screenshots, each lazy and with alt text,
+  size and caption, that they load when scrolled to and that nothing scrolls sideways at 360 px; it does not play the video.

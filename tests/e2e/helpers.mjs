@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const DIST = resolve(fileURLToPath(new URL("../../dist", import.meta.url)));
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml", ".webm": "video/webm" };
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml", ".webm": "video/webm", ".webp": "image/webp" };
 export const SETUP_MS = 120_000;
 export const TURN_WAIT_MS = 30_000;
 /** A dropped guest's watchdog rejoins after 25 s (ADR 18), plus time for the new signalling exchange. */

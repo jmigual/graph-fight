@@ -61,6 +61,7 @@
 
 @media (min-width: 600px) {
     :root { --gutter: 24px; }
+    .about-shots { columns: 2; column-gap: 1.5rem; }
 }
 
 @media (pointer: coarse) {
@@ -215,6 +216,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 #about figure { margin: 0; min-width: 0; }
 #about video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--grid-major); border-radius: 4px; background: var(--paper); }
 #about figcaption { margin-top: 0.5rem; }
+/* Light-theme screenshots (ADR 17) in a border and rounded corners, as the video, so they also sit well on the dark page. */
+.about-shots { margin-top: 2rem; }
+#about .about-shots figure { margin: 0 0 1.5rem; break-inside: avoid; }
+.about-shots img { display: block; max-width: 100%; height: auto; border: 1px solid var(--grid-major); border-radius: 4px; }
 
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 th { text-align: left; font-weight: 700; border-bottom: 2px solid var(--ink); }
