@@ -15,8 +15,11 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const DIST = resolve(root, "dist");
 const OUT = resolve(root, "docs/img");
 const ABOUT_OUT = resolve(root, "static/about");
-/** The README images the About section shows, with the CSS width each has there; the copy is 2x that wide. */
-const ABOUT = { "game-xy": 564, "game-disc": 564, "formulas": 424, arena: 564 };
+/**
+ * The README images the About section shows, with the CSS width each has there (the copy is 2x that wide)
+ * and, where the PNG's last pixel rows show the top of the next element, the rows of the PNG to keep.
+ */
+const ABOUT = { "game-xy": { width: 564 }, "game-disc": { width: 564 }, formulas: { width: 424, rows: 1118 }, arena: { width: 564, rows: 1256 } };
 const ABOUT_QUALITY = 0.85;
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm", ".png": "image/png", ".css": "text/css", ".svg": "image/svg+xml" };
 /** Every context is light, so no image can show the dark theme. Rendered at 2x so they are sharp on GitHub. */
@@ -144,21 +147,22 @@ async function arena() {
     await page.context().close();
 }
 
-/** Scales the PNG `name` to `2 * width` pixels and encodes it as WebP, which Chromium's canvas can do and its screenshots cannot. */
-async function webp(name, width) {
+/** Scales the top `rows` of the PNG `name` to `2 * width` pixels wide and encodes it as WebP, which Chromium's canvas can do and its screenshots cannot. */
+async function webp(name, { width, rows }) {
     const page = await browser.newPage();
     const png = (await readFile(`${OUT}/${name}.png`)).toString("base64");
-    const copy = await page.evaluate(async ([data, w, quality]) => {
+    const copy = await page.evaluate(async ([data, w, keep, quality]) => {
         const img = new Image();
         img.src = `data:image/png;base64,${data}`;
         await img.decode();
-        const canvas = new OffscreenCanvas(2 * w, Math.round((2 * w * img.height) / img.width));
+        const h = keep ?? img.height;
+        const canvas = new OffscreenCanvas(2 * w, Math.round((2 * w * h) / img.width));
         const ctx = canvas.getContext("2d");
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, img.width, h, 0, 0, canvas.width, canvas.height);
         const blob = await canvas.convertToBlob({ type: "image/webp", quality });
         return { size: [canvas.width, canvas.height], data: btoa(Array.from(new Uint8Array(await blob.arrayBuffer()), (b) => String.fromCharCode(b)).join("")) };
-    }, [png, width, ABOUT_QUALITY]);
+    }, [png, width, rows, ABOUT_QUALITY]);
     await page.close();
     writeFileSync(`${ABOUT_OUT}/${name}.webp`, Buffer.from(copy.data, "base64"));
     console.log(`about/${name}.webp ${copy.size.join("x")} (shown at ${width}x${Math.round(copy.size[1] / 2)}) ${Buffer.from(copy.data, "base64").length} bytes`);
@@ -219,7 +223,7 @@ const shots = {
     arena,
     async about() {
         mkdirSync(ABOUT_OUT, { recursive: true });
-        for (const [name, width] of Object.entries(ABOUT)) await webp(name, width);
+        for (const [name, options] of Object.entries(ABOUT)) await webp(name, options);
     },
 };
 
