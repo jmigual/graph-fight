@@ -30,7 +30,7 @@ export const scenarios = {
         }
         assert.match(await text(host, "#end-message"), /^(You win|Team 2 wins|Draw)\./);
         // The shot that ends the game plays out before the result shows (ADR 17).
-        assert.ok((await host.evaluate(() => window.__penFrames)) > 1, "the last shot's pen lands before the end screen");
+        assert.ok((await host.evaluate(() => window.__penMs)) >= 600, "the last shot's pen lands before the end screen");
         // The end screen shows the result, not the editor: the board and the last shot stay (ADR 17).
         for (const sel of ["#shot-form", "#saved"]) assert.equal(await host.isVisible(sel), false, `${sel} is hidden at the end`);
         for (const sel of ["#arena", "#last-shot"]) assert.equal(await host.isVisible(sel), true, `${sel} stays at the end`);

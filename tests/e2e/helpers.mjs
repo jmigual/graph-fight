@@ -45,19 +45,19 @@ export const comparable = async (page) => {
 };
 
 /**
- * Records in `window.__penFrames` how many animation frames the shot drawn last had asked for when
- * the end screen appeared (ADR 17). One frame means the pen was cut off after its first frame; a
- * shot that plays out asks for one per frame until it lands.
+ * Records in `window.__penMs` how long the shot drawn last had been animating when the end screen
+ * appeared (ADR 17): from the pen's first animation frame request to `#end` unhiding. A shot that
+ * plays out takes at least its 700 ms (load only makes it longer); one cut off by the end screen takes
+ * about none.
  */
 export function watchPen(page) {
     return page.evaluate(() => {
         const request = window.requestAnimationFrame.bind(window);
         let inside = false;
-        let frames = 0;
+        let began = 0;
         window.requestAnimationFrame = (callback) => {
             // A request from outside a frame starts a new animation.
-            if (!inside) frames = 0;
-            frames++;
+            if (!inside) began = performance.now();
             return request((now) => {
                 inside = true;
                 try {
@@ -68,7 +68,7 @@ export function watchPen(page) {
             });
         };
         const end = document.getElementById("end");
-        new MutationObserver(() => end.hidden || (window.__penFrames ??= frames)).observe(end, { attributes: true, attributeFilter: ["hidden"] });
+        new MutationObserver(() => end.hidden || (window.__penMs ??= performance.now() - began)).observe(end, { attributes: true, attributeFilter: ["hidden"] });
     });
 }
 
