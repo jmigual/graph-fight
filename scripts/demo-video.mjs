@@ -1,5 +1,5 @@
-// Records the About section's demo video (ADR 29): a solo game against an Easy bot on the built
-// dist/, with the network cut as in e2e scenario S. Needs `npm run build` first, Playwright's
+// Records the About section's demo video (ADR 29): a hot-seat game of two players on one screen
+// on the built dist/ (Add local player, ADR 22), with the network cut as in e2e scenario S. Needs `npm run build` first, Playwright's
 // Chromium and the ffmpeg that `npx playwright install` puts next to it. Writes static/demo.webm
 // and static/demo-poster.jpg, or into the folder given as the argument.
 // Run: node scripts/demo-video.mjs [out-dir]
@@ -26,9 +26,9 @@ const FRAME_QUALITY = 92;
 const POSTER_QUALITY = 80;
 const OUT = resolve(root, process.argv[2] ?? "static");
 /** How long, in ms, the viewer gets to take in each step. */
-const READ_LOBBY = 4000;
-const READ_ROOM = 3500;
-const READ_BOARD = 3000;
+const READ_LOBBY = 3500;
+const READ_ROOM = 3000;
+const READ_BOARD = 2500;
 /** Between keystrokes of a formula, and between the typed formula and Fire. */
 const TYPING = 220;
 const BEFORE_FIRE = 1500;
@@ -92,35 +92,29 @@ await pause(page, READ_LOBBY);
 await page.selectOption("#host-field", "xy");
 await page.click("#host-form button[type=submit]");
 await pause(page, 1500);
-await page.selectOption("#bot-level", "easy");
-await page.click("#add-bot");
+await page.click("#add-local");
 await pause(page, READ_ROOM);
 await page.click("#start");
 await page.waitForSelector("#game:not([hidden])");
 await pause(page, READ_BOARD);
 
-/** Waits until the game is past `turn`, then for the shot drawn by that turn to finish and its result to be read. */
-const watchShot = async (turn) => {
-    await page.waitForFunction((t) => window.__state().turn > t || !document.getElementById("end").hidden, turn);
-    await pause(page, SHOT_ANIMATION + READ_RESULT);
-};
-
+// Both players are ours, so every pause is the recorder's: the other player's turn starts only after
+// the result of a shot has been on screen for READ_RESULT (a bot fires 1.5 s after its turn starts,
+// ADR 21, which would cover the result).
 let poster;
-for (const formula of ["3*sin(x/2)", "x/3 + sin(x)"]) {
-    // Our turn: the game may be over already.
+for (const formula of ["3*sin(x/2)", "x/3 + sin(x)", "-0.04*x^2 + 1.2*x"]) {
     await page.waitForSelector("#fire:enabled, #end:not([hidden])");
     if (await page.isVisible("#end")) break;
     const turn = await page.evaluate(() => window.__state().turn);
-    // The editor holds our previous formula on our next turn (ADR 17).
+    // The editor holds the previous shooter's formula (ADR 17, ADR 22).
     await page.fill("#input-a", "");
     await page.locator("#input-a").pressSequentially(formula, { delay: TYPING });
     await pause(page, BEFORE_FIRE);
     await page.click("#fire");
-    await watchShot(turn);
+    await page.waitForFunction((t) => window.__state().turn > t || !document.getElementById("end").hidden, turn);
+    // The turn has passed on; the pen draws the shot, then its result stays on screen.
+    await pause(page, SHOT_ANIMATION + READ_RESULT);
     poster ??= await page.screenshot({ type: "jpeg", quality: POSTER_QUALITY, scale: "css" });
-    // The bot's turn: it waits at least 1.5 s before it fires, and its shot is drawn the same way.
-    if (await page.isVisible("#end")) break;
-    await watchShot(turn + 1);
 }
 if (!poster) throw new Error("The game ended before our first shot, so there is no poster frame. Run it again.");
 

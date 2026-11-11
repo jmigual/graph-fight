@@ -112,7 +112,8 @@ export const scenarios = {
         await calm.locator("#about video").scrollIntoViewIfNeeded();
         await calm.waitForTimeout(1500);
         assert.equal(await calm.evaluate(() => document.querySelector("#about video").paused), true, "reduced motion: no autoplay");
-        // Screenshots below the video: 2 to 4, lazy, with the size and the alt text, and they load once scrolled to.
+        // Screenshots below the video: 2 to 4, lazy, each with the lazy attribute, the size, the alt text and a caption,
+        // and a file that decodes. (Chromium loads lazy images near the viewport early, so this cannot show that they wait.)
         const shots = about.locator("img");
         const count = await shots.count();
         assert.ok(count >= 2 && count <= 4, `2 to 4 screenshots, got ${count}`);
