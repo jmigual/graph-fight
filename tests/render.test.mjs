@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types --no-warnings tests/render.test.mjs
 import assert from "node:assert/strict";
-import { describeTrial, lookAfterShot, lookKey, olderPaths, pickAt, playerName, shotLabel, shotText, toWorld } from "../js/render.ts";
+import { describeTrial, lookAfterShot, lookKey, olderPaths, pickAt, playerName, shotLabel, shotText, splatShape, toWorld } from "../js/render.ts";
 
 const line = (from, dx, dy, n = 40) => Array.from({ length: n }, (_, i) => ({ x: from.x + dx * i * 0.05, y: from.y + dy * i * 0.05 }));
 
@@ -71,5 +71,14 @@ assert.equal(
     "Team 1 player 1 fired r = θ, clockwise. It hit Team 2 player 1, Team 1 player 2 and Team 2 player 3. It stopped in obstacles 3 and 5.",
 );
 assert.match(describeTrial("disc", [0, 0], ["-t", "0"], false, [], []), /r = -t, θ = 0, counterclockwise\. It hit no player\.$/);
+
+// A kill's splat (ADR 34): the same for the same seed, different for another, and within bounds.
+assert.deepEqual(splatShape(3 * 256 + 1), splatShape(3 * 256 + 1), "every peer draws the same splat");
+assert.notDeepEqual(splatShape(0), splatShape(1));
+for (const seed of [0, 1, 255, 256, 2047]) {
+    const drops = splatShape(seed);
+    assert.ok(drops.length > 0);
+    for (const d of drops) assert.ok(Number.isFinite(d.angle) && d.dist > 0 && d.dist <= 3.2 && d.size > 0 && d.size <= 0.8, `droplet within bounds (seed ${seed})`);
+}
 
 console.log("render tests ok");
