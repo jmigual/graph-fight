@@ -52,6 +52,7 @@ and "1 character each" when not 3 (section 6). The host form has `#host-mode`, `
 `#host-team-size` and `#host-characters`, hidden while disabled like `#host-seats`; a lobby row adds
 "2 teams of 2", each side's "Team 2: 1 open", and "1 character each" unless 3 (section 6).
 Amended by 0032: `2a` is no longer refused on save; substitution writes `2(1.5)` (section 8).
+Amended by 0034: `--blood` colours the splat a killed player leaves on the board (section 4).
 
 ## Context
 
