@@ -21,7 +21,9 @@ wire messages or the turn state (ADR 2, 7).
   against `--obstacle`, which is why an obstacle covers a splat instead of the splat covering it.
   A splat next to an obstacle is partly hidden by it, and a crater's repaint clears it too; that is accepted.
 - **Lasting mark.** `paint` draws a splat under every dead player on every frame (no state).
-  A rejoin replay, a redraw, the end screen and reduced motion all show the marks and animate nothing.
+  A rejoin replay, a redraw and reduced motion show the marks and animate nothing. The end screen
+  waits for the animation of the shot that ends the game, bursts included (ADR 17, section 5), then
+  shows the marks.
 - **Burst.** When `draw` animates a shot, each player alive in the previous view and dead in the new
   one is a kill. The pen's first point within its radius starts a 400 ms burst: the same blobs move
   out from the player (fast, then settling) and end exactly as the lasting mark, which takes over.
